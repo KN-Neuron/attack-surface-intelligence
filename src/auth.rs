@@ -32,7 +32,7 @@ pub const PERMISSION_PAGES: [PermissionPage; 9] = [
     PermissionPage { key: "compare", label: "Compare Scans" },
     PermissionPage { key: "host_management", label: "Host management" },
     PermissionPage { key: "data_explorer", label: "Data Explorer" },
-    PermissionPage { key: "scan_history", label: "Scan History" },
+    PermissionPage { key: "scan_history", label: "Scan Results" },
     PermissionPage { key: "admin_management", label: "Admin management" },
     PermissionPage { key: "settings", label: "Settings" },
 ];

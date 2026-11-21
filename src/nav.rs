@@ -39,7 +39,6 @@ pub const SCAN_SUMMARY: &str = "/dashboards/scan-summary";
 pub const TECHNOLOGIES: &str = "/dashboards/technologies-used";
 pub const VULNERABLE: &str = "/dashboards/vulnerable-versions";
 pub const HOST_MANAGEMENT: &str = "/host-management";
-pub const HOST_GROUPS: &str = "/host-management/groups";
 pub const DATA_EXPLORER: &str = "/log-center/data-explorer";
 pub const SCAN_HISTORY: &str = "/log-center/scan-history";
 pub const ADMIN_MANAGEMENT: &str = "/admin-management";
@@ -51,25 +50,20 @@ pub fn main_nav() -> SidebarDef {
         title: "Visibly",
         icon: "shield",
         groups: vec![
-            group("Dashboards", "bar-chart", vec![
-                item("Scan summary", SCAN_SUMMARY, "bar-chart"),
-                item("Technologies used", TECHNOLOGIES, "grid"),
-                item("Vulnerable versions", VULNERABLE, "shield"),
-            ]),
             group("Scanning", "scan", vec![
                 item("Scan Management", SCANNING_MANAGEMENT, "activity"),
                 item("Scan Scheduling", SCANNING_POLICIES, "sliders"),
+                item("Scan Results", SCAN_HISTORY, "file-text"),
                 item("Compare Scans", SCAN_COMPARE, "git-compare"),
             ]),
-            group("Log Center", "file-text", vec![
-                item("Data Explorer", DATA_EXPLORER, "activity"),
-                item("Scan History", SCAN_HISTORY, "file-text"),
-            ]),
-            group("Host management", "server", vec![
-                item("Host inventory", HOST_MANAGEMENT, "server"),
-                item("Host groups", HOST_GROUPS, "layers"),
+            group("Dashboards", "bar-chart", vec![
+                item("Latest Scan summary", SCAN_SUMMARY, "bar-chart"),
+                item("Technologies used", TECHNOLOGIES, "grid"),
+                item("Vulnerable versions", VULNERABLE, "shield"),
             ]),
             plain(vec![
+                item("Host management", HOST_MANAGEMENT, "server"),
+                item("Data Explorer", DATA_EXPLORER, "file-text"),
                 item("Admin management", ADMIN_MANAGEMENT, "user-cog"),
                 item("Settings", SETTINGS, "settings"),
             ]),
