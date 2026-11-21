@@ -1432,6 +1432,9 @@
     try { scans = JSON.parse(scanDataEl.textContent || "[]"); } catch (_) {}
     var selected = { a: scans[0] || null, b: scans[1] || null };
     var pickTarget = null;
+    var ICON_UP = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5V3.9M4.5 7.4L8 3.9l3.5 3.5"/></svg>';
+    var ICON_DOWN = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5v8.6M4.5 8.6L8 12.1l3.5-3.5"/></svg>';
+    var ICON_SAME = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3.6 8h8.8"/></svg>';
 
     var slotName = function (slot) { return document.getElementById("slot-" + slot + "-name"); };
     var slotDate = function (slot) { return document.getElementById("slot-" + slot + "-date"); };
@@ -1473,13 +1476,19 @@
         var av = a[m.key] || 0;
         var bv = b[m.key] || 0;
         var delta = bv - av;
-        var good = m.invert ? delta <= 0 : delta >= 0;
-        var cls = delta === 0 ? "" : (good ? "delta-up" : "delta-down");
-        var text = delta === 0 ? "No change" : (delta > 0 ? "+" + delta : String(delta));
-        return "<tr><td class='strong-cell'>" + m.label + "</td>" +
-          "<td class='right'>" + av + "</td>" +
-          "<td class='right'>" + bv + "</td>" +
-          "<td class='right " + cls + "'>" + text + "</td></tr>";
+        var state = delta === 0 ? "same" : ((m.invert ? delta < 0 : delta > 0) ? "better" : "worse");
+        var icon = delta === 0 ? ICON_SAME : (delta > 0 ? ICON_UP : ICON_DOWN);
+        var sign = delta > 0 ? "+" : "";
+        var pct = av > 0 && delta !== 0
+          ? "(" + (delta > 0 ? "+" : "") + (delta / av * 100).toFixed(1) + "%)"
+          : "";
+        return "<tr class='compare-row row-" + state + "'>" +
+          "<td class='strong-cell'>" + m.label + "</td>" +
+          "<td class='right mono'>" + av + "</td>" +
+          "<td class='right mono'>" + bv + "</td>" +
+          "<td class='right'><div class='compare-change'>" +
+            "<span class='delta-pill delta-" + state + "'>" + icon + sign + delta + "</span>" +
+            "<span class='delta-pct'>" + pct + "</span></div></td></tr>";
       }).join("");
       if (note) note.textContent = a.label + " vs " + b.label;
     };
