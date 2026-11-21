@@ -1598,6 +1598,23 @@ html.nav-collapsed .sidebar .nav-item:not(.root) { display: none; }
 
 .row-actions { display: inline-flex; align-items: center; gap: 14px; justify-content: flex-end; }
 .row-actions .link-btn { white-space: nowrap; }
+.link-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.link-btn:disabled:hover { text-decoration: none; }
+
+.tag-default {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 3px;
+  border: 1px solid rgba(74, 168, 255, 0.3);
+  background: rgba(74, 168, 255, 0.1);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
 
 .link-btn {
   display: inline-flex;

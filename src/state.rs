@@ -48,6 +48,9 @@ pub struct Admin {
     pub role: String,
     pub status: String,
     pub last_login: String,
+    /// The built-in default administrator. It is always present and cannot be
+    /// edited or disabled.
+    pub is_default: bool,
 }
 
 pub const SCAN_TARGETS: [&str; 12] = [
@@ -231,8 +234,7 @@ impl AppState {
         state.add_group("Perimeter DMZ".into(), vec!["10.0.0.0/24".into()], vec!["35.159.0.131".into()]);
         state.add_group("Core services".into(), vec!["10.0.4.0/24".into(), "10.0.5.0/24".into()], vec![]);
 
-        state.add_admin("Dawid Janikowski".into(), "dawid@asi.example".into(), "Super Admin".into());
-        state.add_admin("Marta Kowalska".into(), "marta@asi.example".into(), "Analyst".into());
+        state.add_default_admin("Default Administrator".into(), "admin@asi.local".into());
 
         state
     }
@@ -331,6 +333,14 @@ impl AppState {
     }
 
     pub fn add_admin(&mut self, name: String, email: String, role: String) -> Admin {
+        self.push_admin(name, email, role, false)
+    }
+
+    fn add_default_admin(&mut self, name: String, email: String) -> Admin {
+        self.push_admin(name, email, "Super Admin".into(), true)
+    }
+
+    fn push_admin(&mut self, name: String, email: String, role: String, is_default: bool) -> Admin {
         let admin = Admin {
             id: self.next_admin_id,
             name,
@@ -338,6 +348,7 @@ impl AppState {
             role,
             status: "Active".into(),
             last_login: "Never".into(),
+            is_default,
         };
         self.next_admin_id += 1;
         self.admins.push(admin.clone());
@@ -353,6 +364,9 @@ impl AppState {
         status: String,
     ) -> Option<Admin> {
         let admin = self.admins.iter_mut().find(|a| a.id == id)?;
+        if admin.is_default {
+            return None;
+        }
         admin.name = name;
         admin.email = email;
         admin.role = role;
@@ -362,12 +376,19 @@ impl AppState {
 
     pub fn toggle_admin(&mut self, id: u32) -> Option<Admin> {
         let admin = self.admins.iter_mut().find(|a| a.id == id)?;
+        if admin.is_default {
+            return None;
+        }
         admin.status = if admin.status == "Active" {
             "Disabled".into()
         } else {
             "Active".into()
         };
         Some(admin.clone())
+    }
+
+    pub fn is_default_admin(&self, id: u32) -> bool {
+        self.admins.iter().any(|a| a.id == id && a.is_default)
     }
 }
 

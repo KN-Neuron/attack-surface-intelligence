@@ -501,6 +501,9 @@ pub async fn update_admin(
 ) -> Result<Json<Admin>, StatusCode> {
     let role = if payload.role.is_empty() { "Analyst".to_string() } else { payload.role };
     let mut guard = state.lock().unwrap();
+    if guard.is_default_admin(id) {
+        return Err(StatusCode::FORBIDDEN);
+    }
     guard
         .update_admin(id, payload.name, payload.email, role, payload.status)
         .map(Json)
@@ -512,6 +515,9 @@ pub async fn toggle_admin(
     Path(id): Path<u32>,
 ) -> Result<Json<Admin>, StatusCode> {
     let mut guard = state.lock().unwrap();
+    if guard.is_default_admin(id) {
+        return Err(StatusCode::FORBIDDEN);
+    }
     guard.toggle_admin(id).map(Json).ok_or(StatusCode::NOT_FOUND)
 }
 

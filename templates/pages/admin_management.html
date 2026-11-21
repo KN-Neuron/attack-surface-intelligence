@@ -21,17 +21,21 @@
         <tbody>
           {% for admin in admins %}
           <tr>
-            <td class="strong-cell">{{ admin.name }}</td>
+            <td class="strong-cell">{{ admin.name }}{% if admin.is_default %}<span class="tag-default">Default</span>{% endif %}</td>
             <td>{{ admin.email }}</td>
             <td>{{ admin.role }}</td>
             <td>{% if admin.status == "Active" %}<span class="badge">Active</span>{% else %}<span class="badge blocked">Disabled</span>{% endif %}</td>
             <td>{{ admin.last_login }}</td>
             <td class="right">
               <div class="row-actions">
+                {% if admin.is_default %}
+                <button class="link-btn" type="button" disabled title="The default administrator cannot be edited">{{ crate::icons::icon("user-cog")|safe }} Edit</button>
+                {% else %}
                 <button class="link-btn" type="button" data-admin-edit="{{ admin.id }}">{{ crate::icons::icon("user-cog")|safe }} Edit</button>
                 <button class="link-btn" type="button" data-admin-toggle="{{ admin.id }}">
                   {% if admin.status == "Active" %}Disable{% else %}Enable{% endif %}
                 </button>
+                {% endif %}
               </div>
             </td>
           </tr>
