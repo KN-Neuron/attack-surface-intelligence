@@ -43,7 +43,6 @@ pub struct Shell {
     pub groups: Vec<NavGroupView>,
     pub admin_name: String,
     pub admin_role: String,
-    pub admin_initials: String,
     pub docs_url: String,
 }
 
@@ -88,27 +87,8 @@ fn build_shell(active_path: &str, admin: &CurrentAdmin) -> Shell {
         groups,
         admin_name: admin.name.clone(),
         admin_role: admin.role.clone(),
-        admin_initials: initials(&admin.name),
         docs_url: docs_url(),
     }
-}
-
-/// Up to two capital letters for the avatar: first and last word of the name.
-fn initials(name: &str) -> String {
-    let words: Vec<&str> = name.split_whitespace().collect();
-    let mut out = String::new();
-    if let Some(c) = words.first().and_then(|w| w.chars().next()) {
-        out.extend(c.to_uppercase());
-    }
-    if words.len() > 1 {
-        if let Some(c) = words.last().and_then(|w| w.chars().next()) {
-            out.extend(c.to_uppercase());
-        }
-    }
-    if out.is_empty() {
-        out.push('?');
-    }
-    out
 }
 
 /// Where the help button leads. Override with `DOCS_URL` when the docs site runs elsewhere.

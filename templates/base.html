@@ -19,7 +19,7 @@
       } catch (e) {}
     })();
   </script>
-  <link rel="stylesheet" href="/static/app.css?v=13">
+  <link rel="stylesheet" href="/static/app.css?v=14">
 </head>
 <body class="{% block bodyclass %}{% endblock %}">
   <header class="topbar">
@@ -38,7 +38,6 @@
     </div>
     <div class="topbar-right">
       <div class="topbar-user" title="{{ shell.admin_name }}{% if !shell.admin_role.is_empty() %} · {{ shell.admin_role }}{% endif %}">
-        <span class="user-avatar" aria-hidden="true">{{ shell.admin_initials }}</span>
         <span class="user-meta">
           <span class="user-name">{{ shell.admin_name }}</span>
           {% if !shell.admin_role.is_empty() %}<span class="user-role">{{ shell.admin_role }}</span>{% endif %}
@@ -89,6 +88,6 @@
 
   {% block modals %}{% endblock %}
 
-  <script src="/static/app.js?v=13"></script>
+  <script src="/static/app.js?v=14"></script>
 </body>
 </html>
