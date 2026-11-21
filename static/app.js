@@ -1644,14 +1644,644 @@
   }
 
   // ==========================================================================
-  // Data Explorer — run query
+  // Data Explorer — columns, filters, timeframe, pagination, edit mode
   // ==========================================================================
-  var explorerRun = document.getElementById("explorer-run");
-  var explorerFilter = document.getElementById("explorer-filter");
-  if (explorerRun && explorerFilter) {
-    explorerRun.addEventListener("click", function () {
-      explorerFilter.dispatchEvent(new Event("input"));
+  var explorer = document.getElementById("explorer");
+  var assetsDataEl = document.getElementById("assets-data");
+  if (explorer && assetsDataEl) {
+    var assets = [];
+    try { assets = JSON.parse(assetsDataEl.textContent || "[]"); } catch (_) {}
+
+    // The server only renders the edit toggle for accounts with write access;
+    // the API enforces the same rule independently.
+    var canEdit = explorer.getAttribute("data-can-edit") === "true";
+
+    // Every column carries the operator set its values support. `ts` names the
+    // timestamp field the timeframe filter uses for date columns.
+    var COLUMNS = [
+      { key: "address", label: "Host", type: "text", mono: true, primary: true },
+      { key: "up", label: "Status", type: "bool" },
+      { key: "scheme", label: "Scheme", type: "text" },
+      { key: "port", label: "Port", type: "number", right: true, mono: true },
+      { key: "status_code", label: "HTTP", type: "number", right: true, mono: true },
+      { key: "title", label: "Title", type: "text", wrap: true, editable: "title" },
+      { key: "webserver", label: "Server", type: "text", editable: "webserver" },
+      { key: "technologies", label: "Technologies", type: "list", tech: true },
+      { key: "ports", label: "Open ports", type: "text", mono: true },
+      { key: "cdn", label: "CDN", type: "text", editable: "cdn" },
+      { key: "cname", label: "CNAME", type: "text", editable: "cname" },
+      { key: "tls", label: "TLS", type: "text" },
+      { key: "tls_expires", label: "Cert expires", type: "date" },
+      { key: "content_length", label: "Size", type: "number", right: true, mono: true },
+      { key: "response_time", label: "Response", type: "text" },
+      { key: "last_checked", label: "Last checked", type: "date", ts: "last_checked_ts" },
+      { key: "last_seen", label: "Last seen", type: "date", ts: "last_seen_ts" },
+      { key: "first_seen", label: "First seen", type: "date", ts: "first_seen_ts" },
+      { key: "last_scan", label: "Last scan", type: "text", mono: true }
+    ];
+
+    var COLUMN_BY_KEY = {};
+    COLUMNS.forEach(function (col) { COLUMN_BY_KEY[col.key] = col; });
+
+    var OPS = {
+      text: [
+        { id: "contains", label: "contains" },
+        { id: "not_contains", label: "does not contain" },
+        { id: "equals", label: "equals" },
+        { id: "starts", label: "starts with" }
+      ],
+      number: [
+        { id: "eq", label: "=" },
+        { id: "ne", label: "≠" },
+        { id: "gt", label: ">" },
+        { id: "gte", label: "≥" },
+        { id: "lt", label: "<" },
+        { id: "lte", label: "≤" }
+      ],
+      bool: [
+        { id: "true", label: "is up" },
+        { id: "false", label: "is down" }
+      ],
+      date: [
+        { id: "after", label: "after" },
+        { id: "before", label: "before" }
+      ],
+      list: [
+        { id: "contains", label: "contains" },
+        { id: "not_contains", label: "does not contain" },
+        { id: "empty", label: "is empty" }
+      ]
+    };
+
+    function valueOf(row, key) {
+      var value = row[key];
+      if (Array.isArray(value)) return value.join(" ");
+      if (typeof value === "boolean") return value ? "up" : "down";
+      return value == null ? "" : String(value);
+    }
+
+    function matchesFilter(row, filter) {
+      var col = COLUMN_BY_KEY[filter.key];
+      if (!col) return true;
+      var raw = row[filter.key];
+      var op = filter.op;
+      var needle = filter.value;
+
+      if (col.type === "bool") {
+        return op === "true" ? raw === true : raw === false;
+      }
+      if (col.type === "list") {
+        var list = Array.isArray(raw) ? raw : [];
+        if (op === "empty") return list.length === 0;
+        var joined = list.join(" ").toLowerCase();
+        var box = String(needle || "").toLowerCase();
+        return op === "not_contains" ? joined.indexOf(box) === -1 : joined.indexOf(box) !== -1;
+      }
+      if (col.type === "number") {
+        var left = parseFloat(String(raw).replace(/[^0-9.\-]/g, ""));
+        var right = parseFloat(needle);
+        if (isNaN(left) || isNaN(right)) return false;
+        switch (op) {
+          case "eq": return left === right;
+          case "ne": return left !== right;
+          case "gt": return left > right;
+          case "gte": return left >= right;
+          case "lt": return left < right;
+          case "lte": return left <= right;
+          default: return true;
+        }
+      }
+
+      var hay = valueOf(row, filter.key).toLowerCase();
+      var pin = String(needle || "").toLowerCase();
+      if (!pin) return true;
+      switch (op) {
+        case "equals": return hay === pin;
+        case "not_contains": return hay.indexOf(pin) === -1;
+        case "starts": return hay.indexOf(pin) === 0;
+        default: return hay.indexOf(pin) !== -1;
+      }
+    }
+
+    function startOf(range, now) {
+      var date = new Date(now);
+      date.setHours(0, 0, 0, 0);
+      if (range === "week") {
+        // Weeks start on Monday, matching the scan scheduling UI.
+        var offset = (date.getDay() + 6) % 7;
+        date.setDate(date.getDate() - offset);
+      } else if (range === "month") {
+        date.setDate(1);
+      }
+      return Math.floor(date.getTime() / 1000);
+    }
+
+    var state = {
+      filters: [],
+      timeframe: "month",
+      from: null,
+      to: null,
+      page: 1,
+      size: 10,
+      editing: false
+    };
+
+    var els = {
+      timeframe: document.getElementById("explorer-timeframe"),
+      custom: document.getElementById("custom-range"),
+      from: document.getElementById("explorer-from"),
+      to: document.getElementById("explorer-to"),
+      addBtn: document.getElementById("explorer-add-filter"),
+      menu: document.getElementById("filter-menu"),
+      menuSearch: document.getElementById("filter-menu-search"),
+      menuList: document.getElementById("filter-menu-list"),
+      active: document.getElementById("filter-active"),
+      summary: document.getElementById("filter-summary"),
+      count: explorer.querySelector("[data-filter-count]"),
+      clear: document.getElementById("explorer-clear"),
+      head: document.getElementById("assets-head"),
+      body: document.getElementById("assets-body"),
+      empty: document.getElementById("assets-empty"),
+      editBtn: document.getElementById("explorer-edit"),
+      pager: explorer.parentElement.querySelector("[data-pager]")
+    };
+
+    var pagerEls = {
+      size: els.pager ? els.pager.querySelector("[data-page-size]") : null,
+      range: els.pager ? els.pager.querySelector("[data-page-range]") : null,
+      num: els.pager ? els.pager.querySelector("[data-page-num]") : null,
+      first: els.pager ? els.pager.querySelector("[data-page-first]") : null,
+      prev: els.pager ? els.pager.querySelector("[data-page-prev]") : null,
+      next: els.pager ? els.pager.querySelector("[data-page-next]") : null,
+      last: els.pager ? els.pager.querySelector("[data-page-last]") : null
+    };
+
+    function timeframeBounds() {
+      var now = Date.now();
+      if (state.timeframe === "custom") {
+        return { from: state.from, to: state.to };
+      }
+      return { from: startOf(state.timeframe, now), to: null };
+    }
+
+    function visibleRows() {
+      var bounds = timeframeBounds();
+      return assets.filter(function (row) {
+        var stamp = row.last_checked_ts || row.last_seen_ts || row.first_seen_ts || 0;
+        if (bounds.from != null && stamp < bounds.from) return false;
+        if (bounds.to != null && stamp > bounds.to) return false;
+        return state.filters.every(function (filter) { return matchesFilter(row, filter); });
+      });
+    }
+
+    // ---- table rendering -----------------------------------------------------
+
+    function renderHead() {
+      els.head.innerHTML = "";
+      var tr = document.createElement("tr");
+      COLUMNS.forEach(function (col) {
+        var th = document.createElement("th");
+        th.textContent = col.label;
+        if (col.right) th.className = "right";
+        tr.appendChild(th);
+      });
+      if (state.editing) {
+        var actions = document.createElement("th");
+        actions.className = "right w-actions";
+        actions.textContent = "Actions";
+        tr.appendChild(actions);
+      }
+      els.head.appendChild(tr);
+    }
+
+    function renderCell(col, row) {
+      var td = document.createElement("td");
+      if (col.right) td.className = "right";
+      if (col.wrap) td.className = "wrap-cell";
+
+      if (col.key === "up") {
+        var badge = document.createElement("span");
+        badge.className = "badge" + (row.up ? "" : " blocked");
+        badge.textContent = row.up ? "Up" : "Down";
+        td.appendChild(badge);
+        return td;
+      }
+      if (col.tech) {
+        td.className = "asset-tech";
+        var list = Array.isArray(row.technologies) ? row.technologies : [];
+        if (!list.length) {
+          td.textContent = "—";
+          td.className += " muted";
+          return td;
+        }
+        list.forEach(function (tech) {
+          var chip = document.createElement("span");
+          chip.className = "host-chip";
+          chip.textContent = tech;
+          td.appendChild(chip);
+        });
+        return td;
+      }
+
+      var text = valueOf(row, col.key);
+      if (col.primary) {
+        var span = document.createElement("span");
+        span.className = "mono strong-cell";
+        span.textContent = text;
+        td.appendChild(span);
+      } else if (col.mono) {
+        td.className += " mono";
+        td.textContent = text || "—";
+      } else {
+        td.textContent = text || "—";
+      }
+      if (!text) td.classList.add("muted");
+      return td;
+    }
+
+    function renderBody(rows) {
+      els.body.innerHTML = "";
+      if (!rows.length) {
+        els.empty.hidden = false;
+        return;
+      }
+      els.empty.hidden = true;
+      rows.forEach(function (row) {
+        var tr = document.createElement("tr");
+        COLUMNS.forEach(function (col) { tr.appendChild(renderCell(col, row)); });
+        if (state.editing) {
+          var td = document.createElement("td");
+          td.className = "right";
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "link-btn";
+          btn.innerHTML = 'Edit';
+          btn.setAttribute("data-asset-edit", row.address);
+          td.appendChild(btn);
+          tr.appendChild(td);
+        }
+        els.body.appendChild(tr);
+      });
+    }
+
+    function renderPager(total) {
+      var pages = Math.max(1, Math.ceil(total / state.size));
+      if (state.page > pages) state.page = pages;
+      if (state.page < 1) state.page = 1;
+      var start = (state.page - 1) * state.size;
+      var end = Math.min(start + state.size, total);
+
+      if (pagerEls.range) {
+        pagerEls.range.textContent = total
+          ? (start + 1) + "–" + end + " of " + total
+          : "No entries";
+      }
+      if (pagerEls.num) pagerEls.num.textContent = state.page + " / " + pages;
+      [pagerEls.first, pagerEls.prev].forEach(function (btn) {
+        if (btn) btn.disabled = state.page <= 1;
+      });
+      [pagerEls.next, pagerEls.last].forEach(function (btn) {
+        if (btn) btn.disabled = state.page >= pages;
+      });
+    }
+
+    function render() {
+      var rows = visibleRows();
+      if (els.count) els.count.textContent = rows.length + (rows.length === 1 ? " host" : " hosts");
+      if (els.clear) els.clear.hidden = !state.filters.length;
+      renderPager(rows.length);
+      var start = (state.page - 1) * state.size;
+      renderBody(rows.slice(start, start + state.size));
+    }
+
+    // ---- active filter chips -------------------------------------------------
+
+    function renderActiveFilters() {
+      if (!els.active) return;
+      els.active.innerHTML = "";
+      if (!state.filters.length) {
+        var hint = document.createElement("p");
+        hint.className = "filter-empty";
+        hint.textContent = "No filters applied. Use Add filter to narrow the results.";
+        els.active.appendChild(hint);
+        return;
+      }
+      state.filters.forEach(function (filter, index) {
+        var col = COLUMN_BY_KEY[filter.key];
+        var chip = document.createElement("div");
+        chip.className = "filter-chip";
+
+        var text = document.createElement("span");
+        text.className = "filter-chip-text";
+        var opLabel = (OPS[col.type] || []).filter(function (op) {
+          return op.id === filter.op;
+        })[0];
+        var readable = opLabel ? opLabel.label : filter.op;
+        text.innerHTML = "<b>" + escapeHtml(col.label) + "</b>";
+        var rest = document.createElement("span");
+        rest.textContent = " " + readable +
+          (filter.op === "empty" || col.type === "bool" ? "" : " " + filter.value);
+        text.appendChild(rest);
+        chip.appendChild(text);
+
+        var remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "chip-x";
+        remove.setAttribute("aria-label", "Remove " + col.label + " filter");
+        remove.innerHTML = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2"/></svg>';
+        remove.addEventListener("click", function () {
+          state.filters.splice(index, 1);
+          state.page = 1;
+          renderActiveFilters();
+          render();
+        });
+        chip.appendChild(remove);
+        els.active.appendChild(chip);
+      });
+    }
+
+    // ---- add-filter menu -----------------------------------------------------
+
+    function renderMenu() {
+      var needle = (els.menuSearch.value || "").trim().toLowerCase();
+      els.menuList.innerHTML = "";
+      var matches = COLUMNS.filter(function (col) {
+        return !needle || col.label.toLowerCase().indexOf(needle) !== -1;
+      });
+      if (!matches.length) {
+        els.menuList.innerHTML = "<div class='filter-menu-empty'>No columns match that search.</div>";
+        return;
+      }
+      matches.forEach(function (col) {
+        var item = document.createElement("button");
+        item.type = "button";
+        item.className = "filter-menu-item";
+        item.setAttribute("role", "option");
+        item.textContent = col.label;
+        item.addEventListener("click", function () {
+          addFilter(col);
+          closeMenu();
+        });
+        els.menuList.appendChild(item);
+      });
+    }
+
+    function openMenu() {
+      els.menu.hidden = false;
+      els.addBtn.setAttribute("aria-expanded", "true");
+      els.menuSearch.value = "";
+      renderMenu();
+      els.menuSearch.focus();
+    }
+
+    function closeMenu() {
+      els.menu.hidden = true;
+      els.addBtn.setAttribute("aria-expanded", "false");
+    }
+
+    // Picking a column inserts a chip with the operator and value selects open,
+    // so a filter is fully configurable without leaving the sidebar.
+    function addFilter(col) {
+      state.filters.push({
+        key: col.key,
+        op: (OPS[col.type] || [{ id: "contains" }])[0].id,
+        value: ""
+      });
+      state.page = 1;
+      renderActiveFilters();
+      render();
+      renderChipEditor(state.filters.length - 1);
+    }
+
+    function renderChipEditor(index) {
+      var filter = state.filters[index];
+      if (!filter) return;
+      var col = COLUMN_BY_KEY[filter.key];
+      var chip = els.active.children[index];
+      if (!chip) return;
+
+      chip.classList.add("is-editing");
+      chip.innerHTML = "";
+
+      var name = document.createElement("span");
+      name.className = "filter-chip-name";
+      name.textContent = col.label;
+      chip.appendChild(name);
+
+      var opSel = document.createElement("select");
+      opSel.className = "filter-op";
+      opSel.setAttribute("aria-label", col.label + " operator");
+      (OPS[col.type] || []).forEach(function (op) {
+        var option = document.createElement("option");
+        option.value = op.id;
+        option.textContent = op.label;
+        if (op.id === filter.op) option.selected = true;
+        opSel.appendChild(option);
+      });
+      chip.appendChild(opSel);
+
+      var needsValue = col.type !== "bool" && filter.op !== "empty";
+      var valueInput = null;
+      if (needsValue) {
+        valueInput = document.createElement("input");
+        valueInput.className = "filter-value";
+        valueInput.type = col.type === "number" ? "number" : "text";
+        valueInput.value = filter.value || "";
+        valueInput.placeholder = "value";
+        valueInput.setAttribute("aria-label", col.label + " value");
+        chip.appendChild(valueInput);
+      }
+
+      var apply = document.createElement("button");
+      apply.type = "button";
+      apply.className = "btn primary filter-apply";
+      apply.textContent = "Apply";
+      chip.appendChild(apply);
+
+      opSel.addEventListener("change", function () {
+        filter.op = opSel.value;
+        renderChipEditor(index);
+      });
+
+      apply.addEventListener("click", function () {
+        filter.op = opSel.value;
+        filter.value = valueInput ? valueInput.value : "";
+        state.page = 1;
+        renderActiveFilters();
+        render();
+      });
+      if (valueInput) {
+        valueInput.addEventListener("keydown", function (event) {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            apply.click();
+          }
+        });
+        valueInput.focus();
+      }
+    }
+
+    // ---- timeframe -----------------------------------------------------------
+
+    function syncTimeframe() {
+      state.timeframe = els.timeframe.value;
+      els.custom.hidden = state.timeframe !== "custom";
+      if (state.timeframe === "custom") {
+        if (!els.from.value) els.from.value = toLocalInput(Date.now() - 7 * 86400000);
+        if (!els.to.value) els.to.value = toLocalInput(Date.now());
+        state.from = fromLocalInput(els.from.value);
+        state.to = fromLocalInput(els.to.value);
+        if (state.to != null) state.to += 59; // include the selected minute
+      } else {
+        state.from = null;
+        state.to = null;
+      }
+      state.page = 1;
+      render();
+    }
+
+    function toLocalInput(ms) {
+      var date = new Date(ms);
+      var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+      return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) +
+        "T" + pad(date.getHours()) + ":" + pad(date.getMinutes());
+    }
+
+    function fromLocalInput(value) {
+      if (!value) return null;
+      var stamp = new Date(value).getTime();
+      return isNaN(stamp) ? null : Math.floor(stamp / 1000);
+    }
+
+    // ---- wire up -------------------------------------------------------------
+
+    els.timeframe.addEventListener("change", syncTimeframe);
+    [els.from, els.to].forEach(function (input) {
+      input.addEventListener("change", syncTimeframe);
     });
+
+    els.addBtn.addEventListener("click", function () {
+      if (els.menu.hidden) openMenu();
+      else closeMenu();
+    });
+    els.menuSearch.addEventListener("input", renderMenu);
+    document.addEventListener("click", function (event) {
+      if (els.menu.hidden) return;
+      if (els.menu.contains(event.target) || els.addBtn.contains(event.target)) return;
+      closeMenu();
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && !els.menu.hidden) closeMenu();
+    });
+
+    if (els.clear) {
+      els.clear.addEventListener("click", function () {
+        state.filters = [];
+        state.page = 1;
+        renderActiveFilters();
+        render();
+      });
+    }
+
+    if (pagerEls.size) {
+      state.size = Number(pagerEls.size.value) || 10;
+      pagerEls.size.addEventListener("change", function () {
+        state.size = Number(pagerEls.size.value) || 10;
+        state.page = 1;
+        render();
+      });
+    }
+    if (pagerEls.first) pagerEls.first.addEventListener("click", function () { state.page = 1; render(); });
+    if (pagerEls.prev) pagerEls.prev.addEventListener("click", function () { state.page -= 1; render(); });
+    if (pagerEls.next) pagerEls.next.addEventListener("click", function () { state.page += 1; render(); });
+    if (pagerEls.last) {
+      pagerEls.last.addEventListener("click", function () {
+        state.page = Math.ceil(visibleRows().length / state.size) || 1;
+        render();
+      });
+    }
+
+    // ---- edit mode -----------------------------------------------------------
+
+    var editModal = document.getElementById("asset-edit-modal");
+    var editForm = document.getElementById("asset-edit-form");
+    var editingAddress = null;
+
+    function syncUpText() {
+      var box = document.getElementById("asset-up");
+      var text = document.getElementById("asset-up-text");
+      if (box && text) text.textContent = box.checked ? "Up" : "Down";
+    }
+
+    if (els.editBtn && canEdit) {
+      els.editBtn.addEventListener("click", function () {
+        state.editing = !state.editing;
+        els.editBtn.setAttribute("aria-pressed", String(state.editing));
+        els.editBtn.classList.toggle("is-active", state.editing);
+        renderHead();
+        render();
+      });
+    }
+
+    if (editModal && editForm) {
+      var upBox = document.getElementById("asset-up");
+      if (upBox) upBox.addEventListener("change", syncUpText);
+
+      els.body.addEventListener("click", function (event) {
+        var btn = event.target.closest("[data-asset-edit]");
+        if (!btn) return;
+        var address = btn.getAttribute("data-asset-edit");
+        var row = assets.filter(function (asset) { return asset.address === address; })[0];
+        if (!row) return;
+        editingAddress = address;
+        document.getElementById("asset-edit-sub").textContent = address;
+        document.getElementById("asset-title").value = row.title || "";
+        document.getElementById("asset-webserver").value = row.webserver || "";
+        document.getElementById("asset-scheme").value = row.scheme || "";
+        document.getElementById("asset-port").value = row.port || "";
+        document.getElementById("asset-status").value = row.status_code || "";
+        document.getElementById("asset-cdn").value = row.cdn || "";
+        document.getElementById("asset-cname").value = row.cname || "";
+        document.getElementById("asset-up").checked = !!row.up;
+        syncUpText();
+        openModal("asset-edit-modal");
+      });
+
+      editForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        if (!editingAddress) return;
+        var num = function (id) {
+          var raw = document.getElementById(id).value.trim();
+          if (!raw) return null;
+          var parsed = Number(raw);
+          return isNaN(parsed) ? null : parsed;
+        };
+        var payload = {
+          title: document.getElementById("asset-title").value,
+          webserver: document.getElementById("asset-webserver").value,
+          scheme: document.getElementById("asset-scheme").value,
+          port: num("asset-port"),
+          status_code: num("asset-status"),
+          cdn: document.getElementById("asset-cdn").value,
+          cname: document.getElementById("asset-cname").value,
+          up: document.getElementById("asset-up").checked
+        };
+        fetch("/api/assets/" + encodeURIComponent(editingAddress), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        })
+          .then(function (response) {
+            if (!response.ok) throw new Error();
+            window.location.reload();
+          })
+          .catch(function () { window.alert("Could not save this host. Please try again."); });
+      });
+    }
+
+    renderHead();
+    renderActiveFilters();
+    syncTimeframe();
   }
 
   // ==========================================================================

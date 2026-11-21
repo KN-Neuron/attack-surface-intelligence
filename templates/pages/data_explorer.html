@@ -1,84 +1,126 @@
 {% extends "base.html" %}
 {% block mainclass %}main-flush{% endblock %}
 {% block content %}
-<div class="explorer">
+<div class="explorer" id="explorer" data-can-edit="{% if can_edit %}true{% else %}false{% endif %}">
   <section class="filter-panel">
-    <div class="field">
-      <div class="field-label">Search hosts</div>
-      <div class="search-box explorer-search">
-        <input type="search" placeholder="Host, title, server, technology..." aria-label="Search captured hosts" data-table-filter="assets-table" id="explorer-filter">
-        {{ crate::icons::icon("search")|safe }}
+    <div class="timeframe">
+      <div class="timeframe-head">
+        <span class="field-label">Timeframe</span>
+        {% if can_edit %}
+        <button class="icon-btn subtle edit-toggle" type="button" id="explorer-edit" aria-pressed="false" title="Edit mode">{{ crate::icons::icon("sliders")|safe }}</button>
+        {% endif %}
+      </div>
+      <div class="select-wrap">
+        <select id="explorer-timeframe" aria-label="Timeframe">
+          <option value="day">Current day</option>
+          <option value="week">Current week</option>
+          <option value="month" selected>Current month</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div class="custom-range" id="custom-range" hidden>
+        <label class="field-label" for="explorer-from">From</label>
+        <input type="datetime-local" id="explorer-from" aria-label="Start of custom range">
+        <label class="field-label" for="explorer-to">To</label>
+        <input type="datetime-local" id="explorer-to" aria-label="End of custom range">
       </div>
     </div>
 
-    <div class="explorer-stats">
-      <div class="explorer-stat">
-        <span class="explorer-stat-value">{{ up }}</span>
-        <span class="explorer-stat-label">Reachable</span>
-      </div>
-      <div class="explorer-stat">
-        <span class="explorer-stat-value down">{{ down }}</span>
-        <span class="explorer-stat-label">Unreachable</span>
+    <div class="filter-add">
+      <button class="run-btn" type="button" id="explorer-add-filter" aria-expanded="false" aria-controls="filter-menu">Add filter</button>
+      <div class="filter-menu" id="filter-menu" hidden>
+        <div class="search-box filter-menu-search">
+          <input type="search" id="filter-menu-search" placeholder="Search filters..." aria-label="Search available filters" autocomplete="off">
+          {{ crate::icons::icon("search")|safe }}
+        </div>
+        <div class="filter-menu-list" id="filter-menu-list" role="listbox" aria-label="Available filters"></div>
       </div>
     </div>
 
-    <button class="run-btn" type="button" id="explorer-run">Apply filter</button>
+    <div class="filter-active" id="filter-active"></div>
+
+    <div class="filter-summary" id="filter-summary">
+      <span class="filter-count" data-filter-count>{{ total }} hosts</span>
+      <button class="link-btn" type="button" id="explorer-clear">Clear all</button>
+    </div>
   </section>
 
   <section class="log-panel">
-    <div class="log-head">
-      <h1>{{ title }}</h1>
-      <div class="log-meta">
-        <div class="log-range">{{ range_label }}</div>
-        <div class="log-count"><span class="count-dot"></span>{{ total }} Hosts Captured</div>
-      </div>
-    </div>
-
     <div class="log-table-wrap">
       <table class="tbl log-tbl" id="assets-table">
-        <thead>
-          <tr>
-            <th>Host</th>
-            <th>Status</th>
-            <th>Scheme</th>
-            <th class="right">Port</th>
-            <th class="right">HTTP</th>
-            <th>Title</th>
-            <th>Server</th>
-            <th>Technologies</th>
-            <th>Last checked</th>
-            <th>Last scan</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in rows %}
-          <tr>
-            <td><span class="mono strong-cell">{{ row.address }}</span></td>
-            <td>
-              {% if row.up %}<span class="badge">Up</span>{% else %}<span class="badge blocked">Down</span>{% endif %}
-            </td>
-            <td>{{ row.scheme }}</td>
-            <td class="right mono">{{ row.port }}</td>
-            <td class="right mono">{{ row.status_code }}</td>
-            <td class="wrap-cell">{{ row.title }}</td>
-            <td>{{ row.webserver }}</td>
-            <td class="asset-tech">
-              {% for tech in row.technologies %}
-              <span class="host-chip">{{ tech }}</span>
-              {% endfor %}
-            </td>
-            <td>{{ row.last_checked }}</td>
-            <td class="mono">{{ row.last_scan }}</td>
-          </tr>
-          {% endfor %}
-          {% if rows.is_empty() %}
-          <tr><td colspan="10" class="empty-cell">No hosts captured yet. Run a scan to populate this view.</td></tr>
-          {% endif %}
-        </tbody>
+        <thead id="assets-head"></thead>
+        <tbody id="assets-body"></tbody>
       </table>
+      <div class="log-empty" id="assets-empty" hidden>No hosts match the current filters.</div>
     </div>
 
     {% include "partials/pager.html" %}
   </section>
+</div>
+<script type="application/json" id="assets-data">{{ assets_json|safe }}</script>
+{% endblock %}
+
+{% block modals %}
+<div class="modal-backdrop" id="asset-edit-modal" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="asset-edit-title">
+    <div class="modal-head">
+      <div>
+        <h2 id="asset-edit-title">Edit host</h2>
+        <div class="modal-sub" id="asset-edit-sub"></div>
+      </div>
+      <button class="icon-btn subtle" type="button" data-close-modal aria-label="Close">{{ crate::icons::icon("close")|safe }}</button>
+    </div>
+    <form id="asset-edit-form">
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="field">
+            <label class="field-label" for="asset-title">Title</label>
+            <input id="asset-title" type="text" autocomplete="off">
+          </div>
+          <div class="field">
+            <label class="field-label" for="asset-webserver">Server</label>
+            <input id="asset-webserver" type="text" autocomplete="off">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label class="field-label" for="asset-scheme">Scheme</label>
+            <input id="asset-scheme" type="text" autocomplete="off" placeholder="http / https">
+          </div>
+          <div class="field">
+            <label class="field-label" for="asset-port">Port</label>
+            <input id="asset-port" type="number" min="0" max="65535" autocomplete="off">
+          </div>
+          <div class="field">
+            <label class="field-label" for="asset-status">HTTP status</label>
+            <input id="asset-status" type="number" min="0" max="599" autocomplete="off">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label class="field-label" for="asset-cdn">CDN</label>
+            <input id="asset-cdn" type="text" autocomplete="off">
+          </div>
+          <div class="field">
+            <label class="field-label" for="asset-cname">CNAME</label>
+            <input id="asset-cname" type="text" autocomplete="off">
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">Status</span>
+          <label class="switch">
+            <input type="checkbox" id="asset-up">
+            <span class="switch-track"></span>
+            <span class="switch-text" id="asset-up-text">Up</span>
+          </label>
+        </div>
+        <p class="field-hint">Technologies, TLS and open ports are scanner evidence and cannot be edited here.</p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" data-close-modal>Cancel</button>
+        <button class="btn primary" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}

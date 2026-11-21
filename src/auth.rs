@@ -111,7 +111,7 @@ pub fn page_for_path(path: &str) -> Option<&'static str> {
         Some("compare")
     } else if path.starts_with("/host-management") || path.starts_with("/api/host-") {
         Some("host_management")
-    } else if path.starts_with("/log-center/data-explorer") {
+    } else if path.starts_with("/log-center/data-explorer") || path.starts_with("/api/assets") {
         Some("data_explorer")
     } else if path.starts_with("/log-center/scan-history") || path.starts_with("/api/scans") {
         Some("scan_history")

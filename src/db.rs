@@ -7,7 +7,7 @@ use sqlx::{PgPool, Row};
 use crate::auth::PERMISSION_PAGES;
 use crate::mock;
 use crate::state::{
-    Admin, AlertRow, AssetRow, Criterion, HostFqdn, HostGroup, HostIp, HostRange,
+    Admin, AlertRow, AssetRow, Criterion, EditAsset, HostFqdn, HostGroup, HostIp, HostRange,
     ImportPreview, ImportSummary, Permission, Policy, Role, ScanDetail, ScanRowView,
     ScanServiceCount, ScanStatus, ScanTechCount, ScanType, now_label,
 };
@@ -418,6 +418,32 @@ async fn seed_roles(pool: &PgPool) -> anyhow::Result<()> {
         .bind(permissions_json(&permissions))
         .execute(pool)
         .await?;
+
+        // A role seeded before a page existed has no entry for it, which reads
+        // as "no access". Add any missing built-in grants once, leaving every
+        // permission an administrator has changed alone.
+        let stored: Option<Value> =
+            sqlx::query_scalar("SELECT permissions FROM roles WHERE name = $1")
+                .bind(name)
+                .fetch_optional(pool)
+                .await
+                .ok()
+                .flatten();
+        let mut current: Vec<Permission> = stored
+            .and_then(|value| serde_json::from_value(value).ok())
+            .unwrap_or_default();
+
+        for seeded in &permissions {
+            if !current.iter().any(|p| p.page == seeded.page) {
+                current.push(seeded.clone());
+            }
+        }
+
+        sqlx::query("UPDATE roles SET permissions = $2 WHERE name = $1")
+            .bind(name)
+            .bind(permissions_json(&current))
+            .execute(pool)
+            .await?;
     }
     Ok(())
 }
@@ -1875,8 +1901,9 @@ pub async fn upsert_host_capture(
 
 pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
     sqlx::query(
-        "SELECT address, up, scheme, port, status_code, title, webserver, tech,
-                last_checked, last_scan_id
+        "SELECT address, up, scheme, port, status_code, title, webserver, tech, ports,
+                url, final_url, content_length, cdn, cname, response_time, tls,
+                first_seen, last_seen, last_checked, last_scan_id
          FROM scan_hosts
          ORDER BY up DESC, address",
     )
@@ -1885,10 +1912,18 @@ pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
     .unwrap_or_default()
     .iter()
     .map(|row| {
-        let tech: Vec<Value> = serde_json::from_value(
-            row.get::<Value, _>("tech"),
-        )
-        .unwrap_or_default();
+        let tech: Vec<Value> = serde_json::from_value(row.get::<Value, _>("tech"))
+            .unwrap_or_default();
+        let ports: Vec<Value> = serde_json::from_value(row.get::<Value, _>("ports"))
+            .unwrap_or_default();
+        let tls: Option<Value> = row.get("tls");
+
+        let timestamp = |key: &str| -> i64 {
+            row.get::<Option<chrono::DateTime<chrono::Utc>>, _>(key)
+                .map(|t| t.timestamp())
+                .unwrap_or(0)
+        };
+
         AssetRow {
             address: row.get("address"),
             up: row.get("up"),
@@ -1923,9 +1958,90 @@ pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
                 .get::<Option<i64>, _>("last_scan_id")
                 .map(|id| format!("#{id}"))
                 .unwrap_or_else(|| "—".into()),
+            url: row.get::<Option<String>, _>("url").unwrap_or_default(),
+            final_url: row.get::<Option<String>, _>("final_url").unwrap_or_default(),
+            content_length: row
+                .get::<Option<i64>, _>("content_length")
+                .filter(|len| *len > 0)
+                .map(|len| len.to_string())
+                .unwrap_or_default(),
+            cdn: row.get::<Option<String>, _>("cdn").unwrap_or_default(),
+            cname: row.get::<Option<String>, _>("cname").unwrap_or_default(),
+            response_time: row
+                .get::<Option<String>, _>("response_time")
+                .unwrap_or_default(),
+            tls: tls
+                .as_ref()
+                .map(|tls| {
+                    let version = tls
+                        .get("tls_version")
+                        .and_then(Value::as_str)
+                        .unwrap_or("TLS")
+                        .to_uppercase();
+                    match tls.get("issuer_cn").and_then(Value::as_str) {
+                        Some(issuer) if !issuer.is_empty() => format!("{version} · {issuer}"),
+                        _ => version,
+                    }
+                })
+                .unwrap_or_default(),
+            tls_expires: tls
+                .as_ref()
+                .and_then(|tls| tls.get("not_after").and_then(Value::as_str))
+                .map(|raw| raw.split('T').next().unwrap_or(raw).to_string())
+                .unwrap_or_default(),
+            ports: ports
+                .iter()
+                .filter_map(|p| {
+                    let port = p.get("port")?.as_i64()?;
+                    let service = p.get("service").and_then(Value::as_str).unwrap_or("");
+                    Some(format!("{port}/{service}"))
+                })
+                .collect::<Vec<_>>()
+                .join(", "),
+            first_seen: row
+                .get::<chrono::DateTime<chrono::Utc>, _>("first_seen")
+                .format("%b %-d, %Y %-I:%M %p")
+                .to_string(),
+            last_seen: row
+                .get::<chrono::DateTime<chrono::Utc>, _>("last_seen")
+                .format("%b %-d, %Y %-I:%M %p")
+                .to_string(),
+            last_checked_ts: timestamp("last_checked"),
+            first_seen_ts: timestamp("first_seen"),
+            last_seen_ts: timestamp("last_seen"),
         }
     })
     .collect()
+}
+
+/// Applies an Explorer edit. Only the display-level columns are writable; the
+/// captured scanner evidence (tech, tls, ports) stays as measured.
+pub async fn update_asset(pool: &PgPool, address: &str, edit: &EditAsset) -> bool {
+    sqlx::query(
+        "UPDATE scan_hosts SET
+             title = COALESCE($2, title),
+             webserver = COALESCE($3, webserver),
+             cdn = COALESCE($4, cdn),
+             cname = COALESCE($5, cname),
+             status_code = COALESCE($6, status_code),
+             scheme = COALESCE($7, scheme),
+             port = COALESCE($8, port),
+             up = COALESCE($9, up)
+         WHERE address = $1",
+    )
+    .bind(address)
+    .bind(&edit.title)
+    .bind(&edit.webserver)
+    .bind(&edit.cdn)
+    .bind(&edit.cname)
+    .bind(edit.status_code)
+    .bind(&edit.scheme)
+    .bind(edit.port)
+    .bind(edit.up)
+    .execute(pool)
+    .await
+    .map(|result| result.rows_affected() > 0)
+    .unwrap_or(false)
 }
 
 // ---------------------------------------------------------------- alerts

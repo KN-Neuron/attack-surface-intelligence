@@ -17,10 +17,10 @@ use crate::mock::{
 use crate::nav::{self, NavGroup};
 use crate::scan;
 use crate::state::{
-    AckPayload, Admin, AlertRow, AssetRow, Criterion, EditHostEntry, HostFqdn, HostGroup, HostIp,
-    HostRange, ImportHosts, ImportPreview, ImportSummary, NewAdmin, NewGroup, NewHostEntries,
-    NewPolicy, Policy, Role, RolePayload, RunScan, ScanDetail, ScanRowView, ScanStatus, ScanType,
-    UpdateAdmin,
+    AckPayload, Admin, AlertRow, Criterion, EditAsset, EditHostEntry, HostFqdn, HostGroup,
+    HostIp, HostRange, ImportHosts, ImportPreview, ImportSummary, NewAdmin, NewGroup,
+    NewHostEntries, NewPolicy, Policy, Role, RolePayload, RunScan, ScanDetail, ScanRowView,
+    ScanStatus, ScanType, UpdateAdmin,
 };
 
 const PRODUCT: &str = "Visibly";
@@ -676,11 +676,9 @@ pub async fn delete_group(State(pool): State<PgPool>, Path(id): Path<i64>) -> St
 struct DataExplorerPage {
     shell: Shell,
     title: &'static str,
-    rows: Vec<AssetRow>,
     total: usize,
-    up: usize,
-    down: usize,
-    range_label: &'static str,
+    can_edit: bool,
+    assets_json: String,
 }
 
 pub async fn data_explorer(
@@ -688,17 +686,32 @@ pub async fn data_explorer(
     Extension(admin): Extension<CurrentAdmin>,
 ) -> Html<String> {
     let rows = db::list_assets(&pool).await;
-    let up = rows.iter().filter(|row| row.up).count();
+    let total = rows.len();
+    let assets_json = serde_json::to_string(&rows)
+        .unwrap_or_else(|_| "[]".into())
+        .replace('<', "\\u003c");
     let page = DataExplorerPage {
         shell: build_shell(nav::DATA_EXPLORER, &admin),
         title: "Data Explorer",
-        total: rows.len(),
-        up,
-        down: rows.len() - up,
-        rows,
-        range_label: "Captured host data",
+        total,
+        can_edit: admin.can_write("data_explorer"),
+        assets_json,
     };
     render(&page)
+}
+
+/// Saves an Explorer edit. Gated on the `data_explorer` write permission by the
+/// router's RBAC guard.
+pub async fn update_asset(
+    State(pool): State<PgPool>,
+    Path(address): Path<String>,
+    Json(edit): Json<EditAsset>,
+) -> StatusCode {
+    if db::update_asset(&pool, &address, &edit).await {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
 }
 
 #[derive(Template)]

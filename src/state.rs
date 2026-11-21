@@ -359,6 +359,37 @@ pub struct AssetRow {
     pub technologies: Vec<String>,
     pub last_checked: String,
     pub last_scan: String,
+    /// Full URL httpx reported (after redirects).
+    pub url: String,
+    pub final_url: String,
+    pub content_length: String,
+    pub cdn: String,
+    pub cname: String,
+    pub response_time: String,
+    /// TLS summary, e.g. "TLS 1.3 · issuer CN".
+    pub tls: String,
+    pub tls_expires: String,
+    /// Open ports as "443/HTTPS, 80/HTTP".
+    pub ports: String,
+    pub first_seen: String,
+    pub last_seen: String,
+    /// Epoch seconds, so the client can filter by the selected timeframe.
+    pub last_checked_ts: i64,
+    pub first_seen_ts: i64,
+    pub last_seen_ts: i64,
+}
+
+/// The mutable half of a captured host, used by the Explorer edit mode.
+#[derive(Deserialize)]
+pub struct EditAsset {
+    pub title: Option<String>,
+    pub webserver: Option<String>,
+    pub cdn: Option<String>,
+    pub cname: Option<String>,
+    pub status_code: Option<i32>,
+    pub scheme: Option<String>,
+    pub port: Option<i32>,
+    pub up: Option<bool>,
 }
 
 /// One row of the Alerts page.
