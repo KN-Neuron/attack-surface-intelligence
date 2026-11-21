@@ -12,7 +12,7 @@ use crate::auth::{self, CurrentAdmin, PERMISSION_PAGES, PermissionPage};
 use crate::db;
 use crate::mock::{
     DataEvent, DetectedVuln, PopularService, PopularTech, ScanRow, ServiceSlice, TechRow,
-    TimelinePoint, UpcomingScan, VulnDbRow,
+    TimelinePoint, UpcomingScan,
 };
 use crate::nav::{self, NavGroup};
 use crate::state::{
@@ -42,6 +42,7 @@ pub struct Shell {
     pub section_icon: &'static str,
     pub groups: Vec<NavGroupView>,
     pub admin_name: String,
+    pub docs_url: String,
 }
 
 /// Builds the shared shell, filtering navigation to pages this admin may read.
@@ -84,7 +85,13 @@ fn build_shell(active_path: &str, admin: &CurrentAdmin) -> Shell {
         section_icon: def.icon,
         groups,
         admin_name: admin.name.clone(),
+        docs_url: docs_url(),
     }
+}
+
+/// Where the help button leads. Override with `DOCS_URL` when the docs site runs elsewhere.
+fn docs_url() -> String {
+    std::env::var("DOCS_URL").unwrap_or_else(|_| "http://localhost:3000/docs".to_string())
 }
 
 fn render<T: Template>(page: &T) -> Html<String> {
@@ -93,7 +100,7 @@ fn render<T: Template>(page: &T) -> Html<String> {
 
 fn error_page(msg: &str) -> String {
     format!(
-        "<!doctype html><html><body style=\"font-family:sans-serif;background:#080b11;color:#e6edf5;padding:40px\"><h1>Template error</h1><pre>{msg}</pre></body></html>"
+        "<!doctype html><html><body style=\"font-family:sans-serif;background:#0b0a12;color:#ece9f7;padding:40px\"><h1>Template error</h1><pre>{msg}</pre></body></html>"
     )
 }
 
@@ -246,9 +253,13 @@ struct ScanSummaryPage {
     shell: Shell,
     title: &'static str,
     timeline_json: String,
+    ranges: Vec<TimelinePoint>,
+    selected_range: usize,
     latest_scan: String,
     initial: TimelinePoint,
+    can_read_history: bool,
     services: Vec<ServiceSlice>,
+    service_family_total: u64,
     popular: Vec<PopularService>,
     tech_popular: Vec<PopularTech>,
 }
@@ -258,20 +269,25 @@ pub async fn scan_summary(
     Extension(admin): Extension<CurrentAdmin>,
 ) -> Html<String> {
     let points: Vec<TimelinePoint> = db::get_data(&pool, "timeline_points").await;
-    let initial = points
-        .get(1)
-        .or_else(|| points.first())
-        .cloned()
-        .unwrap_or_default();
-    let timeline_json = serde_json::to_string(&points).unwrap_or_else(|_| "[]".into());
+    let selected_range = points.iter().position(|point| point.days == 7).unwrap_or(0);
+    let initial = points.get(selected_range).cloned().unwrap_or_default();
+    let timeline_json = serde_json::to_string(&points)
+        .unwrap_or_else(|_| "[]".into())
+        .replace('<', "\\u003c");
+    let services: Vec<ServiceSlice> = db::get_data(&pool, "service_slices").await;
+    let service_family_total = services.iter().map(|slice| u64::from(slice.count)).sum();
 
     let page = ScanSummaryPage {
         shell: build_shell(nav::SCAN_SUMMARY, &admin),
         title: "Latest Scan summary",
         timeline_json,
+        ranges: points,
+        selected_range,
         latest_scan: db::get_data(&pool, "latest_scan").await,
         initial,
-        services: db::get_data(&pool, "service_slices").await,
+        can_read_history: admin.can_read("scan_history"),
+        services,
+        service_family_total,
         popular: db::get_data(&pool, "popular_services").await,
         tech_popular: db::get_data(&pool, "popular_technologies").await,
     };
@@ -311,9 +327,11 @@ pub async fn technologies_used(
 struct VulnerablePage {
     shell: Shell,
     title: &'static str,
-    db_rows: Vec<VulnDbRow>,
     detected: Vec<DetectedVuln>,
-    total_hosts: usize,
+    unique_hosts: usize,
+    critical: usize,
+    high: usize,
+    medium: usize,
 }
 
 pub async fn vulnerable_versions(
@@ -321,13 +339,21 @@ pub async fn vulnerable_versions(
     Extension(admin): Extension<CurrentAdmin>,
 ) -> Html<String> {
     let detected: Vec<DetectedVuln> = db::get_data(&pool, "detected_vulns").await;
-    let total_hosts = detected.iter().map(|d| d.hosts.len()).sum();
+    let unique_hosts = detected
+        .iter()
+        .flat_map(|d| d.hosts.iter())
+        .collect::<std::collections::HashSet<_>>()
+        .len();
+    let count = |severity: &str| detected.iter().filter(|d| d.severity == severity).count();
+    let (critical, high, medium) = (count("Critical"), count("High"), count("Medium"));
     let page = VulnerablePage {
         shell: build_shell(nav::VULNERABLE, &admin),
         title: "Vulnerable versions",
-        db_rows: db::get_data(&pool, "vulnerabilities").await,
         detected,
-        total_hosts,
+        unique_hosts,
+        critical,
+        high,
+        medium,
     };
     render(&page)
 }
@@ -749,9 +775,9 @@ pub async fn root(Extension(admin): Extension<CurrentAdmin>) -> Response {
         None => (
             StatusCode::FORBIDDEN,
             Html(
-                "<!doctype html><html><body style=\"font-family:sans-serif;background:#080b11;color:#e6edf5;padding:40px\">\
+                "<!doctype html><html><body style=\"font-family:sans-serif;background:#0b0a12;color:#ece9f7;padding:40px\">\
                  <h1>No access</h1><p>Your account has no page permissions. Contact an administrator.</p>\
-                 <a style=\"color:#7cc0ff\" href=\"/logout\">Sign out</a></body></html>"
+                 <a style=\"color:#b7a3ff\" href=\"/logout\">Sign out</a></body></html>"
                     .to_string(),
             ),
         )

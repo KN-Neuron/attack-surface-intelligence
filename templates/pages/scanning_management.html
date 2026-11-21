@@ -1,9 +1,8 @@
 {% extends "base.html" %}
+{% block bodyclass %}screen-redesign{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>{{ title }}</h1>
-  <span class="spacer"></span>
-  <span class="head-note">{{ crate::icons::icon("scan")|safe }} Visibly</span>
 </div>
 
 <div class="page-body">
@@ -21,8 +20,8 @@
       <div class="scan-active" data-scan-active {% if !scan.running %}hidden{% endif %}>
         <div class="scan-progress-row">
           <div class="scan-progress-meta">
-            <span id="scan-current">{{ scan.current_target }}</span>
             <span class="scan-progress-label" id="scan-progress-label">{{ scan.progress_label }}</span>
+            <span class="scan-target">Scanning <b id="scan-current">{{ scan.current_target }}</b></span>
           </div>
           <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ scan.progress }}" id="scan-progress" style="--p: {{ scan.progress }}%">
             <div class="progress-fill" id="scan-progress-fill"></div>
@@ -55,7 +54,6 @@
 
       <div class="scan-idle" data-scan-idle {% if scan.running %}hidden{% endif %}>
         <div class="scan-idle-body">
-          <div class="scan-idle-icon">{{ crate::icons::icon("scan")|safe }}</div>
           <div>
             <h3>No scan in progress</h3>
             <p id="scan-last">{% if !scan.completed_at.is_empty() %}Last scan finished {{ scan.completed_at }}.{% else %}Start a scan to discover hosts, services and technologies.{% endif %}</p>
@@ -102,9 +100,9 @@
           <h2>Scan queue</h2>
         </div>
         <ul class="queue">
-          <li><span class="queue-dot running"></span><div><div class="queue-name">Nightly perimeter sweep</div><div class="queue-meta">In progress · 10.0.4.0/24</div></div></li>
-          <li><span class="queue-dot"></span><div><div class="queue-name">Weekly internal audit</div><div class="queue-meta">Queued · Sundays 22:00</div></div></li>
-          <li><span class="queue-dot"></span><div><div class="queue-name">Branch office discovery</div><div class="queue-meta">Queued · Mondays 03:00</div></div></li>
+          <li><span class="queue-dot running"></span><div class="queue-text"><div class="queue-name">Nightly perimeter sweep</div><div class="queue-meta">10.0.4.0/24</div></div><span class="queue-state is-running">In progress</span></li>
+          <li><span class="queue-dot"></span><div class="queue-text"><div class="queue-name">Weekly internal audit</div><div class="queue-meta">Sundays 22:00</div></div><span class="queue-state">Queued</span></li>
+          <li><span class="queue-dot"></span><div class="queue-text"><div class="queue-name">Branch office discovery</div><div class="queue-meta">Mondays 03:00</div></div><span class="queue-state">Queued</span></li>
         </ul>
       </section>
     </aside>

@@ -21,10 +21,12 @@
   </script>
   <link rel="stylesheet" href="/static/app.css?v=9">
 </head>
-<body>
+<body class="{% block bodyclass %}{% endblock %}">
   <header class="topbar">
     <div class="topbar-left">
-      <button class="icon-btn" type="button" aria-label="Help">{{ crate::icons::icon("help")|safe }}</button>
+      {% block topbar_left %}
+      <a class="icon-btn" href="{{ shell.docs_url }}" target="_blank" rel="noopener" aria-label="Open documentation" title="Documentation">{{ crate::icons::icon("help")|safe }}</a>
+      {% endblock %}
     </div>
     <div class="topbar-search" id="search">
       {{ crate::icons::icon("search")|safe }}
@@ -32,6 +34,7 @@
              autocomplete="off" role="combobox" aria-expanded="false" aria-controls="search-results">
       <button class="search-clear" type="button" id="search-clear" aria-label="Clear search" hidden>{{ crate::icons::icon("close")|safe }}</button>
       <div class="search-results" id="search-results" role="listbox" aria-label="Search results" hidden></div>
+      {% block search_hint %}{% endblock %}
     </div>
     <div class="topbar-right">
       <span class="topbar-user">{{ shell.admin_name }}</span>
@@ -50,7 +53,7 @@
         {% for group in shell.groups %}
           {% if group.title.is_empty() %}
             {% for item in group.items %}
-              <a class="nav-item root{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.label }}">
+              <a class="nav-item root{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.label }}"{% if item.active %} aria-current="page"{% endif %}>
                 {{ crate::icons::icon(item.icon)|safe }}<span class="nav-label">{{ item.label }}</span>
               </a>
             {% endfor %}
@@ -60,7 +63,7 @@
             </button>
             <div class="nav-group-items" id="grp-{{ loop.index }}">
               {% for item in group.items %}
-                <a class="nav-item{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.label }}">
+                <a class="nav-item{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.label }}"{% if item.active %} aria-current="page"{% endif %}>
                   <span class="nav-label">{{ item.label }}</span>
                 </a>
               {% endfor %}

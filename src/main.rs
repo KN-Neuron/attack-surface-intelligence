@@ -10,7 +10,9 @@ use std::time::Duration;
 
 use axum::{
     Router,
+    http::{HeaderValue, header},
     middleware,
+    response::Response,
     routing::{get, post, put},
 };
 use tower_http::{compression::CompressionLayer, services::ServeDir};
@@ -33,7 +35,18 @@ async fn main() -> anyhow::Result<()> {
     // page can load its stylesheet.
     let public: Router<sqlx::PgPool> = Router::new()
         .route("/login", get(auth::login_page).post(auth::login_post))
-        .nest_service("/static", ServeDir::new("static"));
+        .nest_service(
+            "/static",
+            Router::new()
+                .fallback_service(ServeDir::new("static"))
+                // Revalidate on every load, so a changed stylesheet is picked up
+                // right away instead of waiting for the browser's heuristic cache.
+                .layer(middleware::map_response(|mut res: Response| async move {
+                    res.headers_mut()
+                        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+                    res
+                })),
+        );
 
     // Everything else requires a session and is checked against the RBAC
     // permission matrix by the guard middleware.

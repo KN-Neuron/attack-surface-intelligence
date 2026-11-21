@@ -1,72 +1,52 @@
 {% extends "base.html" %}
+{% block bodyclass %}screen-redesign{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>{{ title }}</h1>
-  <span class="spacer"></span>
-  <span class="head-note">{{ crate::icons::icon("alert-triangle")|safe }} {{ total_hosts }} affected host entries</span>
 </div>
 
 <div class="page-body">
-  <div class="vuln-grid">
-    <section class="card">
-      <div class="card-head">
-        <h2>Detected vulnerable versions</h2>
-        <span class="spacer"></span>
-        <span class="card-note">{{ detected.len() }} findings</span>
+  <section class="card vuln-card">
+    <div class="card-head">
+      <h2>Detected vulnerable versions</h2>
+      <span class="spacer"></span>
+      <div class="search-box">
+        <input type="search" placeholder="Search service, CVE, host..." aria-label="Search detected vulnerable versions" data-table-filter="vuln-table">
+        {{ crate::icons::icon("search")|safe }}
       </div>
-      <div class="tbl-wrap">
-        <table class="tbl">
-          <thead>
-            <tr><th>Service</th><th>Version</th><th>CVE</th><th>Severity</th><th>Hosts</th></tr>
-          </thead>
-          <tbody>
-            {% for row in detected %}
-            <tr>
-              <td class="strong-cell">{{ row.service }}</td>
-              <td>{{ row.version }}</td>
-              <td><span class="mono">{{ row.cve }}</span></td>
-              <td><span class="severity sev-{{ row.severity }}">{{ row.severity }}</span></td>
-              <td>
-                <div class="host-chips">
-                  {% for host in row.hosts %}
-                  <span class="host-chip">{{ host }}</span>
-                  {% endfor %}
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% include "partials/pager.html" %}
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <h2>Known vulnerable versions</h2>
-        <span class="spacer"></span>
-        <span class="card-note">Vulnerability database</span>
-      </div>
-      <div class="tbl-wrap">
-        <table class="tbl">
-          <thead>
-            <tr><th>Service</th><th>Version</th><th>CVE</th><th>Severity</th><th>Summary</th></tr>
-          </thead>
-          <tbody>
-            {% for row in db_rows %}
-            <tr>
-              <td class="strong-cell">{{ row.service }}</td>
-              <td>{{ row.version }}</td>
-              <td><span class="mono">{{ row.cve }}</span></td>
-              <td><span class="severity sev-{{ row.severity }}">{{ row.severity }}</span></td>
-              <td class="wrap-cell">{{ row.summary }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% include "partials/pager.html" %}
-    </section>
-  </div>
+    </div>
+    <div class="vuln-tabs" role="group" aria-label="Filter findings by severity">
+      <button type="button" class="is-on" data-sev-filter="" aria-pressed="true">All<span>{{ detected.len() }}</span></button>
+      <button type="button" data-sev-filter="Critical" aria-pressed="false"><i class="sev-dot sev-d-Critical"></i>Critical<span>{{ critical }}</span></button>
+      <button type="button" data-sev-filter="High" aria-pressed="false"><i class="sev-dot sev-d-High"></i>High<span>{{ high }}</span></button>
+      <button type="button" data-sev-filter="Medium" aria-pressed="false"><i class="sev-dot sev-d-Medium"></i>Medium<span>{{ medium }}</span></button>
+      <span class="vuln-tabs-note">{{ unique_hosts }} affected hosts</span>
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl vuln-tbl" id="vuln-table">
+        <thead>
+          <tr><th>Service</th><th>Version</th><th>CVE</th><th>Severity</th><th>Hosts</th></tr>
+        </thead>
+        <tbody>
+          {% for row in detected %}
+          <tr data-sev="{{ row.severity }}">
+            <td class="strong-cell">{{ row.service }}</td>
+            <td><span class="mono ver">{{ row.version }}</span></td>
+            <td><a class="cve" href="https://nvd.nist.gov/vuln/detail/{{ row.cve }}" target="_blank" rel="noopener noreferrer">{{ row.cve }}</a></td>
+            <td><span class="severity sev-{{ row.severity }}">{{ row.severity }}</span></td>
+            <td>
+              <div class="host-chips">
+                {% for host in row.hosts %}
+                <span class="host-chip">{{ host }}</span>
+                {% endfor %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pager.html" %}
+  </section>
 </div>
 {% endblock %}

@@ -14,40 +14,57 @@
       } catch (e) {}
     })();
   </script>
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/login.css">
+  <script src="/static/login.js" defer></script>
 </head>
-<body class="login-body">
-  <div class="login-shell">
-    <div class="login-card">
-      <div class="login-brand">
-        <div class="login-logo">{{ crate::icons::icon("shield")|safe }}</div>
-        <div>
-          <div class="login-product">Visibly</div>
-          <div class="login-sub">Sign in to continue</div>
-        </div>
-      </div>
-
-      {% if !error.is_empty() %}
-      <div class="login-error">{{ error }}</div>
-      {% endif %}
-
-      <form method="post" action="/login" class="login-form">
-        <div class="field">
-          <label class="field-label" for="login-email">Email</label>
-          <input id="login-email" name="email" type="email" placeholder="you@company.com" autocomplete="username" required autofocus>
-        </div>
-        <div class="field">
-          <label class="field-label" for="login-password">Password</label>
-          <input id="login-password" name="password" type="password" placeholder="Password" autocomplete="current-password" required>
-        </div>
-        <label class="check-row login-remember">
-          <input type="checkbox" name="remember" value="1">
-          <span class="check-box">{{ crate::icons::icon("check")|safe }}</span>
-          <span class="check-label">Remember me for 30 days</span>
-        </label>
-        <button class="btn primary login-btn" type="submit">Sign in</button>
-      </form>
-    </div>
+<body class="login">
+  <div class="scene" aria-hidden="true">
+    <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMax slice">
+      <g class="layer" data-depth="6"><path class="r1" d="M-40,900 L-39,524 L103,518 L225,393 L391,451 L511,267 L659,388 L799,253 L928,436 L1092,392 L1228,514 L1345,513 L1503,537 L1624,498 L1640,900 Z"/></g>
+      <g class="layer" data-depth="12"><path class="r2" d="M-40,900 L-34,457 L76,562 L181,546 L274,630 L384,616 L475,629 L584,601 L697,597 L793,513 L915,551 L1001,436 L1106,533 L1211,478 L1334,593 L1423,585 L1544,622 L1652,633 L1640,900 Z"/></g>
+      <g class="layer" data-depth="20"><path class="r3" d="M-40,900 L-31,613 L48,662 L123,616 L206,669 L295,667 L380,717 L471,726 L543,738 L627,718 L724,706 L792,649 L894,671 L970,609 L1055,660 L1140,625 L1223,689 L1306,682 L1379,730 L1472,719 L1565,732 L1645,694 L1640,900 Z"/></g>
+    </svg>
   </div>
+
+  <main class="stage">
+    <section class="card" id="card" aria-labelledby="login-title">
+      <h1 id="login-title">Sign in</h1>
+
+      <div class="alert" id="form-alert" role="alert"{% if error.is_empty() %} hidden{% endif %}>{{ error }}</div>
+
+      <form id="login-form" method="post" action="/login" novalidate>
+        <div class="field" data-field="email">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" inputmode="email" autocomplete="username"
+                 placeholder="you@company.com" required aria-describedby="email-error"
+                 spellcheck="false" autocapitalize="off" autofocus>
+          <p class="error" id="email-error" aria-live="polite"></p>
+        </div>
+
+        <div class="field has-action" data-field="password">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password"
+                 placeholder="Your password" required aria-describedby="password-error password-caps">
+          <button type="button" class="reveal" id="reveal" aria-label="Show password" aria-pressed="false" hidden>
+            <svg class="eye-open" viewBox="0 0 20 20" aria-hidden="true"><path d="M1.8 10S4.8 4.6 10 4.6 18.2 10 18.2 10 15.2 15.4 10 15.4 1.8 10 1.8 10z"/><circle cx="10" cy="10" r="2.6"/></svg>
+            <svg class="eye-shut" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 3l14 14M8.2 5a8.6 8.6 0 0 1 1.8-.2c5.2 0 8.2 5.4 8.2 5.4a14 14 0 0 1-2.3 2.9M5.4 6.6A13.6 13.6 0 0 0 1.8 10s3 5.4 8.2 5.4c1.3 0 2.5-.3 3.5-.8M8.2 8.3a2.6 2.6 0 0 0 3.6 3.6"/></svg>
+          </button>
+          <p class="error" id="password-error" aria-live="polite"></p>
+          <p class="caps" id="password-caps" hidden>Caps Lock is on</p>
+        </div>
+
+        <label class="check">
+          <input type="checkbox" name="remember" value="1">
+          <span class="box" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M2.5 6.2 5 8.6l4.6-5"/></svg></span>
+          Remember me for 30 days
+        </label>
+
+        <button class="primary" type="submit" id="submit">
+          <span class="label">Sign in</span>
+          <span class="spinner" aria-hidden="true"></span>
+        </button>
+      </form>
+    </section>
+  </main>
 </body>
 </html>

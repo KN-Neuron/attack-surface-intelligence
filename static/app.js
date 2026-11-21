@@ -254,8 +254,9 @@
     railToggle.addEventListener("click", function () {
       var pinned = !sidebar.classList.contains("is-pinned");
       applyNavState(pinned);
+      stored = String(!pinned);
       try {
-        window.localStorage.setItem(NAV_STATE_KEY, String(!pinned));
+        window.localStorage.setItem(NAV_STATE_KEY, stored);
       } catch (_) {}
     });
   }
@@ -409,13 +410,14 @@
       return;
     }
 
-    var state = { page: 1, size: sizeSel ? Number(sizeSel.value) || 10 : 10, filter: "" };
+    var state = { page: 1, size: sizeSel ? Number(sizeSel.value) || 10 : 10, filter: "", sev: "" };
 
     function matches(row) {
       if (rangeSel) {
         var days = Number(rangeSel.value);
         if (days && Number(row.getAttribute("data-days")) > days) return false;
       }
+      if (state.sev && row.getAttribute("data-sev") !== state.sev) return false;
       if (state.filter && row.textContent.toLowerCase().indexOf(state.filter) === -1) return false;
       return true;
     }
@@ -465,6 +467,23 @@
         render();
       });
     }
+    // Optional severity tiles: `[data-sev-filter]` buttons filter rows by `data-sev`.
+    var sevTiles = table.id === "vuln-table"
+      ? Array.prototype.slice.call(document.querySelectorAll("[data-sev-filter]"))
+      : [];
+    sevTiles.forEach(function (tile) {
+      tile.addEventListener("click", function () {
+        var value = tile.getAttribute("data-sev-filter");
+        state.sev = value;
+        sevTiles.forEach(function (t) {
+          var on = t.getAttribute("data-sev-filter") === state.sev;
+          t.classList.toggle("is-on", on);
+          t.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+        state.page = 1;
+        render();
+      });
+    });
     if (firstBtn) firstBtn.addEventListener("click", function () { state.page = 1; render(); });
     if (prevBtn) prevBtn.addEventListener("click", function () { state.page -= 1; render(); });
     if (nextBtn) nextBtn.addEventListener("click", function () { state.page += 1; render(); });
@@ -1382,44 +1401,110 @@
     });
   }
 
-  // ==========================================================================
-  // Scan summary — range dropdown
-  // ==========================================================================
+  // Scan summary
+  var overviewMenu = document.getElementById("overview-menu");
+  if (overviewMenu && sidebar) {
+    var mobileOverview = window.matchMedia("(max-width: 760px)");
+    var setOverviewMenu = function (open) {
+      sidebar.classList.toggle("overview-nav-open", open);
+      overviewMenu.setAttribute("aria-expanded", String(open));
+    };
+    var syncOverviewNav = function () {
+      applyNavState(mobileOverview.matches || stored !== "true");
+      setOverviewMenu(false);
+    };
+
+    document.body.classList.add("overview-menu-ready");
+    overviewMenu.hidden = false;
+    if (mobileOverview.matches) syncOverviewNav();
+    overviewMenu.addEventListener("click", function () {
+      var open = overviewMenu.getAttribute("aria-expanded") !== "true";
+      setOverviewMenu(open);
+      if (open) {
+        var activeLink = sidebar.querySelector('[aria-current="page"]');
+        if (activeLink && activeLink.getClientRects().length) activeLink.focus();
+        else sidebar.querySelector("button, a").focus();
+      }
+    });
+    mobileOverview.addEventListener("change", syncOverviewNav);
+    document.addEventListener("click", function (event) {
+      if (!sidebar.contains(event.target) && !overviewMenu.contains(event.target)) {
+        setOverviewMenu(false);
+      }
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && overviewMenu.getAttribute("aria-expanded") === "true") {
+        setOverviewMenu(false);
+        overviewMenu.focus();
+      }
+    });
+  }
+
+  var overviewShortcut = document.getElementById("overview-shortcut");
+  if (overviewShortcut) {
+    overviewShortcut.textContent = /^Mac/.test(navigator.platform) ? "⌘ K" : "Ctrl K";
+    overviewShortcut.hidden = false;
+    searchInput.setAttribute("aria-keyshortcuts", "Meta+K Control+K");
+  }
+
   var summaryDataEl = document.getElementById("summary-data");
-  if (summaryDataEl) {
-    var points = [];
-    try { points = JSON.parse(summaryDataEl.textContent || "[]"); } catch (_) {}
-    var summaryRange = document.getElementById("summary-range");
-    if (points.length && summaryRange) {
-      var renderPoint = function (idx) {
-        idx = Math.max(0, Math.min(points.length - 1, idx));
-        var p = points[idx];
+  var summaryRange = document.getElementById("summary-range");
+  if (summaryDataEl && summaryRange) {
+    var summaryPoints = [];
+    try { summaryPoints = JSON.parse(summaryDataEl.textContent); } catch (_) {}
 
-        var set = function (id, text) {
-          var el = document.getElementById(id);
-          if (el) el.textContent = text;
-        };
-        set("stat-alive", p.alive);
-        set("stat-down", p.down);
-        set("stat-services", p.services);
-        set("donut-total", p.services);
+    if (summaryPoints.length) {
+      var chart = document.getElementById("summary-chart");
+      var bars = document.getElementById("summary-bars");
+      var number = new Intl.NumberFormat(document.documentElement.lang);
+      var serviceMax = Math.max(1, ...summaryPoints.map(function (point) { return point.services; }));
 
-        var aliveDelta = document.getElementById("stat-alive-delta");
-        if (aliveDelta) {
-          aliveDelta.textContent = (p.alive_new >= 0 ? "+" : "") + p.alive_new + " since last scan";
-          aliveDelta.className = "metric-delta " + (p.alive_new >= 0 ? "up" : "down");
-        }
-        var downDelta = document.getElementById("stat-down-delta");
-        if (downDelta) {
-          downDelta.textContent = (p.down_new >= 0 ? "+" : "") + p.down_new + " since last scan";
-          downDelta.className = "metric-delta " + (p.down_new >= 0 ? "down" : "up");
-        }
-      };
+      var rangeButtons = summaryPoints.map(function (point, index) {
+        var button = document.createElement("button");
+        button.type = "button";
+        button.className = "overview-bar";
+        button.setAttribute("aria-label", "Last " + point.label + ", " + number.format(point.services) + " services");
+        button.innerHTML = '<span class="overview-bar-track" aria-hidden="true">' +
+          '<span class="overview-bar-column"></span><span class="overview-bar-value"></span></span>' +
+          '<span class="overview-bar-label" aria-hidden="true"></span>';
+        button.style.setProperty("--bar-height", (100 * point.services / serviceMax) + "%");
+        button.querySelector(".overview-bar-value").textContent = number.format(point.services);
+        button.querySelector(".overview-bar-label").textContent = point.label;
+
+        button.addEventListener("click", function () {
+          summaryRange.value = String(index);
+          renderSummary(index);
+        });
+        bars.appendChild(button);
+        return button;
+      });
+
+      function setSummaryDelta(id, value, positiveIsGood) {
+        var delta = document.getElementById(id);
+        delta.textContent = (value > 0 ? "+" : "") + number.format(value) + " since last scan";
+        delta.classList.toggle("up", value !== 0 && (value > 0) === positiveIsGood);
+        delta.classList.toggle("down", value !== 0 && (value > 0) !== positiveIsGood);
+      }
+
+      function renderSummary(index) {
+        var point = summaryPoints[index];
+        if (!point) return;
+        document.getElementById("stat-alive").textContent = number.format(point.alive);
+        document.getElementById("stat-down").textContent = number.format(point.down);
+        document.getElementById("stat-services").textContent = number.format(point.services);
+        setSummaryDelta("stat-alive-delta", point.alive_new, true);
+        setSummaryDelta("stat-down-delta", point.down_new, false);
+        rangeButtons.forEach(function (button, i) {
+          button.setAttribute("aria-pressed", String(i === index));
+        });
+      }
 
       summaryRange.addEventListener("change", function () {
-        renderPoint(Number(summaryRange.value));
+        renderSummary(Number(summaryRange.value));
       });
-      renderPoint(Number(summaryRange.value));
+      renderSummary(Number(summaryRange.value));
+      summaryRange.disabled = false;
+      chart.hidden = false;
     }
   }
 
