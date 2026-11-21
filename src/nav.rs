@@ -34,7 +34,6 @@ fn plain(items: Vec<NavItem>) -> NavGroup {
 
 pub const SCAN_SUMMARY: &str = "/dashboards/scan-summary";
 pub const TECHNOLOGIES: &str = "/dashboards/technologies-used";
-pub const VERSIONS: &str = "/dashboards/versions-used";
 pub const VULNERABLE: &str = "/dashboards/vulnerable-versions";
 pub const IP_RANGES: &str = "/host-management/ip-ranges";
 pub const HOST_GROUPS: &str = "/host-management/host-groups";
@@ -53,7 +52,6 @@ pub fn main_nav() -> SidebarDef {
             group("Dashboards", "bar-chart", vec![
                 item("Scan summary", SCAN_SUMMARY, "bar-chart"),
                 item("Technologies used", TECHNOLOGIES, "grid"),
-                item("Versions used", VERSIONS, "box"),
                 item("Vulnerable versions", VULNERABLE, "shield"),
             ]),
             group("Host management", "server", vec![

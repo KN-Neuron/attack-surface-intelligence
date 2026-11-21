@@ -198,10 +198,6 @@ pub async fn technologies_used() -> Html<String> {
     dashboard_page("Technologies used", nav::TECHNOLOGIES)
 }
 
-pub async fn versions_used() -> Html<String> {
-    dashboard_page("Versions used", nav::VERSIONS)
-}
-
 pub async fn vulnerable_versions() -> Html<String> {
     dashboard_page("Vulnerable versions", nav::VULNERABLE)
 }

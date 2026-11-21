@@ -10,10 +10,9 @@ use tower_http::{compression::CompressionLayer, services::ServeDir};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/", get(handlers::root))
-        // Dashboards — all four render the same dashboard content.
+        // Dashboards — all render the same dashboard content.
         .route("/dashboards/scan-summary", get(handlers::scan_summary))
         .route("/dashboards/technologies-used", get(handlers::technologies_used))
-        .route("/dashboards/versions-used", get(handlers::versions_used))
         .route("/dashboards/vulnerable-versions", get(handlers::vulnerable_versions))
         // Host management — both render the same IP management content.
         .route("/host-management/ip-ranges", get(handlers::ip_ranges))
