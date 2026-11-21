@@ -712,6 +712,8 @@ struct ClassifiedEntries {
     ranges: Vec<String>,
     fqdns: Vec<String>,
     skipped: usize,
+    /// Valid entries listed more than once in the same file.
+    repeats: usize,
 }
 
 /// Splits a mixed list of entries into IPs, CIDR ranges and FQDNs, dropping
@@ -742,18 +744,21 @@ fn classify_entries(entries: Vec<String>) -> ClassifiedEntries {
         }
     }
 
+    let listed = ips.len() + ranges.len() + fqdns.len();
     ips.sort();
     ips.dedup();
     ranges.sort();
     ranges.dedup();
     fqdns.sort();
     fqdns.dedup();
+    let repeats = listed - (ips.len() + ranges.len() + fqdns.len());
 
     ClassifiedEntries {
         ips,
         ranges,
         fqdns,
         skipped,
+        repeats,
     }
 }
 
@@ -784,6 +789,7 @@ pub async fn preview_import(pool: &PgPool, entries: Vec<String>) -> ImportPrevie
         ips: classified.ips.len().saturating_sub(existing_ips as usize),
         ranges: classified.ranges.len().saturating_sub(existing_ranges as usize),
         fqdns: classified.fqdns.len().saturating_sub(existing_fqdns as usize),
+        duplicates: classified.repeats + (existing_ips + existing_ranges + existing_fqdns) as usize,
         skipped: classified.skipped,
     }
 }
@@ -801,7 +807,8 @@ pub async fn import_hosts(pool: &PgPool, entries: Vec<String>, tags: Vec<String>
     let ips = add_host_ips(pool, classified.ips, tags.clone()).await;
     let ranges = add_host_ranges(pool, classified.ranges, tags.clone()).await;
     let fqdns = add_host_fqdns(pool, classified.fqdns, tags).await;
-    let duplicates = (ip_total - ips) + (range_total - ranges) + (fqdn_total - fqdns);
+    let duplicates =
+        classified.repeats + (ip_total - ips) + (range_total - ranges) + (fqdn_total - fqdns);
 
     ImportSummary {
         ips,

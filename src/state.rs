@@ -331,5 +331,7 @@ pub struct ImportPreview {
     pub ips: usize,
     pub ranges: usize,
     pub fqdns: usize,
+    /// Entries listed twice in the file or already in the inventory.
+    pub duplicates: usize,
     pub skipped: usize,
 }
