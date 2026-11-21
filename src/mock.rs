@@ -1,35 +1,6 @@
 use serde::Serialize;
 
-pub struct Series {
-    pub label: &'static str,
-    pub color: &'static str,
-    pub values: Vec<f64>,
-}
-
-pub struct UrlCategory {
-    pub name: &'static str,
-    pub total: &'static str,
-}
-
-pub struct SummarySlide {
-    pub label: &'static str,
-    pub display: &'static str,
-    pub color: &'static str,
-}
-
-pub struct TopUser {
-    pub name: &'static str,
-    pub display: &'static str,
-    pub width: u32,
-}
-
-pub struct LogRow {
-    pub no: usize,
-    pub event_time: String,
-    pub user: &'static str,
-    pub action: &'static str,
-    pub location: &'static str,
-}
+// ---------------------------------------------------------------- static IPs
 
 pub struct StaticIp {
     pub no: usize,
@@ -41,179 +12,54 @@ pub struct StaticIp {
     pub description: &'static str,
 }
 
-#[derive(Serialize)]
-pub struct ApiLogRow {
-    pub event_time: String,
-    pub user: String,
-    pub action: String,
-    pub location: String,
-}
-
-pub const CHART_BLUE: &str = "#4aa8ff";
-pub const CHART_GREEN: &str = "#67c17f";
-pub const CHART_YELLOW: &str = "#e5c458";
-pub const CHART_RED: &str = "#ff6b6b";
-pub const CHART_OLIVE: &str = "#9aa86b";
-
-pub const TREND_LABELS: [&str; 6] = ["11/14", "11/15", "11/16", "11/18", "11/19", "11/21"];
-
-pub fn trend_series() -> Vec<Series> {
-    vec![
-        Series {
-            label: "Business Use",
-            color: CHART_BLUE,
-            values: vec![0.0, 14.0, 520.0, 26.0, 1680.0, 12.0],
-        },
-        Series {
-            label: "General Surfing",
-            color: CHART_GREEN,
-            values: vec![8.0, 16.0, 64.0, 12.0, 44.0, 6.0],
-        },
-        Series {
-            label: "Bandwidth Loss",
-            color: CHART_YELLOW,
-            values: vec![4.0, 7.0, 18.0, 5.0, 12.0, 3.0],
-        },
-    ]
-}
-
-pub fn protocol_series() -> Vec<Series> {
-    vec![
-        Series {
-            label: "HTTPS",
-            color: CHART_BLUE,
-            values: vec![18.0, 34.0, 118.0, 22.0, 1650.0, 16.0],
-        },
-        Series {
-            label: "HTTP",
-            color: CHART_GREEN,
-            values: vec![6.0, 12.0, 34.0, 8.0, 118.0, 5.0],
-        },
-        Series {
-            label: "DNS over HTTPS",
-            color: CHART_YELLOW,
-            values: vec![3.0, 6.0, 24.0, 4.0, 86.0, 3.0],
-        },
-        Series {
-            label: "SSL",
-            color: CHART_RED,
-            values: vec![2.0, 4.0, 11.0, 3.0, 28.0, 2.0],
-        },
-        Series {
-            label: "HTTP Proxy",
-            color: CHART_OLIVE,
-            values: vec![1.0, 2.0, 6.0, 2.0, 14.0, 1.0],
-        },
-    ]
-}
-
-pub fn url_categories() -> Vec<UrlCategory> {
-    vec![
-        UrlCategory { name: "Generative AI and ML Applications", total: "1.2 K" },
-        UrlCategory { name: "Web Search", total: "299" },
-        UrlCategory { name: "Operating System and Software Updates", total: "260" },
-        UrlCategory { name: "DNS Over HTTPS Services", total: "232" },
-        UrlCategory { name: "Internet Services", total: "214" },
-        UrlCategory { name: "Professional Services", total: "113" },
-        UrlCategory { name: "Miscellaneous or Unknown", total: "85" },
-        UrlCategory { name: "Corporate Marketing", total: "65" },
-        UrlCategory { name: "FileHost", total: "32" },
-        UrlCategory { name: "Other Information Technology", total: "24" },
-        UrlCategory { name: "Other Business and Economy", total: "16" },
-    ]
-}
-
-pub fn blocked_categories() -> Vec<UrlCategory> {
-    vec![
-        UrlCategory { name: "FileHost", total: "15" },
-        UrlCategory { name: "Internet Services", total: "5" },
-        UrlCategory { name: "Professional Services", total: "2" },
-    ]
-}
-
-pub fn summary_slides() -> Vec<SummarySlide> {
-    vec![
-        SummarySlide { label: "Business Use", display: "2.5 K", color: "#ff5a4d" },
-        SummarySlide { label: "General Surfing", display: "940", color: "#4aa8ff" },
-        SummarySlide { label: "Bandwidth Loss", display: "310", color: "#e5c458" },
-    ]
-}
-
-pub fn top_users() -> Vec<TopUser> {
-    vec![
-        TopUser { name: "testuser1@djanikowski.zscalertwo.net", display: "2.5 K", width: 100 },
-        TopUser { name: "svc-backup@djanikowski.zscalertwo.net", display: "412", width: 62 },
-        TopUser { name: "analyst@djanikowski.zscalertwo.net", display: "286", width: 44 },
-        TopUser { name: "build-runner@djanikowski.zscalertwo.net", display: "143", width: 27 },
-        TopUser { name: "guest-wifi@djanikowski.zscalertwo.net", display: "88", width: 16 },
-    ]
-}
-
-fn log_times() -> Vec<String> {
-    let base = chrono::NaiveDate::from_ymd_opt(2026, 11, 16)
-        .unwrap()
-        .and_hms_opt(12, 22, 19)
-        .unwrap();
-    (0..60)
-        .map(|i| {
-            let t = base + chrono::Duration::seconds(i * 7);
-            t.format("%A, %B %-d, %Y %-I:%M:%S %p").to_string()
-        })
-        .collect()
-}
-
-pub fn log_rows(limit: usize) -> Vec<LogRow> {
-    let times = log_times();
-    times
-        .iter()
-        .enumerate()
-        .take(limit)
-        .map(|(i, t)| LogRow {
-            no: i + 1,
-            event_time: t.clone(),
-            user: "testuser1@djanikowski.zscalertwo.net",
-            action: "Allowed",
-            location: "Road Warrior",
-        })
-        .collect()
-}
-
-pub fn latest_log_rows(n: usize) -> Vec<ApiLogRow> {
-    let times = log_times();
-    let start = times.len().saturating_sub(n);
-    times[start..]
-        .iter()
-        .rev()
-        .map(|t| ApiLogRow {
-            event_time: t.clone(),
-            user: "testuser1@djanikowski.zscalertwo.net".into(),
-            action: "Allowed".into(),
-            location: "Road Warrior".into(),
-        })
-        .collect()
-}
-
 pub fn static_ips() -> Vec<StaticIp> {
-    vec![StaticIp {
-        no: 1,
-        address: "35.159.0.131",
-        city: "Frankfurt am Main, Hesse, Germany",
-        managed_by: "Self",
-        last_modified: "July 18, 2025 11:27 AM",
-        last_modified_by: "Dawid Janikowski",
-        description: "---",
-    }]
-}
-
-pub fn logs_csv() -> String {
-    let mut out = String::from("No,Event Time,User,Policy Action,Location\n");
-    for row in log_rows(60) {
-        out.push_str(&format!(
-            "{},\"{}\",{},{},{}\n",
-            row.no, row.event_time, row.user, row.action, row.location
-        ));
-    }
-    out
+    vec![
+        StaticIp {
+            no: 1,
+            address: "35.159.0.131",
+            city: "Frankfurt am Main, Hesse, Germany",
+            managed_by: "Self",
+            last_modified: "July 18, 2025 11:27 AM",
+            last_modified_by: "Dawid Janikowski",
+            description: "Edge reverse proxy",
+        },
+        StaticIp {
+            no: 2,
+            address: "10.0.0.0/24",
+            city: "Warsaw, Masovia, Poland",
+            managed_by: "Self",
+            last_modified: "October 02, 2025 08:12 AM",
+            last_modified_by: "Marta Kowalska",
+            description: "Perimeter DMZ range",
+        },
+        StaticIp {
+            no: 3,
+            address: "10.0.4.0/24",
+            city: "Warsaw, Masovia, Poland",
+            managed_by: "Self",
+            last_modified: "November 09, 2025 03:40 PM",
+            last_modified_by: "Dawid Janikowski",
+            description: "Core services range",
+        },
+        StaticIp {
+            no: 4,
+            address: "10.0.5.0/24",
+            city: "Krakow, Lesser Poland, Poland",
+            managed_by: "Self",
+            last_modified: "November 12, 2025 10:05 AM",
+            last_modified_by: "Marta Kowalska",
+            description: "Database tier range",
+        },
+        StaticIp {
+            no: 5,
+            address: "172.16.20.0/24",
+            city: "Gdansk, Pomerania, Poland",
+            managed_by: "Self",
+            last_modified: "November 18, 2025 01:22 PM",
+            last_modified_by: "Dawid Janikowski",
+            description: "Branch office range",
+        },
+    ]
 }
 
 pub fn static_ips_csv() -> String {
@@ -234,6 +80,17 @@ pub fn static_ips_csv() -> String {
     out
 }
 
+#[derive(Serialize)]
+pub struct StaticIpDto {
+    pub no: usize,
+    pub static_ip: String,
+    pub city: String,
+    pub managed_by: String,
+    pub last_modified_time: String,
+    pub last_modified_by: String,
+    pub description: String,
+}
+
 pub fn static_ips_api() -> Vec<StaticIpDto> {
     static_ips()
         .into_iter()
@@ -249,81 +106,354 @@ pub fn static_ips_api() -> Vec<StaticIpDto> {
         .collect()
 }
 
+/// The addresses a host group may be built from — the entries defined on the
+/// IP ranges page.
+pub fn ip_ranges() -> Vec<&'static str> {
+    static_ips().into_iter().map(|ip| ip.address).collect()
+}
+
+// ---------------------------------------------------------------- upcoming
+
+pub struct UpcomingScan {
+    pub name: &'static str,
+    pub schedule: &'static str,
+    pub next_run: &'static str,
+    pub target: &'static str,
+    pub hosts: u32,
+}
+
+pub fn upcoming_scan() -> UpcomingScan {
+    UpcomingScan {
+        name: "Nightly perimeter sweep",
+        schedule: "Daily at 01:00",
+        next_run: "November 22, 2026 01:00 AM",
+        target: "Perimeter DMZ · 10.0.0.0/24",
+        hosts: 254,
+    }
+}
+
+// ---------------------------------------------------------------- scan summary
+
+pub const LATEST_SCAN: &str = "November 21, 2026 09:14:02 AM";
+
 #[derive(Serialize)]
-pub struct StaticIpDto {
-    pub no: usize,
-    pub static_ip: String,
-    pub city: String,
-    pub managed_by: String,
-    pub last_modified_time: String,
-    pub last_modified_by: String,
-    pub description: String,
+pub struct TimelinePoint {
+    pub label: &'static str,
+    pub days: u32,
+    pub alive: u32,
+    pub alive_new: i32,
+    pub down: u32,
+    pub down_new: i32,
+    pub services: u32,
 }
 
-fn fmt_axis(value: f64) -> String {
-    if value >= 1000.0 {
-        format!("{:.1}K", value / 1000.0)
-    } else {
-        format!("{:.0}", value)
-    }
+/// Defaults for the scan summary. The timeline control swaps between these;
+/// the numbers are written as deltas versus the previous comparable scan.
+pub fn timeline_points() -> Vec<TimelinePoint> {
+    vec![
+        TimelinePoint { label: "24 hours", days: 1, alive: 132, alive_new: 6, down: 9, down_new: -2, services: 214 },
+        TimelinePoint { label: "7 days", days: 7, alive: 148, alive_new: 14, down: 12, down_new: 3, services: 246 },
+        TimelinePoint { label: "30 days", days: 30, alive: 171, alive_new: 23, down: 15, down_new: 2, services: 289 },
+        TimelinePoint { label: "90 days", days: 90, alive: 188, alive_new: 31, down: 18, down_new: 1, services: 312 },
+        TimelinePoint { label: "1 year", days: 365, alive: 204, alive_new: 42, down: 21, down_new: 4, services: 331 },
+    ]
 }
 
-/// A chart split into axis label lists (rendered as HTML, so they stay crisp
-/// at any size) plus the SVG plot itself, which stretches to fill its box.
-pub struct Chart {
-    pub svg: String,
-    pub y_ticks: Vec<YTick>,
-    pub x_labels: Vec<&'static str>,
-}
-
-pub struct YTick {
-    pub label: String,
-    /// Distance from the top of the plot area, as a percentage.
+pub struct ServiceSlice {
+    pub label: &'static str,
+    pub count: u32,
     pub pct: f64,
+    pub gap: f64,
+    pub color: &'static str,
+    /// Stroke offset for a donut whose circumference is 100.
+    pub offset: f64,
 }
 
-/// Renders a minimal multi-series line chart as an inline SVG plot.
-///
-/// The plot uses a 0..100 square viewBox with `preserveAspectRatio="none"`, so
-/// the browser can stretch it to any width/height; strokes opt out of the
-/// scaling with `vector-effect` so line weight stays constant.
-pub fn line_chart(series: &[Series], x_labels: &[&'static str], y_max: f64, y_step: f64) -> Chart {
-    let n = x_labels.len().max(2);
-    let x_at = |i: usize| (i as f64) * (100.0 / ((n - 1) as f64));
-    let y_at = |v: f64| 100.0 - (v.clamp(0.0, y_max) / y_max) * 100.0;
+pub fn service_slices() -> Vec<ServiceSlice> {
+    let raw = [
+        ("Web (HTTP/HTTPS)", 1024u32, 42.0, "#4aa8ff"),
+        ("SSH", 438, 18.0, "#67c17f"),
+        ("DNS", 341, 14.0, "#e5c458"),
+        ("Database", 268, 11.0, "#b58cff"),
+        ("Remote desktop", 171, 7.0, "#ff8f6b"),
+        ("Others", 195, 8.0, "#5d7085"),
+    ];
 
-    let mut y_ticks = Vec::new();
-    let mut tick = y_step;
-    while tick <= y_max + 0.001 {
-        y_ticks.push(YTick {
-            label: fmt_axis(tick),
-            pct: (1.0 - tick / y_max) * 100.0,
-        });
-        tick += y_step;
+    let mut cumulative = 0.0;
+    raw.into_iter()
+        .map(|(label, count, pct, color)| {
+            let offset = (25.0 - cumulative) as f64;
+            cumulative += pct;
+            ServiceSlice { label, count, pct, gap: 100.0 - pct, color, offset }
+        })
+        .collect()
+}
+
+pub struct PopularService {
+    pub service: &'static str,
+    pub count: u32,
+    pub pct: u32,
+    pub color: &'static str,
+}
+
+pub fn popular_services() -> Vec<PopularService> {
+    vec![
+        PopularService { service: "HTTPS", count: 1840, pct: 100, color: "#4aa8ff" },
+        PopularService { service: "HTTP", count: 1210, pct: 66, color: "#4aa8ff" },
+        PopularService { service: "SSH", count: 640, pct: 35, color: "#67c17f" },
+        PopularService { service: "DNS", count: 512, pct: 28, color: "#e5c458" },
+        PopularService { service: "MySQL", count: 188, pct: 10, color: "#b58cff" },
+        PopularService { service: "RDP", count: 142, pct: 8, color: "#ff8f6b" },
+        PopularService { service: "SMB", count: 96, pct: 5, color: "#5d7085" },
+    ]
+}
+
+// ---------------------------------------------------------------- technologies
+
+#[derive(Clone, Serialize)]
+pub struct TechHost {
+    pub ip: String,
+    pub hostname: String,
+    pub os: String,
+    pub port: u16,
+    pub service: String,
+    pub first_seen: String,
+    pub last_seen: String,
+}
+
+#[derive(Clone, Serialize)]
+pub struct TechRow {
+    pub id: usize,
+    pub name: &'static str,
+    pub versions: &'static str,
+    pub category: &'static str,
+    pub host_count: usize,
+    pub hosts: Vec<TechHost>,
+}
+
+fn host(ip: &str, hostname: &str, os: &str, port: u16, service: &str) -> TechHost {
+    TechHost {
+        ip: ip.into(),
+        hostname: hostname.into(),
+        os: os.into(),
+        port,
+        service: service.into(),
+        first_seen: "September 12, 2026".into(),
+        last_seen: "November 21, 2026".into(),
     }
+}
 
-    let mut svg = String::new();
-    svg.push_str(r#"<svg class="chart" viewBox="0 0 100 100" preserveAspectRatio="none" role="img">"#);
+pub fn technologies() -> Vec<TechRow> {
+    vec![
+        TechRow {
+            id: 1,
+            name: "nginx",
+            versions: "1.24.0, 1.25.3",
+            category: "Web server",
+            host_count: 3,
+            hosts: vec![
+                host("35.159.0.131", "edge-proxy-01", "Ubuntu 22.04", 443, "HTTPS"),
+                host("10.0.0.14", "edge-proxy-02", "Ubuntu 22.04", 443, "HTTPS"),
+                host("10.0.4.21", "api-gateway", "Debian 12", 80, "HTTP"),
+            ],
+        },
+        TechRow {
+            id: 2,
+            name: "OpenSSH",
+            versions: "8.9p1, 9.6p1",
+            category: "Remote access",
+            host_count: 3,
+            hosts: vec![
+                host("10.0.0.14", "edge-proxy-02", "Ubuntu 22.04", 22, "SSH"),
+                host("10.0.4.9", "build-runner", "Debian 12", 22, "SSH"),
+                host("10.0.5.7", "db-primary", "Rocky Linux 9", 22, "SSH"),
+            ],
+        },
+        TechRow {
+            id: 3,
+            name: "PostgreSQL",
+            versions: "15.4, 16.1",
+            category: "Database",
+            host_count: 2,
+            hosts: vec![
+                host("10.0.5.7", "db-primary", "Rocky Linux 9", 5432, "PostgreSQL"),
+                host("10.0.5.8", "db-replica", "Rocky Linux 9", 5432, "PostgreSQL"),
+            ],
+        },
+        TechRow {
+            id: 4,
+            name: "Apache httpd",
+            versions: "2.4.58",
+            category: "Web server",
+            host_count: 2,
+            hosts: vec![
+                host("10.0.4.4", "legacy-crm", "CentOS 7", 80, "HTTP"),
+                host("10.0.4.5", "intranet", "CentOS 7", 443, "HTTPS"),
+            ],
+        },
+        TechRow {
+            id: 5,
+            name: "MySQL",
+            versions: "8.0.35",
+            category: "Database",
+            host_count: 2,
+            hosts: vec![
+                host("10.0.5.11", "shop-db", "Ubuntu 20.04", 3306, "MySQL"),
+                host("10.0.5.12", "shop-db-replica", "Ubuntu 20.04", 3306, "MySQL"),
+            ],
+        },
+        TechRow {
+            id: 6,
+            name: "Redis",
+            versions: "7.2.3",
+            category: "Cache",
+            host_count: 2,
+            hosts: vec![
+                host("10.0.4.30", "cache-01", "Debian 12", 6379, "Redis"),
+                host("10.0.4.31", "cache-02", "Debian 12", 6379, "Redis"),
+            ],
+        },
+        TechRow {
+            id: 7,
+            name: "Docker Engine",
+            versions: "24.0.7, 25.0.3",
+            category: "Container runtime",
+            host_count: 3,
+            hosts: vec![
+                host("10.0.4.9", "build-runner", "Debian 12", 2375, "Docker"),
+                host("10.0.4.21", "api-gateway", "Debian 12", 2376, "Docker"),
+                host("10.0.6.3", "staging-app", "Ubuntu 22.04", 2376, "Docker"),
+            ],
+        },
+        TechRow {
+            id: 8,
+            name: "Node.js",
+            versions: "20.10.0",
+            category: "Application runtime",
+            host_count: 2,
+            hosts: vec![
+                host("10.0.6.3", "staging-app", "Ubuntu 22.04", 3000, "HTTP"),
+                host("10.0.6.4", "web-frontend", "Ubuntu 22.04", 3000, "HTTP"),
+            ],
+        },
+        TechRow {
+            id: 9,
+            name: "PHP",
+            versions: "8.2.13",
+            category: "Application runtime",
+            host_count: 1,
+            hosts: vec![host("10.0.4.5", "intranet", "CentOS 7", 443, "HTTPS")],
+        },
+        TechRow {
+            id: 10,
+            name: "Kubernetes",
+            versions: "1.28.5",
+            category: "Orchestration",
+            host_count: 1,
+            hosts: vec![host("10.0.6.10", "k8s-control", "Ubuntu 22.04", 6443, "HTTPS")],
+        },
+    ]
+}
 
-    for (si, s) in series.iter().enumerate() {
-        let mut d = String::new();
-        for (i, v) in s.values.iter().enumerate() {
-            let cmd = if i == 0 { 'M' } else { 'L' };
-            d.push_str(&format!("{cmd}{:.2},{:.2} ", x_at(i), y_at(*v)));
-        }
-        let delay = 0.12 * (si as f64) + 0.1;
-        // Each series is revealed by clipping (not by dash offset): with a
-        // non-scaling stroke, dash lengths are measured in screen pixels and
-        // would render the line dashed instead of drawing it on.
-        svg.push_str(&format!(
-            r#"<g class="chart-series" style="animation-delay:{:.2}s"><path class="chart-line" d="{}" vector-effect="non-scaling-stroke" style="stroke:{}"/></g>"#,
-            delay,
-            d.trim_end(),
-            s.color
-        ));
-    }
+// ---------------------------------------------------------------- vulnerabilities
 
-    svg.push_str("</svg>");
+pub struct VulnDbRow {
+    pub service: &'static str,
+    pub version: &'static str,
+    pub cve: &'static str,
+    pub severity: &'static str,
+    pub summary: &'static str,
+}
 
-    Chart { svg, y_ticks, x_labels: x_labels.to_vec() }
+pub fn vulnerable_db() -> Vec<VulnDbRow> {
+    vec![
+        VulnDbRow { service: "OpenSSH", version: "8.9p1", cve: "CVE-2023-38408", severity: "Critical", summary: "Remote code execution via the PKCS#11 provider" },
+        VulnDbRow { service: "Apache httpd", version: "2.4.58", cve: "CVE-2023-45802", severity: "High", summary: "HTTP/2 memory exhaustion in request handling" },
+        VulnDbRow { service: "nginx", version: "1.24.0", cve: "CVE-2023-44487", severity: "High", summary: "HTTP/2 rapid reset denial of service" },
+        VulnDbRow { service: "PostgreSQL", version: "15.4", cve: "CVE-2023-5869", severity: "High", summary: "Integer overflow in array modification" },
+        VulnDbRow { service: "MySQL", version: "8.0.35", cve: "CVE-2024-20960", severity: "Medium", summary: "Privilege escalation in the server component" },
+        VulnDbRow { service: "Redis", version: "7.2.3", cve: "CVE-2023-45145", severity: "Medium", summary: "Race condition on Unix socket permissions" },
+    ]
+}
+
+pub struct DetectedVuln {
+    pub service: &'static str,
+    pub version: &'static str,
+    pub cve: &'static str,
+    pub severity: &'static str,
+    pub hosts: Vec<&'static str>,
+}
+
+pub fn detected_vulns() -> Vec<DetectedVuln> {
+    vec![
+        DetectedVuln { service: "OpenSSH", version: "8.9p1", cve: "CVE-2023-38408", severity: "Critical", hosts: vec!["10.0.0.14", "10.0.4.9"] },
+        DetectedVuln { service: "Apache httpd", version: "2.4.58", cve: "CVE-2023-45802", severity: "High", hosts: vec!["10.0.4.4", "10.0.4.5"] },
+        DetectedVuln { service: "nginx", version: "1.24.0", cve: "CVE-2023-44487", severity: "High", hosts: vec!["35.159.0.131", "10.0.0.14"] },
+        DetectedVuln { service: "PostgreSQL", version: "15.4", cve: "CVE-2023-5869", severity: "High", hosts: vec!["10.0.5.7", "10.0.5.8"] },
+        DetectedVuln { service: "MySQL", version: "8.0.35", cve: "CVE-2024-20960", severity: "Medium", hosts: vec!["10.0.5.11", "10.0.5.12"] },
+        DetectedVuln { service: "Redis", version: "7.2.3", cve: "CVE-2023-45145", severity: "Medium", hosts: vec!["10.0.4.30", "10.0.4.31"] },
+    ]
+}
+
+// ---------------------------------------------------------------- scan history
+
+#[derive(Clone, Serialize)]
+pub struct ScanRow {
+    pub id: u32,
+    pub label: String,
+    pub started: String,
+    pub finished: String,
+    pub duration: String,
+    pub target: String,
+    pub alive: u32,
+    pub down: u32,
+    pub services: u32,
+    pub technologies: u32,
+    pub vulns: u32,
+    pub days_ago: u32,
+    pub status: String,
+}
+
+fn build_scan_rows() -> Vec<ScanRow> {
+    let base = chrono::NaiveDate::from_ymd_opt(2026, 11, 21)
+        .unwrap()
+        .and_hms_opt(9, 14, 2)
+        .unwrap();
+
+    (0..57u32)
+        .map(|i| {
+            let started = base - chrono::Duration::hours((i as i64) * 18 + 2);
+            let finished = started + chrono::Duration::minutes(11 + (i as i64 % 7) * 3);
+            let alive = 120 + ((i * 7) % 90);
+            let down = 6 + (i % 17);
+            let status = match i % 11 {
+                0 => "Partial",
+                7 => "Failed",
+                _ => "Completed",
+            };
+            ScanRow {
+                id: 57 - i,
+                label: format!("Scan #{}", 57 - i),
+                started: started.format("%b %-d, %Y %-I:%M %p").to_string(),
+                finished: finished.format("%b %-d, %Y %-I:%M %p").to_string(),
+                duration: format!("{}m", 11 + (i % 7) * 3),
+                target: format!("10.0.{}.0/24", (i * 3) % 12),
+                alive,
+                down,
+                services: 180 + ((i * 5) % 220),
+                technologies: 6 + (i % 9),
+                vulns: (i % 8) + 1,
+                days_ago: ((i * 18 + 2) / 24),
+                status: status.to_string(),
+            }
+        })
+        .collect()
+}
+
+pub fn scan_history() -> Vec<ScanRow> {
+    build_scan_rows()
+}
+
+pub fn scan_options() -> Vec<ScanRow> {
+    build_scan_rows()
 }

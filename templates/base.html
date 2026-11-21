@@ -1,16 +1,20 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title }} · {{ shell.product }}</title>
   <script>
-    // Runs before the stylesheet so a remembered folded nav is already applied
-    // when the sidebar is first styled and painted; no expanded flash.
+    // Runs before the stylesheet so a remembered folded nav or colour theme is
+    // already applied when the page is first painted; no flash.
     (function () {
       try {
         if (window.localStorage.getItem("asi.nav.collapsed") === "true") {
           document.documentElement.classList.add("nav-collapsed");
+        }
+        var theme = window.localStorage.getItem("asi.theme");
+        if (theme === "light" || theme === "dark") {
+          document.documentElement.setAttribute("data-theme", theme);
         }
       } catch (e) {}
     })();
@@ -70,6 +74,8 @@
       {% block content %}{% endblock %}
     </main>
   </div>
+
+  {% block modals %}{% endblock %}
 
   <script src="/static/app.js"></script>
 </body>

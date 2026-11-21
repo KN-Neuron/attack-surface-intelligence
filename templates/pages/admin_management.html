@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ title }}</h1>
+  <span class="spacer"></span>
+  <button class="btn primary" type="button" data-open-modal="admin-modal">{{ crate::icons::icon("plus")|safe }} Add Admin</button>
+</div>
+
+<div class="page-body">
+  <section class="card">
+    <div class="card-head">
+      <h2>Portal administrators</h2>
+      <span class="spacer"></span>
+      <span class="card-note">{{ admins.len() }} accounts</span>
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead>
+          <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last login</th></tr>
+        </thead>
+        <tbody>
+          {% for admin in admins %}
+          <tr>
+            <td class="strong-cell">{{ admin.name }}</td>
+            <td>{{ admin.email }}</td>
+            <td>{{ admin.role }}</td>
+            <td>{% if admin.status == "Active" %}<span class="badge">Active</span>{% else %}<span class="badge blocked">{{ admin.status }}</span>{% endif %}</td>
+            <td>{{ admin.last_login }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card note-card">
+    <div class="note-icon">{{ crate::icons::icon("key")|safe }}</div>
+    <div>
+      <h3>Portal access</h3>
+      <p>Administrators added here can sign in to the Attack Surface Intelligence portal with the role assigned to their account.</p>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal-backdrop" id="admin-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="admin-modal-title">
+    <div class="modal-head">
+      <h2 id="admin-modal-title">Add administrator</h2>
+      <button class="icon-btn subtle" type="button" data-close-modal aria-label="Close">{{ crate::icons::icon("close")|safe }}</button>
+    </div>
+    <form id="admin-form">
+      <div class="modal-body">
+        <div class="field">
+          <label class="field-label" for="admin-name">Full name</label>
+          <input id="admin-name" name="name" type="text" placeholder="e.g. Alex Nowak" required>
+        </div>
+        <div class="field">
+          <label class="field-label" for="admin-email">Email</label>
+          <input id="admin-email" name="email" type="email" placeholder="name@company.com" required>
+        </div>
+        <div class="field">
+          <label class="field-label" for="admin-role">Role</label>
+          <div class="select-wrap">
+            <select id="admin-role" name="role">
+              <option>Analyst</option>
+              <option>Scan Operator</option>
+              <option>Super Admin</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="admin-password">Temporary password</label>
+          <input id="admin-password" name="password" type="password" placeholder="At least 12 characters">
+          <p class="field-hint">The administrator will be prompted to change this on first sign-in.</p>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" data-close-modal>Cancel</button>
+        <button class="btn primary" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

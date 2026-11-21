@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ title }}</h1>
+</div>
+
+<div class="page-body">
+  <section class="card settings-card">
+    <div class="card-head">
+      <h2>Appearance</h2>
+    </div>
+    <div class="settings-row">
+      <div class="settings-copy">
+        <div class="settings-title">Theme</div>
+        <div class="settings-desc">Choose how the portal looks. Your choice is remembered on this device.</div>
+      </div>
+      <div class="theme-choice" role="group" aria-label="Theme">
+        <button type="button" class="theme-option" data-theme-choice="light">
+          {{ crate::icons::icon("sun")|safe }} Light
+        </button>
+        <button type="button" class="theme-option" data-theme-choice="dark">
+          {{ crate::icons::icon("moon")|safe }} Dark
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card settings-card">
+    <div class="card-head">
+      <h2>Scanning</h2>
+    </div>
+    <div class="settings-row">
+      <div class="settings-copy">
+        <div class="settings-title">Default scan depth</div>
+        <div class="settings-desc">Applied to new policies unless overridden by a criterion.</div>
+      </div>
+      <div class="select-wrap settings-select">
+        <select aria-label="Default scan depth">
+          <option>Discovery</option>
+          <option selected>Service detection</option>
+          <option>Full vulnerability scan</option>
+        </select>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-copy">
+        <div class="settings-title">Scan concurrency</div>
+        <div class="settings-desc">How many targets are scanned in parallel.</div>
+      </div>
+      <div class="select-wrap settings-select">
+        <select aria-label="Scan concurrency">
+          <option>1 target</option>
+          <option selected>4 targets</option>
+          <option>8 targets</option>
+          <option>16 targets</option>
+        </select>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

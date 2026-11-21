@@ -5,11 +5,6 @@
 </div>
 
 <div class="page-body">
-  <div class="tabs-bar">
-    <button class="tab-link active" type="button">Static IP ({{ ips.len() }})</button>
-    <button class="tab-link" type="button">GRE Tunnels ({{ gre_count }})</button>
-  </div>
-
   <div class="toolbar">
     <button class="tool-link" type="button">{{ crate::icons::icon("plus-circle")|safe }} Add Static IP</button>
     <button class="tool-link" type="button">{{ crate::icons::icon("upload")|safe }} Import CSV File</button>

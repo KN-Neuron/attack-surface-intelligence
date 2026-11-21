@@ -1,13 +1,15 @@
 use askama::Template;
 use axum::{
-    extract::Query,
+    Json,
+    extract::{Query, State},
     http::header,
     response::{Html, IntoResponse, Redirect, Response},
 };
 use serde::Deserialize;
 
-use crate::mock::{self, LogRow, StaticIp, SummarySlide, TopUser, UrlCategory};
+use crate::mock::{self, DetectedVuln, PopularService, ScanRow, ServiceSlice, StaticIp, TechRow, TimelinePoint, UpcomingScan, VulnDbRow};
 use crate::nav::{self, NavGroup};
+use crate::state::{self, Admin, HostGroup, NewAdmin, NewGroup, NewPolicy, Policy, Scan, ScanStatus, SharedState};
 
 const PRODUCT: &str = "Attack Surface Intelligence";
 
@@ -62,172 +64,8 @@ fn build_shell(active_path: &str) -> Shell {
     }
 }
 
-// ---------------------------------------------------------------- templates
-
-#[derive(Template)]
-#[template(path = "pages/dashboard.html")]
-struct DashboardPage {
-    shell: Shell,
-    title: &'static str,
-    trend_chart: mock::Chart,
-    protocol_chart: mock::Chart,
-    trend_legend: Vec<LegendItem>,
-    protocol_legend: Vec<LegendItem>,
-    url_categories: Vec<UrlCategory>,
-    blocked_categories: Vec<UrlCategory>,
-    slides: Vec<SummarySlide>,
-    top_users: Vec<TopUser>,
-}
-
-pub struct LegendItem {
-    pub label: &'static str,
-    pub color: &'static str,
-}
-
-#[derive(Template)]
-#[template(path = "pages/host_management.html")]
-struct HostManagementPage {
-    shell: Shell,
-    title: &'static str,
-    ips: Vec<StaticIp>,
-    gre_count: usize,
-}
-
-#[derive(Template)]
-#[template(path = "pages/log_center.html")]
-struct LogCenterPage {
-    shell: Shell,
-    title: &'static str,
-    rows: Vec<LogRow>,
-    total: usize,
-    page_size: usize,
-    pages: usize,
-    range_label: &'static str,
-}
-
-#[derive(Template)]
-#[template(path = "pages/stub.html")]
-struct StubPage {
-    shell: Shell,
-    title: &'static str,
-    breadcrumb: &'static str,
-    icon: &'static str,
-}
-
-// ---------------------------------------------------------------- shared pages
-
-fn legend(series: &[mock::Series]) -> Vec<LegendItem> {
-    series
-        .iter()
-        .map(|s| LegendItem { label: s.label, color: s.color })
-        .collect()
-}
-
 fn render<T: Template>(page: &T) -> Html<String> {
     Html(page.render().unwrap_or_else(|e| error_page(&e.to_string())))
-}
-
-/// Every dashboard route renders this same dashboard, differing only in the
-/// page title and which nav entry is highlighted.
-fn dashboard_page(title: &'static str, path: &str) -> Html<String> {
-    let trend = mock::trend_series();
-    let protocols = mock::protocol_series();
-    let page = DashboardPage {
-        shell: build_shell(path),
-        title,
-        trend_chart: mock::line_chart(&trend, &mock::TREND_LABELS, 2000.0, 500.0),
-        protocol_chart: mock::line_chart(&protocols, &mock::TREND_LABELS, 2000.0, 500.0),
-        trend_legend: legend(&trend),
-        protocol_legend: legend(&protocols),
-        url_categories: mock::url_categories(),
-        blocked_categories: mock::blocked_categories(),
-        slides: mock::summary_slides(),
-        top_users: mock::top_users(),
-    };
-    render(&page)
-}
-
-/// Every host-management route renders this same IP management page.
-fn host_management_page(title: &'static str, path: &str) -> Html<String> {
-    let page = HostManagementPage {
-        shell: build_shell(path),
-        title,
-        ips: mock::static_ips(),
-        gre_count: 0,
-    };
-    render(&page)
-}
-
-/// Every Log Center route renders this same log page.
-fn log_center_page(title: &'static str, path: &str) -> Html<String> {
-    let total = 2550usize;
-    let page_size = 100usize;
-    let page = LogCenterPage {
-        shell: build_shell(path),
-        title,
-        rows: mock::log_rows(page_size),
-        total,
-        page_size,
-        pages: total.div_ceil(page_size),
-        range_label: "Nov 16, 2026 12:22:19 PM - Nov 19, 2026 02:18:55 PM",
-    };
-    render(&page)
-}
-
-fn stub_page(title: &'static str, path: &str, icon: &'static str, breadcrumb: &'static str) -> Html<String> {
-    let page = StubPage {
-        shell: build_shell(path),
-        title,
-        breadcrumb,
-        icon,
-    };
-    render(&page)
-}
-
-// ---------------------------------------------------------------- routes
-
-pub async fn root() -> Redirect {
-    Redirect::permanent(nav::SCAN_SUMMARY)
-}
-
-pub async fn scan_summary() -> Html<String> {
-    dashboard_page("Scan summary", nav::SCAN_SUMMARY)
-}
-
-pub async fn technologies_used() -> Html<String> {
-    dashboard_page("Technologies used", nav::TECHNOLOGIES)
-}
-
-pub async fn vulnerable_versions() -> Html<String> {
-    dashboard_page("Vulnerable versions", nav::VULNERABLE)
-}
-
-pub async fn ip_ranges() -> Html<String> {
-    host_management_page("IP ranges", nav::IP_RANGES)
-}
-
-pub async fn host_groups() -> Html<String> {
-    host_management_page("Host groups", nav::HOST_GROUPS)
-}
-
-pub async fn scanning_policies() -> Html<String> {
-    stub_page("Scanning Policies", nav::SCANNING_POLICIES, "shield", "SCANNING POLICIES")
-}
-
-pub async fn scan_history() -> Html<String> {
-    log_center_page("Scan History", nav::SCAN_HISTORY)
-}
-
-pub async fn scan_compare() -> Html<String> {
-    log_center_page("Scan Compare", nav::SCAN_COMPARE)
-}
-
-pub async fn admin_management() -> Html<String> {
-    stub_page("Admin management", nav::ADMIN_MANAGEMENT, "user-cog", "ADMIN MANAGEMENT")
-}
-
-pub async fn settings() -> Html<String> {
-    stub_page("Settings", nav::SETTINGS, "settings", "SETTINGS")
 }
 
 fn error_page(msg: &str) -> String {
@@ -236,30 +74,361 @@ fn error_page(msg: &str) -> String {
     )
 }
 
-// ---------------------------------------------------------------- api
+// ---------------------------------------------------------------- scanning
 
-#[derive(Deserialize)]
-pub struct LogQuery {
-    pub page_size: Option<usize>,
-    pub format: Option<String>,
+pub struct ScanView {
+    pub running: bool,
+    pub paused: bool,
+    pub progress: f64,
+    pub progress_label: String,
+    pub targets_done: u32,
+    pub target_total: u32,
+    pub hosts_found: u32,
+    pub current_target: String,
+    pub started_at: String,
+    pub completed_at: String,
 }
 
-pub async fn logs_feed(Query(q): Query<LogQuery>) -> Response {
-    if q.format.as_deref() == Some("csv") {
-        return (
-            [
-                (header::CONTENT_TYPE, "text/csv; charset=utf-8"),
-                (
-                    header::CONTENT_DISPOSITION,
-                    "attachment; filename=\"scan-history.csv\"",
-                ),
-            ],
-            mock::logs_csv(),
-        )
-            .into_response();
+impl From<&Scan> for ScanView {
+    fn from(scan: &Scan) -> Self {
+        Self {
+            running: scan.running,
+            paused: scan.paused,
+            progress: scan.progress,
+            progress_label: format!("{:.0}%", scan.progress),
+            targets_done: scan.targets_done,
+            target_total: scan.target_total,
+            hosts_found: scan.hosts_found,
+            current_target: scan.current_target.clone(),
+            started_at: scan.started_at.clone().unwrap_or_default(),
+            completed_at: scan.completed_at.clone().unwrap_or_default(),
+        }
     }
-    let n = q.page_size.unwrap_or(10).clamp(1, 500);
-    axum::Json(mock::latest_log_rows(n)).into_response()
+}
+
+#[derive(Template)]
+#[template(path = "pages/scanning_management.html")]
+struct ScanningManagementPage {
+    shell: Shell,
+    title: &'static str,
+    upcoming: UpcomingScan,
+    scan: ScanView,
+}
+
+pub async fn scanning_management(State(state): State<SharedState>) -> Html<String> {
+    let scan = state.lock().unwrap().scan_status_view();
+    let page = ScanningManagementPage {
+        shell: build_shell(nav::SCANNING_MANAGEMENT),
+        title: "Scan management",
+        upcoming: mock::upcoming_scan(),
+        scan,
+    };
+    render(&page)
+}
+
+impl state::AppState {
+    fn scan_status_view(&self) -> ScanView {
+        ScanView::from(&self.scan)
+    }
+}
+
+pub async fn scan_status(State(state): State<SharedState>) -> Json<ScanStatus> {
+    let guard = state.lock().unwrap();
+    Json(ScanStatus::from(&guard.scan))
+}
+
+pub async fn scan_pause(State(state): State<SharedState>) -> Json<ScanStatus> {
+    let mut guard = state.lock().unwrap();
+    if guard.scan.running {
+        guard.scan.paused = !guard.scan.paused;
+    }
+    Json(ScanStatus::from(&guard.scan))
+}
+
+pub async fn scan_cancel(State(state): State<SharedState>) -> Json<ScanStatus> {
+    let mut guard = state.lock().unwrap();
+    guard.scan.cancel();
+    Json(ScanStatus::from(&guard.scan))
+}
+
+pub async fn scan_start(State(state): State<SharedState>) -> Json<ScanStatus> {
+    let mut guard = state.lock().unwrap();
+    guard.scan.start();
+    Json(ScanStatus::from(&guard.scan))
+}
+
+// ---------------------------------------------------------------- policies
+
+#[derive(Template)]
+#[template(path = "pages/policies.html")]
+struct PoliciesPage {
+    shell: Shell,
+    title: &'static str,
+    policies: Vec<Policy>,
+    options_json: String,
+}
+
+pub async fn scanning_policies(State(state): State<SharedState>) -> Html<String> {
+    let (policies, host_groups) = {
+        let guard = state.lock().unwrap();
+        (
+            guard.policies.clone(),
+            guard.host_groups.iter().map(|g| g.name.clone()).collect::<Vec<_>>(),
+        )
+    };
+    let ip_ranges = mock::ip_ranges();
+    let options_json = serde_json::json!({
+        "groups": &host_groups,
+        "ranges": &ip_ranges,
+    })
+    .to_string();
+    let page = PoliciesPage {
+        shell: build_shell(nav::SCANNING_POLICIES),
+        title: "Scan policies",
+        policies,
+        options_json,
+    };
+    render(&page)
+}
+
+pub async fn create_policy(
+    State(state): State<SharedState>,
+    Json(payload): Json<NewPolicy>,
+) -> Json<Policy> {
+    let mut guard = state.lock().unwrap();
+    let order = if payload.order == 0 { guard.policies.len() as u32 + 1 } else { payload.order };
+    Json(guard.add_policy(payload.name, order, payload.criteria, payload.enabled))
+}
+
+// ---------------------------------------------------------------- scan summary
+
+#[derive(Template)]
+#[template(path = "pages/scan_summary.html")]
+struct ScanSummaryPage {
+    shell: Shell,
+    title: &'static str,
+    timeline_json: String,
+    latest_scan: &'static str,
+    initial: TimelinePoint,
+    services: Vec<ServiceSlice>,
+    popular: Vec<PopularService>,
+}
+
+pub async fn scan_summary() -> Html<String> {
+    let points = mock::timeline_points();
+    // Default the timeline to the 7-day window (index 1).
+    let initial = points
+        .get(1)
+        .or_else(|| points.first())
+        .map(|p| TimelinePoint {
+            label: p.label,
+            days: p.days,
+            alive: p.alive,
+            alive_new: p.alive_new,
+            down: p.down,
+            down_new: p.down_new,
+            services: p.services,
+        })
+        .unwrap_or(TimelinePoint { label: "7 days", days: 7, alive: 0, alive_new: 0, down: 0, down_new: 0, services: 0 });
+    let timeline_json = serde_json::to_string(&points).unwrap_or_else(|_| "[]".into());
+
+    let page = ScanSummaryPage {
+        shell: build_shell(nav::SCAN_SUMMARY),
+        title: "Scan summary",
+        timeline_json,
+        latest_scan: mock::LATEST_SCAN,
+        initial,
+        services: mock::service_slices(),
+        popular: mock::popular_services(),
+    };
+    render(&page)
+}
+
+// ---------------------------------------------------------------- technologies
+
+#[derive(Template)]
+#[template(path = "pages/technologies.html")]
+struct TechnologiesPage {
+    shell: Shell,
+    title: &'static str,
+    techs: Vec<TechRow>,
+    tech_json: String,
+}
+
+pub async fn technologies_used() -> Html<String> {
+    let techs = mock::technologies();
+    let tech_json = serde_json::to_string(&techs).unwrap_or_else(|_| "[]".into());
+    let page = TechnologiesPage {
+        shell: build_shell(nav::TECHNOLOGIES),
+        title: "Technologies used",
+        techs,
+        tech_json,
+    };
+    render(&page)
+}
+
+// ---------------------------------------------------------------- vulnerabilities
+
+#[derive(Template)]
+#[template(path = "pages/vulnerable.html")]
+struct VulnerablePage {
+    shell: Shell,
+    title: &'static str,
+    db: Vec<VulnDbRow>,
+    detected: Vec<DetectedVuln>,
+    total_hosts: usize,
+}
+
+pub async fn vulnerable_versions() -> Html<String> {
+    let detected = mock::detected_vulns();
+    let total_hosts = detected.iter().map(|d| d.hosts.len()).sum();
+    let page = VulnerablePage {
+        shell: build_shell(nav::VULNERABLE),
+        title: "Vulnerable versions",
+        db: mock::vulnerable_db(),
+        detected,
+        total_hosts,
+    };
+    render(&page)
+}
+
+// ---------------------------------------------------------------- host management
+
+#[derive(Template)]
+#[template(path = "pages/host_management.html")]
+struct HostManagementPage {
+    shell: Shell,
+    title: &'static str,
+    ips: Vec<StaticIp>,
+}
+
+pub async fn ip_ranges() -> Html<String> {
+    let page = HostManagementPage {
+        shell: build_shell(nav::IP_RANGES),
+        title: "IP ranges",
+        ips: mock::static_ips(),
+    };
+    render(&page)
+}
+
+#[derive(Template)]
+#[template(path = "pages/host_groups.html")]
+struct HostGroupsPage {
+    shell: Shell,
+    title: &'static str,
+    groups: Vec<HostGroup>,
+    ip_ranges: Vec<&'static str>,
+}
+
+pub async fn host_groups(State(state): State<SharedState>) -> Html<String> {
+    let groups = state.lock().unwrap().host_groups.clone();
+    let page = HostGroupsPage {
+        shell: build_shell(nav::HOST_GROUPS),
+        title: "Host groups",
+        groups,
+        ip_ranges: mock::ip_ranges(),
+    };
+    render(&page)
+}
+
+pub async fn create_group(
+    State(state): State<SharedState>,
+    Json(payload): Json<NewGroup>,
+) -> Json<HostGroup> {
+    let mut guard = state.lock().unwrap();
+    Json(guard.add_group(payload.name, payload.ranges, payload.hosts))
+}
+
+// ---------------------------------------------------------------- log center
+
+#[derive(Template)]
+#[template(path = "pages/scan_history.html")]
+struct ScanHistoryPage {
+    shell: Shell,
+    title: &'static str,
+    scans: Vec<ScanRow>,
+    range_label: &'static str,
+}
+
+pub async fn scan_history() -> Html<String> {
+    let page = ScanHistoryPage {
+        shell: build_shell(nav::SCAN_HISTORY),
+        title: "Scan History",
+        scans: mock::scan_history(),
+        range_label: "Nov 1, 2026 - Nov 21, 2026",
+    };
+    render(&page)
+}
+
+#[derive(Template)]
+#[template(path = "pages/scan_compare.html")]
+struct ScanComparePage {
+    shell: Shell,
+    title: &'static str,
+    scan_json: String,
+}
+
+pub async fn scan_compare() -> Html<String> {
+    let scans = mock::scan_options();
+    let scan_json = serde_json::to_string(&scans).unwrap_or_else(|_| "[]".into());
+    let page = ScanComparePage {
+        shell: build_shell(nav::SCAN_COMPARE),
+        title: "Scan Compare",
+        scan_json,
+    };
+    render(&page)
+}
+
+// ---------------------------------------------------------------- admin
+
+#[derive(Template)]
+#[template(path = "pages/admin_management.html")]
+struct AdminPage {
+    shell: Shell,
+    title: &'static str,
+    admins: Vec<Admin>,
+}
+
+pub async fn admin_management(State(state): State<SharedState>) -> Html<String> {
+    let admins = state.lock().unwrap().admins.clone();
+    let page = AdminPage {
+        shell: build_shell(nav::ADMIN_MANAGEMENT),
+        title: "Admin management",
+        admins,
+    };
+    render(&page)
+}
+
+pub async fn create_admin(
+    State(state): State<SharedState>,
+    Json(payload): Json<NewAdmin>,
+) -> Json<Admin> {
+    let mut guard = state.lock().unwrap();
+    let role = if payload.role.is_empty() { "Analyst".to_string() } else { payload.role };
+    Json(guard.add_admin(payload.name, payload.email, role))
+}
+
+// ---------------------------------------------------------------- settings
+
+#[derive(Template)]
+#[template(path = "pages/settings.html")]
+struct SettingsPage {
+    shell: Shell,
+    title: &'static str,
+}
+
+pub async fn settings() -> Html<String> {
+    let page = SettingsPage {
+        shell: build_shell(nav::SETTINGS),
+        title: "Settings",
+    };
+    render(&page)
+}
+
+// ---------------------------------------------------------------- root + api
+
+pub async fn root() -> Redirect {
+    Redirect::permanent(nav::SCAN_SUMMARY)
 }
 
 #[derive(Deserialize)]
@@ -292,18 +461,18 @@ fn normalize(text: &str) -> String {
 ///
 /// Scoring favours prefix matches, then word-boundary matches, then substring
 /// matches; ties break by shorter title so the most specific page wins.
-pub async fn search(Query(q): Query<SearchQuery>) -> axum::Json<Vec<SearchHit>> {
+pub async fn search(Query(q): Query<SearchQuery>) -> Json<Vec<SearchHit>> {
     let needle = normalize(&q.q.unwrap_or_default());
     let limit = q.limit.unwrap_or(8).clamp(1, 25);
 
     if needle.is_empty() {
-        return axum::Json(Vec::new());
+        return Json(Vec::new());
     }
 
     let mut scored: Vec<(i32, usize, SearchHit)> = nav::search_index()
         .into_iter()
         .filter_map(|e| {
-            let title = normalize(&e.title);
+            let title = normalize(e.title);
             let crumb = normalize(e.crumb);
             let score = if title == needle {
                 1000
@@ -312,7 +481,6 @@ pub async fn search(Query(q): Query<SearchQuery>) -> axum::Json<Vec<SearchHit>> 
             } else if title.split_whitespace().any(|w| w.starts_with(&needle)) {
                 800
             } else if title.split_whitespace().all(|w| needle.split_whitespace().any(|n| w.starts_with(n))) {
-                // every query term starts some word in the title (word-wise AND)
                 700
             } else if title.contains(&needle) {
                 600
@@ -332,7 +500,7 @@ pub async fn search(Query(q): Query<SearchQuery>) -> axum::Json<Vec<SearchHit>> 
         .collect();
 
     scored.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
-    axum::Json(scored.into_iter().take(limit).map(|(_, _, hit)| hit).collect())
+    Json(scored.into_iter().take(limit).map(|(_, _, hit)| hit).collect())
 }
 
 #[derive(Deserialize)]
@@ -354,5 +522,5 @@ pub async fn static_ips_feed(Query(q): Query<IpQuery>) -> Response {
         )
             .into_response();
     }
-    axum::Json(mock::static_ips_api()).into_response()
+    Json(mock::static_ips_api()).into_response()
 }

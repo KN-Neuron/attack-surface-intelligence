@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ title }}</h1>
+  <span class="spacer"></span>
+  <div class="search-box">
+    <input type="search" placeholder="Search technologies..." aria-label="Search technologies" data-table-filter="tech-table">
+    {{ crate::icons::icon("search")|safe }}
+  </div>
+</div>
+
+<div class="page-body">
+  <section class="card">
+    <div class="card-head">
+      <h2>Detected technologies</h2>
+      <span class="spacer"></span>
+      <span class="card-note">{{ techs.len() }} technologies</span>
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl" id="tech-table">
+        <thead>
+          <tr>
+            <th>Technology</th>
+            <th>Version(s)</th>
+            <th>Category</th>
+            <th class="right">Hosts</th>
+            <th class="right">Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tech in techs %}
+          <tr>
+            <td class="strong-cell">{{ tech.name }}</td>
+            <td>{{ tech.versions }}</td>
+            <td>{{ tech.category }}</td>
+            <td class="right">{{ tech.host_count }}</td>
+            <td class="right">
+              <button class="link-btn" type="button" data-tech-view="{{ tech.id }}">{{ crate::icons::icon("eye")|safe }} View</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal-backdrop" id="tech-modal" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="tech-modal-title">
+    <div class="modal-head">
+      <div>
+        <h2 id="tech-modal-title">Technology</h2>
+        <div class="modal-sub" id="tech-modal-sub"></div>
+      </div>
+      <button class="icon-btn subtle" type="button" data-close-modal aria-label="Close">{{ crate::icons::icon("close")|safe }}</button>
+    </div>
+    <div class="modal-body">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Host</th><th>OS</th><th>Port</th><th>Service</th><th>First seen</th><th>Last seen</th></tr>
+          </thead>
+          <tbody id="tech-modal-hosts"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" type="button" data-close-modal>Close</button>
+    </div>
+  </div>
+</div>
+<script type="application/json" id="tech-data">{{ tech_json|safe }}</script>
+{% endblock %}

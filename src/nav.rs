@@ -32,12 +32,13 @@ fn plain(items: Vec<NavItem>) -> NavGroup {
     NavGroup { title: "", icon: "", items }
 }
 
+pub const SCANNING_MANAGEMENT: &str = "/scanning/management";
+pub const SCANNING_POLICIES: &str = "/scanning/policies";
 pub const SCAN_SUMMARY: &str = "/dashboards/scan-summary";
 pub const TECHNOLOGIES: &str = "/dashboards/technologies-used";
 pub const VULNERABLE: &str = "/dashboards/vulnerable-versions";
 pub const IP_RANGES: &str = "/host-management/ip-ranges";
 pub const HOST_GROUPS: &str = "/host-management/host-groups";
-pub const SCANNING_POLICIES: &str = "/scanning-policies";
 pub const SCAN_HISTORY: &str = "/log-center/scan-history";
 pub const SCAN_COMPARE: &str = "/log-center/scan-compare";
 pub const ADMIN_MANAGEMENT: &str = "/admin-management";
@@ -49,6 +50,10 @@ pub fn main_nav() -> SidebarDef {
         title: "Attack Surface Intelligence",
         icon: "shield",
         groups: vec![
+            group("Scanning", "scan", vec![
+                item("Management", SCANNING_MANAGEMENT, "activity"),
+                item("Policies", SCANNING_POLICIES, "sliders"),
+            ]),
             group("Dashboards", "bar-chart", vec![
                 item("Scan summary", SCAN_SUMMARY, "bar-chart"),
                 item("Technologies used", TECHNOLOGIES, "grid"),
@@ -58,12 +63,9 @@ pub fn main_nav() -> SidebarDef {
                 item("IP ranges", IP_RANGES, "globe"),
                 item("Host groups", HOST_GROUPS, "users"),
             ]),
-            plain(vec![
-                item("Scanning Policies", SCANNING_POLICIES, "shield"),
-            ]),
             group("Log Center", "file-text", vec![
                 item("Scan History", SCAN_HISTORY, "file-text"),
-                item("Scan Compare", SCAN_COMPARE, "activity"),
+                item("Scan Compare", SCAN_COMPARE, "git-compare"),
             ]),
             plain(vec![
                 item("Admin management", ADMIN_MANAGEMENT, "user-cog"),

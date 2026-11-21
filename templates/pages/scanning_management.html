@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ title }}</h1>
+  <span class="spacer"></span>
+  <span class="head-note">{{ crate::icons::icon("scan")|safe }} Attack Surface Intelligence</span>
+</div>
+
+<div class="page-body">
+  <div class="scan-layout">
+    <section class="card scan-live">
+      <div class="card-head">
+        <h2>Scan activity</h2>
+        <span class="spacer"></span>
+        <span class="pill" id="scan-state" data-state="{% if scan.paused %}paused{% else if scan.running %}running{% else %}idle{% endif %}">
+          <span class="pill-dot"></span>
+          <span id="scan-state-text">{% if scan.paused %}Paused{% else if scan.running %}Running{% else %}Idle{% endif %}</span>
+        </span>
+      </div>
+
+      <div class="scan-active" data-scan-active {% if !scan.running %}hidden{% endif %}>
+        <div class="scan-progress-row">
+          <div class="scan-progress-meta">
+            <span id="scan-current">{{ scan.current_target }}</span>
+            <span class="scan-progress-label" id="scan-progress-label">{{ scan.progress_label }}</span>
+          </div>
+          <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ scan.progress }}" id="scan-progress" style="--p: {{ scan.progress }}%">
+            <div class="progress-fill" id="scan-progress-fill"></div>
+          </div>
+        </div>
+
+        <div class="metric-grid">
+          <div class="metric">
+            <div class="metric-value" id="scan-targets">{{ scan.targets_done }} / {{ scan.target_total }}</div>
+            <div class="metric-label">Targets scanned</div>
+          </div>
+          <div class="metric">
+            <div class="metric-value" id="scan-hosts">{{ scan.hosts_found }}</div>
+            <div class="metric-label">Hosts discovered</div>
+          </div>
+          <div class="metric">
+            <div class="metric-value" id="scan-started">{{ scan.started_at }}</div>
+            <div class="metric-label">Started</div>
+          </div>
+        </div>
+
+        <div class="scan-actions">
+          <button class="btn" type="button" id="scan-pause" data-paused="{% if scan.paused %}true{% else %}false{% endif %}">
+            <span id="scan-pause-icon">{% if scan.paused %}{{ crate::icons::icon("play")|safe }}{% else %}{{ crate::icons::icon("pause")|safe }}{% endif %}</span>
+            <span id="scan-pause-text">{% if scan.paused %}Resume scan{% else %}Pause scan{% endif %}</span>
+          </button>
+          <button class="btn danger" type="button" id="scan-cancel">{{ crate::icons::icon("stop")|safe }} Cancel scan</button>
+        </div>
+      </div>
+
+      <div class="scan-idle" data-scan-idle {% if scan.running %}hidden{% endif %}>
+        <div class="scan-idle-body">
+          <div class="scan-idle-icon">{{ crate::icons::icon("scan")|safe }}</div>
+          <div>
+            <h3>No scan in progress</h3>
+            <p id="scan-last">{% if !scan.completed_at.is_empty() %}Last scan finished {{ scan.completed_at }}.{% else %}Start a scan to discover hosts, services and technologies.{% endif %}</p>
+          </div>
+        </div>
+        <button class="btn primary" type="button" id="scan-start">{{ crate::icons::icon("play")|safe }} Start scan now</button>
+      </div>
+    </section>
+
+    <aside class="scan-side">
+      <section class="card">
+        <div class="card-head">
+          <h2>Upcoming scan</h2>
+        </div>
+        <div class="upcoming">
+          <div class="upcoming-row">
+            <span class="upcoming-key">Policy</span>
+            <span class="upcoming-val">{{ upcoming.name }}</span>
+          </div>
+          <div class="upcoming-row">
+            <span class="upcoming-key">Next run</span>
+            <span class="upcoming-val strong">{{ upcoming.next_run }}</span>
+          </div>
+          <div class="upcoming-row">
+            <span class="upcoming-key">Schedule</span>
+            <span class="upcoming-val">{{ upcoming.schedule }}</span>
+          </div>
+          <div class="upcoming-row">
+            <span class="upcoming-key">Target</span>
+            <span class="upcoming-val">{{ upcoming.target }}</span>
+          </div>
+          <div class="upcoming-row">
+            <span class="upcoming-key">Hosts in scope</span>
+            <span class="upcoming-val">{{ upcoming.hosts }}</span>
+          </div>
+        </div>
+        <div class="upcoming-foot">
+          <button class="btn primary full" type="button" id="scan-start-upcoming">{{ crate::icons::icon("play")|safe }} Start now</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Scan queue</h2>
+        </div>
+        <ul class="queue">
+          <li><span class="queue-dot running"></span><div><div class="queue-name">Nightly perimeter sweep</div><div class="queue-meta">In progress · 10.0.4.0/24</div></div></li>
+          <li><span class="queue-dot"></span><div><div class="queue-name">Weekly internal audit</div><div class="queue-meta">Queued · Sundays 22:00</div></div></li>
+          <li><span class="queue-dot"></span><div><div class="queue-name">Branch office discovery</div><div class="queue-meta">Queued · Mondays 03:00</div></div></li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+</div>
+{% endblock %}

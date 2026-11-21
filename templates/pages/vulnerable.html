@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ title }}</h1>
+  <span class="spacer"></span>
+  <span class="head-note">{{ crate::icons::icon("alert-triangle")|safe }} {{ total_hosts }} affected host entries</span>
+</div>
+
+<div class="page-body">
+  <div class="vuln-grid">
+    <section class="card">
+      <div class="card-head">
+        <h2>Detected vulnerable versions</h2>
+        <span class="spacer"></span>
+        <span class="card-note">{{ detected.len() }} findings</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Service</th><th>Version</th><th>CVE</th><th>Severity</th><th>Hosts</th></tr>
+          </thead>
+          <tbody>
+            {% for row in detected %}
+            <tr>
+              <td class="strong-cell">{{ row.service }}</td>
+              <td>{{ row.version }}</td>
+              <td><span class="mono">{{ row.cve }}</span></td>
+              <td><span class="severity sev-{{ row.severity }}">{{ row.severity }}</span></td>
+              <td>
+                <div class="host-chips">
+                  {% for host in row.hosts %}
+                  <span class="host-chip">{{ host }}</span>
+                  {% endfor %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Known vulnerable versions</h2>
+        <span class="spacer"></span>
+        <span class="card-note">Vulnerability database</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Service</th><th>Version</th><th>CVE</th><th>Severity</th><th>Summary</th></tr>
+          </thead>
+          <tbody>
+            {% for row in db %}
+            <tr>
+              <td class="strong-cell">{{ row.service }}</td>
+              <td>{{ row.version }}</td>
+              <td><span class="mono">{{ row.cve }}</span></td>
+              <td><span class="severity sev-{{ row.severity }}">{{ row.severity }}</span></td>
+              <td class="wrap-cell">{{ row.summary }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

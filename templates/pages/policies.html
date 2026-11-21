@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ title }}</h1>
+  <span class="spacer"></span>
+  <button class="btn primary" type="button" data-open-modal="policy-modal">{{ crate::icons::icon("plus")|safe }} Add Scan</button>
+</div>
+
+<div class="page-body">
+  <section class="card">
+    <div class="card-head">
+      <h2>Scan policies</h2>
+      <span class="spacer"></span>
+      <span class="card-note">{{ policies.len() }} policies</span>
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th class="w-narrow">Order</th>
+            <th>Name</th>
+            <th>Criteria</th>
+            <th class="w-status">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for policy in policies %}
+          <tr>
+            <td>{{ policy.order }}</td>
+            <td class="strong-cell">{{ policy.name }}</td>
+            <td>
+              <div class="criteria-chips">
+                {% for c in policy.criteria %}
+                <span class="criteria-chip"><span class="criteria-kind">{{ c.kind }}</span>{{ c.value }}</span>
+                {% endfor %}
+              </div>
+            </td>
+            <td>
+              {% if policy.enabled %}<span class="badge">Enabled</span>{% else %}<span class="badge blocked">Disabled</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal-backdrop" id="policy-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="policy-modal-title">
+    <div class="modal-head">
+      <h2 id="policy-modal-title">Add scan policy</h2>
+      <button class="icon-btn subtle" type="button" data-close-modal aria-label="Close">{{ crate::icons::icon("close")|safe }}</button>
+    </div>
+    <form id="policy-form">
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="field">
+            <label class="field-label" for="policy-name">Name</label>
+            <input id="policy-name" name="name" type="text" placeholder="e.g. Nightly perimeter sweep" required>
+          </div>
+          <div class="field field-order">
+            <label class="field-label" for="policy-order">Order</label>
+            <input id="policy-order" name="order" type="number" min="1" value="1">
+          </div>
+        </div>
+
+        <div class="criteria-head">
+          <span class="field-label">Criteria</span>
+          <button class="add-criterion" type="button" data-add-criterion>{{ crate::icons::icon("plus")|safe }} New criteria</button>
+        </div>
+        <div id="criteria-list" class="criteria-list"></div>
+        <p class="field-hint" id="criteria-empty">No criteria yet — add at least one to define what this policy scans.</p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" data-close-modal>Cancel</button>
+        <button class="btn primary" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script type="application/json" id="policy-options">{{ options_json|safe }}</script>
+{% endblock %}
