@@ -2464,7 +2464,7 @@ body.modal-open { overflow: hidden; }
 }
 .overview-screen .search-clear { right: 62px; }
 
-.overview { max-width: 1480px; padding: 22px 24px 32px; }
+.overview { padding: 22px 24px 32px; }
 
 .overview-heading {
   display: flex;
@@ -2671,13 +2671,12 @@ body.modal-open { overflow: hidden; }
   position: static;
   align-items: flex-end;
   gap: 14px;
-  max-width: 1480px;
   padding: 22px 24px 0;
   border: 0;
   background: transparent;
 }
 .screen-redesign .page-head h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.2px; }
-.screen-redesign .page-body { max-width: 1480px; padding: 18px 24px 32px; }
+.screen-redesign .page-body { padding: 18px 24px 32px; }
 
 .screen-redesign .card {
   border-color: var(--border-soft);
