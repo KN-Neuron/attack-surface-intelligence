@@ -22,6 +22,11 @@
         </select>
       </div>
       {% endif %}
+      {% if can_read_explorer %}
+      <a class="overview-link" href="/log-center/data-explorer?filter=up%7Ctrue%7C">
+        {{ crate::icons::icon("file-text")|safe }} Hosts in Explorer
+      </a>
+      {% endif %}
       {% if can_read_history %}
       <a class="overview-link overview-history" href="/log-center/scan-history">
         {{ crate::icons::icon("clock")|safe }} Scan history
@@ -38,15 +43,33 @@
       <h2>Reachable hosts</h2>
       <strong id="stat-alive">{{ initial.alive }}</strong>
       <span class="metric-delta {% if initial.alive_new > 0 %}up{% else if initial.alive_new < 0 %}down{% endif %}" id="stat-alive-delta">{% if initial.alive_new > 0 %}+{% endif %}{{ initial.alive_new }} since last scan</span>
+      {% if can_read_explorer %}
+      <a class="kpi-link" href="/log-center/data-explorer?filter=up%7Ctrue%7C">Open in Data Explorer {{ crate::icons::icon("chevron-right")|safe }}</a>
+      {% endif %}
     </section>
     <section class="tile kpi">
       <h2>Unreachable hosts</h2>
       <strong id="stat-down">{{ initial.down }}</strong>
       <span class="metric-delta {% if initial.down_new > 0 %}down{% else if initial.down_new < 0 %}up{% endif %}" id="stat-down-delta">{% if initial.down_new > 0 %}+{% endif %}{{ initial.down_new }} since last scan</span>
+      {% if can_read_explorer %}
+      <a class="kpi-link" href="/log-center/data-explorer?filter=up%7Cfalse%7C">Open in Data Explorer {{ crate::icons::icon("chevron-right")|safe }}</a>
+      {% endif %}
+    </section>
+    <section class="tile kpi">
+      <h2>Open alerts</h2>
+      <strong id="stat-alerts">{{ open_alerts }}</strong>
+      {% if can_read_alerts %}
+      <a class="metric-delta" href="/log-center/alerts">Review alerts {{ crate::icons::icon("chevron-right")|safe }}</a>
+      {% else %}
+      <span class="metric-delta">Alerts raised by scans</span>
+      {% endif %}
     </section>
     <section class="tile kpi">
       <h2>Detected services</h2>
       <strong id="stat-services">{{ initial.services }}</strong>
+      {% if can_read_explorer %}
+      <a class="kpi-link" href="/log-center/data-explorer?filter=ports%7Cnot_empty%7C">Open in Data Explorer {{ crate::icons::icon("chevron-right")|safe }}</a>
+      {% endif %}
     </section>
 
     <section class="tile overview-chart" id="summary-chart" aria-labelledby="chart-title" hidden>

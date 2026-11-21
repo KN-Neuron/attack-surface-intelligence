@@ -8,6 +8,9 @@
     <input type="search" placeholder="Search technologies..." aria-label="Search technologies" data-table-filter="tech-table">
     {{ crate::icons::icon("search")|safe }}
   </div>
+  {% if can_read_explorer %}
+  <a class="btn" href="/log-center/data-explorer?filter=technologies%7Cnot_empty%7C">{{ crate::icons::icon("file-text")|safe }} Open in Data Explorer</a>
+  {% endif %}
 </div>
 
 <div class="page-body">

@@ -41,6 +41,7 @@ pub const VULNERABLE: &str = "/dashboards/vulnerable-versions";
 pub const HOST_MANAGEMENT: &str = "/host-management";
 pub const DATA_EXPLORER: &str = "/log-center/data-explorer";
 pub const SCAN_HISTORY: &str = "/log-center/scan-history";
+pub const ALERTS: &str = "/log-center/alerts";
 pub const ADMIN_MANAGEMENT: &str = "/admin-management";
 pub const SETTINGS: &str = "/settings";
 
@@ -54,6 +55,7 @@ pub fn main_nav() -> SidebarDef {
                 item("Latest Scan summary", SCAN_SUMMARY, "bar-chart"),
                 item("Technologies used", TECHNOLOGIES, "grid"),
                 item("Vulnerable versions", VULNERABLE, "shield"),
+                item("Alerts", ALERTS, "alert-triangle"),
             ]),
             group("Scanning", "scan", vec![
                 item("Scan Management", SCANNING_MANAGEMENT, "activity"),

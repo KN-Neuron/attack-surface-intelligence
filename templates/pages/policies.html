@@ -15,6 +15,7 @@
           <tr>
             <th class="w-narrow">Order</th>
             <th>Name</th>
+            <th>Type</th>
             <th>Targets</th>
             <th>Schedule</th>
             <th class="w-status">Status</th>
@@ -26,6 +27,7 @@
           <tr>
             <td>{{ policy.order }}</td>
             <td class="strong-cell">{{ policy.name }}</td>
+            <td><span class="criteria-chip">{{ policy.scan_type().label() }}</span></td>
             <td>
               <div class="criteria-chips">
                 {% for c in policy.targets() %}
@@ -47,6 +49,7 @@
             </td>
             <td class="right">
               <div class="row-actions">
+                <button class="link-btn" type="button" data-policy-run="{{ policy.id }}">{{ crate::icons::icon("play")|safe }} Run now</button>
                 <button class="link-btn" type="button" data-policy-edit="{{ policy.id }}">{{ crate::icons::icon("sliders")|safe }} Edit</button>
                 <button class="link-btn danger-link" type="button" data-policy-remove="{{ policy.id }}">{{ crate::icons::icon("trash")|safe }} Remove</button>
               </div>
@@ -174,6 +177,14 @@
         <div class="criteria-panel">
           <div class="criteria-head">
             <span class="field-label">Schedule</span>
+          </div>
+          <div class="field">
+            <label class="field-label" for="policy-type">Scan type</label>
+            <select id="policy-type">
+              <option value="full">Full scan test (httpx)</option>
+              <option value="reachability">Reachability (masscan)</option>
+            </select>
+            <p class="field-hint" id="policy-type-hint"></p>
           </div>
           <div class="schedule-grid">
             <div class="field">

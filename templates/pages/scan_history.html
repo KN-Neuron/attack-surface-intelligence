@@ -24,6 +24,7 @@
         <thead>
           <tr>
             <th>Scan</th>
+            <th>Type</th>
             <th>Started</th>
             <th>Finished</th>
             <th>Duration</th>
@@ -33,13 +34,19 @@
             <th class="right">Services</th>
             <th class="right">Tech</th>
             <th class="right">Vulns</th>
+            <th class="right">Alerts</th>
             <th>Status</th>
+            <th class="right w-actions">Details</th>
           </tr>
         </thead>
         <tbody id="history-body">
           {% for scan in scans %}
-          <tr data-days="{{ scan.days_ago }}">
-            <td class="strong-cell">{{ scan.label }}</td>
+          <tr data-days="{{ scan.days_ago }}"{% if scan.demo %} data-demo="true"{% endif %}>
+            <td class="strong-cell">
+              {{ scan.label }}
+              {% if scan.demo %}<span class="badge demo-badge">Demo</span>{% endif %}
+            </td>
+            <td><span class="criteria-chip">{{ scan.scan_type_label }}</span></td>
             <td>{{ scan.started }}</td>
             <td>{{ scan.finished }}</td>
             <td>{{ scan.duration }}</td>
@@ -49,13 +56,24 @@
             <td class="right">{{ scan.services }}</td>
             <td class="right">{{ scan.technologies }}</td>
             <td class="right">{{ scan.vulns }}</td>
+            <td class="right">
+              {% if scan.alerts > 0 %}<span class="badge warn">{{ scan.alerts }}</span>{% else %}<span class="muted">0</span>{% endif %}
+            </td>
             <td>
               {% if scan.status == "Completed" %}<span class="badge">Completed</span>
+              {% else if scan.status == "Running" %}<span class="badge warn">Running</span>
+              {% else if scan.status == "Cancelled" %}<span class="badge blocked">Cancelled</span>
               {% else if scan.status == "Partial" %}<span class="badge warn">Partial</span>
               {% else %}<span class="badge blocked">Failed</span>{% endif %}
             </td>
+            <td class="right">
+              <button class="link-btn" type="button" data-scan-details="{{ scan.id }}">{{ crate::icons::icon("eye")|safe }} Details</button>
+            </td>
           </tr>
           {% endfor %}
+          {% if scans.is_empty() %}
+          <tr><td colspan="14" class="empty-cell">No scans recorded yet. Start one from Scan Management.</td></tr>
+          {% endif %}
         </tbody>
       </table>
     </div>
@@ -63,4 +81,95 @@
     {% include "partials/pager.html" %}
   </section>
 </div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal-backdrop" id="scan-detail-modal" hidden>
+  <div class="modal modal-full" role="dialog" aria-modal="true" aria-labelledby="scan-detail-title">
+    <div class="modal-head">
+      <div>
+        <h2 id="scan-detail-title">Scan details</h2>
+        <div class="modal-sub" id="scan-detail-sub"></div>
+      </div>
+      <button class="icon-btn subtle" type="button" data-close-modal aria-label="Close">{{ crate::icons::icon("close")|safe }}</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="detail-banner" id="scan-detail-error" hidden></div>
+
+      <div class="detail-meta" id="scan-detail-meta"></div>
+
+      <div class="detail-grid">
+        <div class="detail-tile">
+          <div class="detail-value" id="scan-detail-hosts">—</div>
+          <div class="detail-label">Hosts in scope</div>
+        </div>
+        <div class="detail-tile">
+          <div class="detail-value up" id="scan-detail-alive">—</div>
+          <div class="detail-label">Reachable</div>
+        </div>
+        <div class="detail-tile">
+          <div class="detail-value down" id="scan-detail-down">—</div>
+          <div class="detail-label">Unreachable</div>
+        </div>
+        <div class="detail-tile">
+          <div class="detail-value" id="scan-detail-services">—</div>
+          <div class="detail-label">Services</div>
+        </div>
+        <div class="detail-tile">
+          <div class="detail-value" id="scan-detail-tech">—</div>
+          <div class="detail-label">Technologies</div>
+        </div>
+        <div class="detail-tile">
+          <div class="detail-value" id="scan-detail-vulns">—</div>
+          <div class="detail-label">Vulnerable matches</div>
+        </div>
+      </div>
+
+      <div class="detail-columns">
+        <section class="detail-section">
+          <h3>Alerts raised</h3>
+          <div class="detail-alerts">
+            <div class="detail-alert-row">
+              <span class="detail-alert-name">New hosts</span>
+              <span class="detail-alert-count" id="scan-detail-alert-host">0</span>
+            </div>
+            <div class="detail-alert-row">
+              <span class="detail-alert-name">Hosts down</span>
+              <span class="detail-alert-count" id="scan-detail-alert-down">0</span>
+            </div>
+            <div class="detail-alert-row">
+              <span class="detail-alert-name">New CVEs</span>
+              <span class="detail-alert-count" id="scan-detail-alert-cve">0</span>
+            </div>
+            <div class="detail-alert-row total">
+              <span class="detail-alert-name">Still unacknowledged</span>
+              <span class="detail-alert-count" id="scan-detail-alert-open">0</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="detail-section">
+          <h3>Targets</h3>
+          <div class="criteria-chips" id="scan-detail-targets"></div>
+        </section>
+
+        <section class="detail-section">
+          <h3>Top technologies</h3>
+          <ul class="detail-list" id="scan-detail-top-tech"></ul>
+        </section>
+
+        <section class="detail-section">
+          <h3>Top services</h3>
+          <ul class="detail-list" id="scan-detail-top-services"></ul>
+        </section>
+      </div>
+    </div>
+
+    <div class="modal-foot">
+      <button class="btn" type="button" data-close-modal>Close</button>
+    </div>
+  </div>
+</div>
+<script type="application/json" id="scan-data">{{ scans_json|safe }}</script>
 {% endblock %}

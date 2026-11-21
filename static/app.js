@@ -400,6 +400,11 @@
       : null;
     var rangeId = table.getAttribute("data-page-range");
     var rangeSel = rangeId ? document.getElementById(rangeId) : null;
+    // Optional attribute filter: `data-attr-filter="data-ack"` names the row
+    // attribute and `data-attr-select="<select id>"` the control that drives it.
+    var attrName = table.getAttribute("data-attr-filter");
+    var attrId = table.getAttribute("data-attr-select");
+    var attrSel = attrId ? document.getElementById(attrId) : null;
 
     if (!allRows.length) {
       if (rangeOut) rangeOut.textContent = "No entries";
@@ -410,7 +415,7 @@
       return;
     }
 
-    var state = { page: 1, size: sizeSel ? Number(sizeSel.value) || 10 : 10, filter: "", sev: "" };
+    var state = { page: 1, size: sizeSel ? Number(sizeSel.value) || 10 : 10, filter: "", sev: "", attr: "" };
 
     function matches(row) {
       if (rangeSel) {
@@ -418,6 +423,7 @@
         if (days && Number(row.getAttribute("data-days")) > days) return false;
       }
       if (state.sev && row.getAttribute("data-sev") !== state.sev) return false;
+      if (state.attr && row.getAttribute(attrName) !== state.attr) return false;
       if (state.filter && row.textContent.toLowerCase().indexOf(state.filter) === -1) return false;
       return true;
     }
@@ -467,6 +473,14 @@
         render();
       });
     }
+    if (attrSel && attrName) {
+      state.attr = attrSel.value || "";
+      attrSel.addEventListener("change", function () {
+        state.attr = attrSel.value || "";
+        state.page = 1;
+        render();
+      });
+    }
     // Optional severity tiles: `[data-sev-filter]` buttons filter rows by `data-sev`.
     var sevTiles = table.id === "vuln-table"
       ? Array.prototype.slice.call(document.querySelectorAll("[data-sev-filter]"))
@@ -496,6 +510,8 @@
   }
 
   document.querySelectorAll("[data-pager]").forEach(function (pager) {
+    // The Data Explorer paginates its client-side dataset itself.
+    if (pager.hasAttribute("data-pager-manual")) return;
     var card = pager.closest(".card") || pager.parentElement;
     var table = card ? card.querySelector("table.tbl") : null;
     if (table) initTablePager(table, pager);
@@ -627,9 +643,14 @@
     var scanStarted = document.getElementById("scan-started");
     var scanCurrent = document.getElementById("scan-current");
     var scanLast = document.getElementById("scan-last");
+    var scanEngine = document.getElementById("scan-engine");
     var pauseBtn = document.getElementById("scan-pause");
     var pauseIcon = document.getElementById("scan-pause-icon");
     var pauseText = document.getElementById("scan-pause-text");
+    var scanTypeSel = document.getElementById("scan-type");
+
+    var SCAN_TYPE_LABELS = { full: "Full scan test", reachability: "Reachability" };
+    var ENGINE_LABELS = { httpx: "httpx", masscan: "masscan", tcp: "TCP probe" };
 
     var PAUSE_SVG = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M5.7 3.4v9.2M10.3 3.4v9.2"/></svg>';
     var PLAY_SVG = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M4.6 2.9l8 5.1-8 5.1z"/></svg>';
@@ -650,6 +671,8 @@
       if (scanHosts) scanHosts.textContent = s.hosts_found;
       if (scanStarted && s.started_at) scanStarted.textContent = s.started_at;
       if (scanCurrent) scanCurrent.textContent = s.current_target;
+      var scanAlerts = document.getElementById("scan-alerts");
+      if (scanAlerts) scanAlerts.textContent = s.alerts_found;
 
       if (pauseBtn) pauseBtn.setAttribute("data-paused", s.paused ? "true" : "false");
       if (pauseIcon) pauseIcon.innerHTML = s.paused ? PLAY_SVG : PAUSE_SVG;
@@ -657,6 +680,11 @@
 
       if (scanLast && !s.running && s.completed_at) {
         scanLast.textContent = "Last scan finished " + s.completed_at + ".";
+      }
+      if (scanEngine) {
+        var typeLabel = SCAN_TYPE_LABELS[s.scan_type] || s.scan_type || "";
+        var engineLabel = ENGINE_LABELS[s.engine] || s.engine || "";
+        scanEngine.textContent = typeLabel + (engineLabel ? " · " + engineLabel : "");
       }
     };
 
@@ -667,11 +695,20 @@
         .catch(function () {});
     };
 
-    var scanAction = function (path) {
-      return fetch(path, { method: "POST" })
-        .then(function (r) { return r.json(); })
+    var scanAction = function (path, body) {
+      return fetch(path, {
+        method: "POST",
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined
+      })
+        .then(function (r) {
+          if (!r.ok) throw new Error();
+          return r.json();
+        })
         .then(renderScan)
-        .catch(function () {});
+        .catch(function () {
+          window.alert("Could not start the scan. Another scan may already be running.");
+        });
     };
 
     if (pauseBtn) pauseBtn.addEventListener("click", function () { scanAction("/api/scan/pause"); });
@@ -679,7 +716,11 @@
     if (cancelBtn) cancelBtn.addEventListener("click", function () { scanAction("/api/scan/cancel"); });
     ["scan-start", "scan-start-upcoming"].forEach(function (id) {
       var btn = document.getElementById(id);
-      if (btn) btn.addEventListener("click", function () { scanAction("/api/scan/start"); });
+      if (!btn) return;
+      btn.addEventListener("click", function () {
+        var type = scanTypeSel ? scanTypeSel.value : "full";
+        scanAction("/api/scan/run", { scan_type: type });
+      });
     });
 
     window.setInterval(pollScan, 1500);
@@ -703,6 +744,17 @@
     var minuteEl = document.getElementById("policy-minute");
     var minuteField = document.getElementById("policy-minute-field");
     var scheduleHint = document.getElementById("policy-schedule-hint");
+    var typeEl = document.getElementById("policy-type");
+    var typeHint = document.getElementById("policy-type-hint");
+
+    var TYPE_HINTS = {
+      full: "Runs httpx against every target: host status, HTTP responses, TLS and technologies. Updates all captured data.",
+      reachability: "Runs masscan (falling back to a TCP probe) to check which hosts are up. Leaves captured HTTP and technology data untouched."
+    };
+
+    function syncTypeHint() {
+      if (typeEl && typeHint) typeHint.textContent = TYPE_HINTS[typeEl.value] || "";
+    }
 
     var DAY_NAMES = {
       mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday",
@@ -803,6 +855,7 @@
     [dayEl, hourEl, minuteEl].forEach(function (el) {
       el.addEventListener("change", syncScheduleFields);
     });
+    if (typeEl) typeEl.addEventListener("change", syncTypeHint);
 
     var policyIdInput = document.getElementById("policy-id");
     var policyTitle = document.getElementById("policy-modal-title");
@@ -829,6 +882,8 @@
       if (policyEnabled) policyEnabled.checked = true;
       syncPolicyEnabled();
       if (policyTitle) policyTitle.textContent = "New scan";
+      if (typeEl) typeEl.value = "full";
+      syncTypeHint();
       clearTargets();
       frequencyEl.value = "Daily";
       hourEl.value = "01";
@@ -874,17 +929,23 @@
       clearTargets();
       var frequency = "Daily";
       var when = null;
+      var scanType = "full";
       (policy.criteria || []).forEach(function (c) {
         if (c.kind === "frequency") {
           frequency = c.value;
         } else if (c.kind === "when") {
           when = parseWhen(c.value);
+        } else if (c.kind === "type") {
+          scanType = c.value === "reachability" ? "reachability" : "full";
         } else {
           policyForm.querySelectorAll("input[name=targets]").forEach(function (box) {
             if (box.value === c.value) box.checked = true;
           });
         }
       });
+
+      if (typeEl) typeEl.value = scanType;
+      syncTypeHint();
 
       frequencyEl.value = frequency;
       if (frequencyEl.value !== frequency) frequencyEl.value = "Daily";
@@ -925,6 +986,23 @@
       });
     });
 
+    document.querySelectorAll("[data-policy-run]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-policy-run");
+        btn.disabled = true;
+        fetch("/api/policies/" + id + "/run", { method: "POST" })
+          .then(function (r) {
+            if (!r.ok) throw new Error();
+            return r.json();
+          })
+          .then(function () { window.location.assign("/scanning/management"); })
+          .catch(function () {
+            btn.disabled = false;
+            window.alert("Could not start this scan. Another scan may already be running.");
+          });
+      });
+    });
+
     policyForm.addEventListener("submit", function (event) {
       event.preventDefault();
 
@@ -939,6 +1017,7 @@
 
       var frequency = frequencyEl.value;
       criteria.push({ kind: "frequency", value: frequency });
+      criteria.push({ kind: "type", value: typeEl ? typeEl.value : "full" });
 
       if (frequency !== "On demand") {
         var day = frequency === "Daily" ? "every" : dayEl.value;
@@ -1567,13 +1646,882 @@
   }
 
   // ==========================================================================
-  // Data Explorer — run query
+  // Data Explorer — columns, filters, timeframe, pagination, edit mode
   // ==========================================================================
-  var explorerRun = document.getElementById("explorer-run");
-  var explorerFilter = document.getElementById("explorer-filter");
-  if (explorerRun && explorerFilter) {
-    explorerRun.addEventListener("click", function () {
-      explorerFilter.dispatchEvent(new Event("input"));
+  var explorer = document.getElementById("explorer");
+  var assetsDataEl = document.getElementById("assets-data");
+  if (explorer && assetsDataEl) {
+    var assets = [];
+    try { assets = JSON.parse(assetsDataEl.textContent || "[]"); } catch (_) {}
+
+    // The server only renders the edit toggle for accounts with write access;
+    // the API enforces the same rule independently.
+    var canEdit = explorer.getAttribute("data-can-edit") === "true";
+
+    // Every column carries the operator set its values support. `ts` names the
+    // timestamp field the timeframe filter uses for date columns.
+    var COLUMNS = [
+      { key: "address", label: "Host", type: "text", mono: true, primary: true },
+      { key: "up", label: "Status", type: "bool" },
+      { key: "scheme", label: "Scheme", type: "text" },
+      { key: "port", label: "Port", type: "number", right: true, mono: true },
+      { key: "status_code", label: "HTTP", type: "number", right: true, mono: true },
+      { key: "title", label: "Title", type: "text", wrap: true, editable: "title" },
+      { key: "webserver", label: "Server", type: "text", editable: "webserver" },
+      { key: "technologies", label: "Technologies", type: "list", tech: true },
+      { key: "vulnerabilities", label: "Vulnerabilities", type: "list", tech: true },
+      { key: "ports", label: "Open ports", type: "text", mono: true },
+      { key: "cdn", label: "CDN", type: "text", editable: "cdn" },
+      { key: "cname", label: "CNAME", type: "text", editable: "cname" },
+      { key: "tls", label: "TLS", type: "text" },
+      { key: "tls_expires", label: "Cert expires", type: "date" },
+      { key: "content_length", label: "Size", type: "number", right: true, mono: true },
+      { key: "response_time", label: "Response", type: "text" },
+      { key: "last_checked", label: "Last checked", type: "date", ts: "last_checked_ts" },
+      { key: "last_seen", label: "Last seen", type: "date", ts: "last_seen_ts" },
+      { key: "first_seen", label: "First seen", type: "date", ts: "first_seen_ts" },
+      { key: "last_scan", label: "Last scan", type: "text", mono: true }
+    ];
+
+    var COLUMN_BY_KEY = {};
+    COLUMNS.forEach(function (col) { COLUMN_BY_KEY[col.key] = col; });
+
+    var OPS = {
+      text: [
+        { id: "contains", label: "contains" },
+        { id: "not_contains", label: "does not contain" },
+        { id: "equals", label: "equals" },
+        { id: "starts", label: "starts with" },
+        { id: "empty", label: "is empty" },
+        { id: "not_empty", label: "is not empty" }
+      ],
+      number: [
+        { id: "eq", label: "=" },
+        { id: "ne", label: "≠" },
+        { id: "gt", label: ">" },
+        { id: "gte", label: "≥" },
+        { id: "lt", label: "<" },
+        { id: "lte", label: "≤" }
+      ],
+      bool: [
+        { id: "true", label: "is up" },
+        { id: "false", label: "is down" }
+      ],
+      date: [
+        { id: "after", label: "after" },
+        { id: "before", label: "before" }
+      ],
+      list: [
+        { id: "contains", label: "contains" },
+        { id: "not_contains", label: "does not contain" },
+        { id: "empty", label: "is empty" },
+        { id: "not_empty", label: "is not empty" }
+      ]
+    };
+
+    // Operators that carry no value, so their chip only shows a column + verb.
+    function isValueless(filter) {
+      var col = COLUMN_BY_KEY[filter.key];
+      return (col && col.type === "bool") || filter.op === "empty" || filter.op === "not_empty";
+    }
+
+    function valueOf(row, key) {
+      var value = row[key];
+      if (Array.isArray(value)) return value.join(" ");
+      if (typeof value === "boolean") return value ? "up" : "down";
+      return value == null ? "" : String(value);
+    }
+
+    function matchesFilter(row, filter) {
+      var col = COLUMN_BY_KEY[filter.key];
+      if (!col) return true;
+      var raw = row[filter.key];
+      var op = filter.op;
+      var needle = filter.value;
+
+      if (col.type === "bool") {
+        return op === "true" ? raw === true : raw === false;
+      }
+      if (col.type === "list") {
+        var list = Array.isArray(raw) ? raw : [];
+        if (op === "empty") return list.length === 0;
+        if (op === "not_empty") return list.length > 0;
+        var joined = list.join(" ").toLowerCase();
+        var box = String(needle || "").toLowerCase();
+        return op === "not_contains" ? joined.indexOf(box) === -1 : joined.indexOf(box) !== -1;
+      }
+      if (col.type === "number") {
+        var left = parseFloat(String(raw).replace(/[^0-9.\-]/g, ""));
+        var right = parseFloat(needle);
+        if (isNaN(left) || isNaN(right)) return false;
+        switch (op) {
+          case "eq": return left === right;
+          case "ne": return left !== right;
+          case "gt": return left > right;
+          case "gte": return left >= right;
+          case "lt": return left < right;
+          case "lte": return left <= right;
+          default: return true;
+        }
+      }
+
+      var hay = valueOf(row, filter.key).toLowerCase();
+      var pin = String(needle || "").toLowerCase();
+      switch (op) {
+        case "empty": return hay === "";
+        case "not_empty": return hay !== "";
+        case "equals": return hay === pin;
+        case "not_contains": return hay.indexOf(pin) === -1;
+        case "starts": return hay.indexOf(pin) === 0;
+        default: return pin ? hay.indexOf(pin) !== -1 : true;
+      }
+    }
+
+    function startOf(range, now) {
+      var date = new Date(now);
+      date.setHours(0, 0, 0, 0);
+      if (range === "week") {
+        // Weeks start on Monday, matching the scan scheduling UI.
+        var offset = (date.getDay() + 6) % 7;
+        date.setDate(date.getDate() - offset);
+      } else if (range === "month") {
+        date.setDate(1);
+      }
+      return Math.floor(date.getTime() / 1000);
+    }
+
+    // `draft` holds the filters as they are being edited; `applied` is what the
+    // table is actually showing. Apply copies draft onto applied, so a half-typed
+    // filter never changes the results until the operator asks for it.
+    var state = {
+      draft: [],
+      applied: [],
+      timeframe: "month",
+      from: null,
+      to: null,
+      page: 1,
+      size: 100,
+      editing: false
+    };
+
+    var els = {
+      timeframe: document.getElementById("explorer-timeframe"),
+      custom: document.getElementById("custom-range"),
+      from: document.getElementById("explorer-from"),
+      to: document.getElementById("explorer-to"),
+      addBtn: document.getElementById("explorer-add-filter"),
+      addMore: document.getElementById("explorer-add-more"),
+      filterCount: explorer.querySelector("[data-filter-tally]"),
+      menu: document.getElementById("filter-menu"),
+      menuSearch: document.getElementById("filter-menu-search"),
+      menuList: document.getElementById("filter-menu-list"),
+      active: document.getElementById("filter-active"),
+      summary: document.getElementById("filter-summary"),
+      count: explorer.querySelector("[data-filter-count]"),
+      clear: document.getElementById("explorer-clear"),
+      head: document.getElementById("assets-head"),
+      body: document.getElementById("assets-body"),
+      empty: document.getElementById("assets-empty"),
+      editBtn: document.getElementById("explorer-edit"),
+      pager: explorer.parentElement.querySelector("[data-pager]")
+    };
+
+    var pagerEls = {
+      size: els.pager ? els.pager.querySelector("[data-page-size]") : null,
+      range: els.pager ? els.pager.querySelector("[data-page-range]") : null,
+      num: els.pager ? els.pager.querySelector("[data-page-num]") : null,
+      first: els.pager ? els.pager.querySelector("[data-page-first]") : null,
+      prev: els.pager ? els.pager.querySelector("[data-page-prev]") : null,
+      next: els.pager ? els.pager.querySelector("[data-page-next]") : null,
+      last: els.pager ? els.pager.querySelector("[data-page-last]") : null
+    };
+
+    function timeframeBounds() {
+      var now = Date.now();
+      if (state.timeframe === "custom") {
+        return { from: state.from, to: state.to };
+      }
+      return { from: startOf(state.timeframe, now), to: null };
+    }
+
+    function visibleRows() {
+      var bounds = timeframeBounds();
+      return assets.filter(function (row) {
+        var stamp = row.last_checked_ts || row.last_seen_ts || row.first_seen_ts || 0;
+        if (bounds.from != null && stamp < bounds.from) return false;
+        if (bounds.to != null && stamp > bounds.to) return false;
+        return state.applied.every(function (filter) { return matchesFilter(row, filter); });
+      });
+    }
+
+    // ---- table rendering -----------------------------------------------------
+
+    function renderHead() {
+      els.head.innerHTML = "";
+      var tr = document.createElement("tr");
+      COLUMNS.forEach(function (col) {
+        var th = document.createElement("th");
+        th.textContent = col.label;
+        if (col.right) th.className = "right";
+        tr.appendChild(th);
+      });
+      if (state.editing) {
+        var actions = document.createElement("th");
+        actions.className = "right w-actions";
+        actions.textContent = "Actions";
+        tr.appendChild(actions);
+      }
+      els.head.appendChild(tr);
+    }
+
+    function renderCell(col, row) {
+      var td = document.createElement("td");
+      if (col.right) td.className = "right";
+      if (col.wrap) td.className = "wrap-cell";
+
+      if (col.key === "up") {
+        var badge = document.createElement("span");
+        badge.className = "badge" + (row.up ? "" : " blocked");
+        badge.textContent = row.up ? "Up" : "Down";
+        td.appendChild(badge);
+        return td;
+      }
+      if (col.tech) {
+        td.className = "asset-tech";
+        var list = Array.isArray(row[col.key]) ? row[col.key] : [];
+        if (!list.length) {
+          td.textContent = "—";
+          td.className += " muted";
+          return td;
+        }
+        list.forEach(function (tech) {
+          var chip = document.createElement("span");
+          chip.className = "host-chip";
+          chip.textContent = tech;
+          td.appendChild(chip);
+        });
+        return td;
+      }
+
+      var text = valueOf(row, col.key);
+      if (col.primary) {
+        var span = document.createElement("span");
+        span.className = "mono strong-cell";
+        span.textContent = text;
+        td.appendChild(span);
+      } else if (col.mono) {
+        td.className += " mono";
+        td.textContent = text || "—";
+      } else {
+        td.textContent = text || "—";
+      }
+      if (!text) td.classList.add("muted");
+      return td;
+    }
+
+    function renderBody(rows) {
+      els.body.innerHTML = "";
+      if (!rows.length) {
+        els.empty.hidden = false;
+        return;
+      }
+      els.empty.hidden = true;
+      rows.forEach(function (row) {
+        var tr = document.createElement("tr");
+        COLUMNS.forEach(function (col) { tr.appendChild(renderCell(col, row)); });
+        if (state.editing) {
+          var td = document.createElement("td");
+          td.className = "right";
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "link-btn";
+          btn.innerHTML = 'Edit';
+          btn.setAttribute("data-asset-edit", row.address);
+          td.appendChild(btn);
+          tr.appendChild(td);
+        }
+        els.body.appendChild(tr);
+      });
+    }
+
+    function renderPager(total) {
+      var pages = Math.max(1, Math.ceil(total / state.size));
+      if (state.page > pages) state.page = pages;
+      if (state.page < 1) state.page = 1;
+      var start = (state.page - 1) * state.size;
+      var end = Math.min(start + state.size, total);
+
+      if (pagerEls.range) {
+        pagerEls.range.textContent = total
+          ? (start + 1) + "–" + end + " of " + total
+          : "No entries";
+      }
+      if (pagerEls.num) pagerEls.num.textContent = state.page + " / " + pages;
+      [pagerEls.first, pagerEls.prev].forEach(function (btn) {
+        if (btn) btn.disabled = state.page <= 1;
+      });
+      [pagerEls.next, pagerEls.last].forEach(function (btn) {
+        if (btn) btn.disabled = state.page >= pages;
+      });
+    }
+
+    function render() {
+      var rows = visibleRows();
+      if (els.count) els.count.textContent = rows.length + (rows.length === 1 ? " host" : " hosts");
+      renderPager(rows.length);
+      var start = (state.page - 1) * state.size;
+      renderBody(rows.slice(start, start + state.size));
+      syncApplyButton();
+    }
+
+    // ---- main action button --------------------------------------------------
+    // One button serves both jobs: it adds a filter column, and once at least one
+    // filter exists it becomes Apply, which runs every filter at once.
+
+    function hasDraft() {
+      return state.draft.length > 0;
+    }
+
+    function draftDiffers() {
+      if (state.draft.length !== state.applied.length) return true;
+      return state.draft.some(function (filter, index) {
+        var other = state.applied[index];
+        return !other || other.key !== filter.key || other.op !== filter.op ||
+          other.value !== filter.value;
+      });
+    }
+
+    function syncApplyButton() {
+      if (!els.addBtn) return;
+      var label = hasDraft() ? "Apply" : "Add filter";
+      if (els.addBtn.textContent !== label) els.addBtn.textContent = label;
+      els.addBtn.classList.toggle("is-apply", hasDraft());
+      var pending = hasDraft() && draftDiffers();
+      els.addBtn.setAttribute("aria-expanded", String(!els.menu.hidden));
+      els.addBtn.setAttribute("aria-label", hasDraft()
+        ? "Apply all filters"
+        : "Add a filter");
+      els.addBtn.classList.toggle("is-pending", pending);
+      if (els.clear) els.clear.hidden = !hasDraft();
+      if (els.filterCount) {
+        els.filterCount.textContent = state.draft.length
+          ? state.draft.length + (state.draft.length === 1 ? " filter" : " filters")
+          : "";
+      }
+    }
+
+    function applyFilters() {
+      state.applied = state.draft.map(function (filter) {
+        return { key: filter.key, op: filter.op, value: filter.value };
+      });
+      state.page = 1;
+      render();
+    }
+
+    // ---- active filter chips -------------------------------------------------
+
+    // Every chip is editable at all times: the operator and value controls are
+    // part of the chip, and removing it just drops that one filter.
+    function renderActiveFilters() {
+      if (!els.active) return;
+      els.active.innerHTML = "";
+      if (!state.draft.length) {
+        var hint = document.createElement("p");
+        hint.className = "filter-empty";
+        hint.textContent = "No filters yet. Use Add filter to narrow the results.";
+        els.active.appendChild(hint);
+        syncApplyButton();
+        return;
+      }
+
+      state.draft.forEach(function (filter, index) {
+        var col = COLUMN_BY_KEY[filter.key];
+        if (!col) return;
+
+        var chip = document.createElement("div");
+        chip.className = "filter-chip";
+
+        var head = document.createElement("div");
+        head.className = "filter-chip-head";
+
+        var name = document.createElement("span");
+        name.className = "filter-chip-name";
+        name.textContent = col.label;
+        head.appendChild(name);
+
+        var remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "chip-x";
+        remove.setAttribute("aria-label", "Remove " + col.label + " filter");
+        remove.innerHTML = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2"/></svg>';
+        remove.addEventListener("click", function () {
+          state.draft.splice(index, 1);
+          renderActiveFilters();
+          syncApplyButton();
+        });
+        head.appendChild(remove);
+        chip.appendChild(head);
+
+        var controls = document.createElement("div");
+        controls.className = "filter-chip-controls";
+
+        var opSel = document.createElement("select");
+        opSel.className = "filter-op";
+        opSel.setAttribute("aria-label", col.label + " operator");
+        (OPS[col.type] || []).forEach(function (op) {
+          var option = document.createElement("option");
+          option.value = op.id;
+          option.textContent = op.label;
+          if (op.id === filter.op) option.selected = true;
+          opSel.appendChild(option);
+        });
+        controls.appendChild(opSel);
+
+        var valueInput = null;
+        if (!isValueless(filter)) {
+          valueInput = document.createElement("input");
+          valueInput.className = "filter-value";
+          valueInput.type = col.type === "number" ? "number" : "text";
+          valueInput.value = filter.value || "";
+          valueInput.placeholder = col.type === "date" ? "YYYY-MM-DD" : "value";
+          valueInput.setAttribute("aria-label", col.label + " value");
+          controls.appendChild(valueInput);
+        }
+        chip.appendChild(controls);
+
+        opSel.addEventListener("change", function () {
+          filter.op = opSel.value;
+          filter.value = "";
+          renderActiveFilters();
+          syncApplyButton();
+        });
+        if (valueInput) {
+          valueInput.addEventListener("input", function () {
+            filter.value = valueInput.value;
+            syncApplyButton();
+          });
+          valueInput.addEventListener("keydown", function (event) {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              applyFilters();
+            }
+          });
+        }
+
+        els.active.appendChild(chip);
+      });
+      syncApplyButton();
+    }
+
+    // ---- add-filter menu -----------------------------------------------------
+
+    function renderMenu() {
+      var needle = (els.menuSearch.value || "").trim().toLowerCase();
+      els.menuList.innerHTML = "";
+      var matches = COLUMNS.filter(function (col) {
+        return !needle || col.label.toLowerCase().indexOf(needle) !== -1;
+      });
+      if (!matches.length) {
+        els.menuList.innerHTML = "<div class='filter-menu-empty'>No columns match that search.</div>";
+        return;
+      }
+      matches.forEach(function (col) {
+        var item = document.createElement("button");
+        item.type = "button";
+        item.className = "filter-menu-item";
+        item.setAttribute("role", "option");
+        item.textContent = col.label;
+        item.addEventListener("click", function () {
+          state.draft.push({
+            key: col.key,
+            op: (OPS[col.type] || [{ id: "contains" }])[0].id,
+            value: ""
+          });
+          renderActiveFilters();
+          closeMenu();
+          var inputs = els.active.querySelectorAll(".filter-value");
+          if (inputs.length) inputs[inputs.length - 1].focus();
+        });
+        els.menuList.appendChild(item);
+      });
+    }
+
+    function openMenu() {
+      els.menu.hidden = false;
+      els.addBtn.setAttribute("aria-expanded", "true");
+      els.menuSearch.value = "";
+      renderMenu();
+      els.menuSearch.focus();
+    }
+
+    function closeMenu() {
+      els.menu.hidden = true;
+      els.addBtn.setAttribute("aria-expanded", "false");
+    }
+
+    // ---- timeframe -----------------------------------------------------------
+
+    function syncTimeframe() {
+      state.timeframe = els.timeframe.value;
+      els.custom.hidden = state.timeframe !== "custom";
+      if (state.timeframe === "custom") {
+        if (!els.from.value) els.from.value = toLocalInput(Date.now() - 7 * 86400000);
+        if (!els.to.value) els.to.value = toLocalInput(Date.now());
+        state.from = fromLocalInput(els.from.value);
+        state.to = fromLocalInput(els.to.value);
+        if (state.to != null) state.to += 59; // include the selected minute
+      } else {
+        state.from = null;
+        state.to = null;
+      }
+      state.page = 1;
+      render();
+    }
+
+    function toLocalInput(ms) {
+      var date = new Date(ms);
+      var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+      return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) +
+        "T" + pad(date.getHours()) + ":" + pad(date.getMinutes());
+    }
+
+    function fromLocalInput(value) {
+      if (!value) return null;
+      var stamp = new Date(value).getTime();
+      return isNaN(stamp) ? null : Math.floor(stamp / 1000);
+    }
+
+    // ---- wire up -------------------------------------------------------------
+
+    els.timeframe.addEventListener("change", syncTimeframe);
+    [els.from, els.to].forEach(function (input) {
+      input.addEventListener("change", syncTimeframe);
+    });
+
+    // The button adds a filter while the list is empty and applies all of them
+    // afterwards. Adding a further column stays available from the menu, which
+    // the small caret next to the button opens.
+    els.addBtn.addEventListener("click", function () {
+      if (!hasDraft()) {
+        if (els.menu.hidden) openMenu();
+        else closeMenu();
+        return;
+      }
+      applyFilters();
+    });
+    if (els.addMore) {
+      els.addMore.addEventListener("click", function () {
+        if (els.menu.hidden) openMenu();
+        else closeMenu();
+      });
+    }
+    els.menuSearch.addEventListener("input", renderMenu);
+    document.addEventListener("click", function (event) {
+      if (els.menu.hidden) return;
+      if (els.menu.contains(event.target) ||
+          els.addBtn.contains(event.target) ||
+          (els.addMore && els.addMore.contains(event.target))) return;
+      closeMenu();
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && !els.menu.hidden) closeMenu();
+    });
+
+    if (els.clear) {
+      els.clear.addEventListener("click", function () {
+        state.draft = [];
+        state.applied = [];
+        state.page = 1;
+        renderActiveFilters();
+        render();
+      });
+    }
+
+    if (pagerEls.size) {
+      state.size = Number(pagerEls.size.value) || 10;
+      pagerEls.size.addEventListener("change", function () {
+        state.size = Number(pagerEls.size.value) || 10;
+        state.page = 1;
+        render();
+      });
+    }
+    if (pagerEls.first) pagerEls.first.addEventListener("click", function () { state.page = 1; render(); });
+    if (pagerEls.prev) pagerEls.prev.addEventListener("click", function () { state.page -= 1; render(); });
+    if (pagerEls.next) pagerEls.next.addEventListener("click", function () { state.page += 1; render(); });
+    if (pagerEls.last) {
+      pagerEls.last.addEventListener("click", function () {
+        state.page = Math.ceil(visibleRows().length / state.size) || 1;
+        render();
+      });
+    }
+
+    // ---- edit mode -----------------------------------------------------------
+
+    var editModal = document.getElementById("asset-edit-modal");
+    var editForm = document.getElementById("asset-edit-form");
+    var editingAddress = null;
+
+    function syncUpText() {
+      var box = document.getElementById("asset-up");
+      var text = document.getElementById("asset-up-text");
+      if (box && text) text.textContent = box.checked ? "Up" : "Down";
+    }
+
+    if (els.editBtn && canEdit) {
+      els.editBtn.addEventListener("click", function () {
+        state.editing = !state.editing;
+        els.editBtn.setAttribute("aria-pressed", String(state.editing));
+        els.editBtn.classList.toggle("is-active", state.editing);
+        renderHead();
+        render();
+      });
+    }
+
+    if (editModal && editForm) {
+      var upBox = document.getElementById("asset-up");
+      if (upBox) upBox.addEventListener("change", syncUpText);
+
+      els.body.addEventListener("click", function (event) {
+        var btn = event.target.closest("[data-asset-edit]");
+        if (!btn) return;
+        var address = btn.getAttribute("data-asset-edit");
+        var row = assets.filter(function (asset) { return asset.address === address; })[0];
+        if (!row) return;
+        editingAddress = address;
+        document.getElementById("asset-edit-sub").textContent = address;
+        document.getElementById("asset-title").value = row.title || "";
+        document.getElementById("asset-webserver").value = row.webserver || "";
+        document.getElementById("asset-scheme").value = row.scheme || "";
+        document.getElementById("asset-port").value = row.port || "";
+        document.getElementById("asset-status").value = row.status_code || "";
+        document.getElementById("asset-cdn").value = row.cdn || "";
+        document.getElementById("asset-cname").value = row.cname || "";
+        document.getElementById("asset-up").checked = !!row.up;
+        syncUpText();
+        openModal("asset-edit-modal");
+      });
+
+      editForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        if (!editingAddress) return;
+        var num = function (id) {
+          var raw = document.getElementById(id).value.trim();
+          if (!raw) return null;
+          var parsed = Number(raw);
+          return isNaN(parsed) ? null : parsed;
+        };
+        var payload = {
+          title: document.getElementById("asset-title").value,
+          webserver: document.getElementById("asset-webserver").value,
+          scheme: document.getElementById("asset-scheme").value,
+          port: num("asset-port"),
+          status_code: num("asset-status"),
+          cdn: document.getElementById("asset-cdn").value,
+          cname: document.getElementById("asset-cname").value,
+          up: document.getElementById("asset-up").checked
+        };
+        fetch("/api/assets/" + encodeURIComponent(editingAddress), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        })
+          .then(function (response) {
+            if (!response.ok) throw new Error();
+            window.location.reload();
+          })
+          .catch(function () { window.alert("Could not save this host. Please try again."); });
+      });
+    }
+
+    renderHead();
+    renderActiveFilters();
+    syncTimeframe();
+
+    // Dashboards deep-link here with `?filter=<key>|<op>|<value>`, repeated for
+    // as many filters as the view needs. They land pre-applied so the Explorer
+    // opens already scoped to what the dashboard was showing.
+    var params = new URLSearchParams(window.location.search);
+    var incoming = params.getAll("filter");
+    if (incoming.length) {
+      incoming.forEach(function (raw) {
+        var parts = raw.split("|");
+        var col = COLUMN_BY_KEY[parts[0]];
+        if (!col) return;
+        var op = parts[1] || (OPS[col.type] || [{ id: "contains" }])[0].id;
+        state.draft.push({ key: col.key, op: op, value: parts.slice(2).join("|") });
+      });
+      renderActiveFilters();
+      applyFilters();
+    }
+  }
+
+  // ==========================================================================
+  // Scan Results — maximized detail view
+  // ==========================================================================
+  var scanDetailModal = document.getElementById("scan-detail-modal");
+  if (scanDetailModal) {
+    var detailSeq = 0;
+
+    var setText = function (id, value) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = value;
+    };
+
+    var renderList = function (id, items, emptyText) {
+      var list = document.getElementById(id);
+      if (!list) return;
+      list.innerHTML = "";
+      if (!items || !items.length) {
+        var none = document.createElement("li");
+        none.className = "detail-empty";
+        none.textContent = emptyText;
+        list.appendChild(none);
+        return;
+      }
+      items.forEach(function (item) {
+        var li = document.createElement("li");
+        var name = document.createElement("span");
+        name.textContent = item.name || item.label || "";
+        var count = document.createElement("span");
+        count.className = "detail-list-count";
+        count.textContent = item.hosts;
+        li.appendChild(name);
+        li.appendChild(count);
+        list.appendChild(li);
+      });
+    };
+
+    var renderDetail = function (scan) {
+      var title = document.getElementById("scan-detail-title");
+      if (title) title.textContent = scan.label;
+      setText("scan-detail-sub", [scan.started, scan.scan_type_label, scan.engine, scan.status]
+        .filter(function (part) { return part; }).join(" · "));
+
+      var meta = document.getElementById("scan-detail-meta");
+      if (meta) {
+        meta.innerHTML = "";
+        [
+          ["Type", scan.scan_type_label],
+          ["Engine", scan.engine],
+          ["Trigger", scan.trigger],
+          ["Started", scan.started],
+          ["Finished", scan.finished],
+          ["Duration", scan.duration]
+        ].forEach(function (pair) {
+          var row = document.createElement("div");
+          row.className = "detail-meta-row";
+          var key = document.createElement("span");
+          key.className = "detail-meta-key";
+          key.textContent = pair[0];
+          var value = document.createElement("span");
+          value.className = "detail-meta-value";
+          value.textContent = pair[1];
+          row.appendChild(key);
+          row.appendChild(value);
+          meta.appendChild(row);
+        });
+      }
+
+      setText("scan-detail-hosts", scan.hosts_total);
+      setText("scan-detail-alive", scan.alive);
+      setText("scan-detail-down", scan.down);
+      setText("scan-detail-services", scan.services);
+      setText("scan-detail-tech", scan.technologies);
+      setText("scan-detail-vulns", scan.vulns);
+      setText("scan-detail-alert-host", scan.alerts_new_host);
+      setText("scan-detail-alert-down", scan.alerts_host_down);
+      setText("scan-detail-alert-cve", scan.alerts_new_cve);
+      setText("scan-detail-alert-open", scan.alerts_open);
+
+      var targets = document.getElementById("scan-detail-targets");
+      if (targets) {
+        targets.innerHTML = "";
+        (scan.targets || []).forEach(function (target) {
+          var chip = document.createElement("span");
+          chip.className = "criteria-chip mono";
+          chip.textContent = target;
+          targets.appendChild(chip);
+        });
+        if (!scan.targets || !scan.targets.length) {
+          targets.innerHTML = "<span class='muted'>No targets recorded.</span>";
+        }
+      }
+
+      renderList("scan-detail-top-tech", scan.top_technologies, "No technologies captured.");
+      renderList("scan-detail-top-services", scan.top_services, "No services captured.");
+
+      var banner = document.getElementById("scan-detail-error");
+      if (banner) {
+        banner.textContent = scan.error || "";
+        banner.hidden = !scan.error;
+      }
+    };
+
+    document.querySelectorAll("[data-scan-details]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-scan-details");
+        var seq = ++detailSeq;
+        fetch("/api/scans/" + id)
+          .then(function (r) {
+            if (!r.ok) throw new Error();
+            return r.json();
+          })
+          .then(function (scan) {
+            if (seq !== detailSeq) return;
+            renderDetail(scan);
+            openModal("scan-detail-modal");
+          })
+          .catch(function () {
+            window.alert("Could not load this scan's details.");
+          });
+      });
+    });
+  }
+
+  // ==========================================================================
+  // Alerts — acknowledge one or many
+  // ==========================================================================
+  var alertsTable = document.getElementById("alerts-table");
+  if (alertsTable) {
+    var picks = Array.prototype.slice.call(alertsTable.querySelectorAll("[data-alert-pick]"));
+    var ackSelected = document.getElementById("alerts-ack-selected");
+
+    var selectedIds = function () {
+      return picks
+        .filter(function (box) { return box.checked; })
+        .map(function (box) { return Number(box.getAttribute("data-alert-pick")); });
+    };
+
+    var syncAckButton = function () {
+      if (ackSelected) ackSelected.disabled = selectedIds().length === 0;
+    };
+
+    picks.forEach(function (box) { box.addEventListener("change", syncAckButton); });
+    syncAckButton();
+
+    var acknowledge = function (ids) {
+      if (!ids.length) return;
+      fetch("/api/alerts/acknowledge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: ids })
+      })
+        .then(function (r) {
+          if (!r.ok) throw new Error();
+          return r.json();
+        })
+        .then(function () { window.location.reload(); })
+        .catch(function () { window.alert("Could not acknowledge these alerts."); });
+    };
+
+    if (ackSelected) {
+      ackSelected.addEventListener("click", function () { acknowledge(selectedIds()); });
+    }
+
+    document.querySelectorAll("[data-alert-ack]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        acknowledge([Number(btn.getAttribute("data-alert-ack"))]);
+      });
     });
   }
 

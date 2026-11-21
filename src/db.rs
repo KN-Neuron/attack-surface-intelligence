@@ -7,8 +7,9 @@ use sqlx::{PgPool, Row};
 use crate::auth::PERMISSION_PAGES;
 use crate::mock;
 use crate::state::{
-    Admin, Criterion, HostFqdn, HostGroup, HostIp, HostRange, ImportPreview, ImportSummary,
-    Permission, Policy, Role, ScanStatus, SCAN_TARGETS, now_label,
+    Admin, AlertRow, AssetRow, Criterion, EditAsset, HostFqdn, HostGroup, HostIp, HostRange,
+    ImportPreview, ImportSummary, Permission, Policy, Role, ScanDetail, ScanRowView,
+    ScanServiceCount, ScanStatus, ScanTechCount, ScanType, now_label,
 };
 
 /// Postgres connection string, read from the `DATABASE_URL` environment variable.
@@ -106,6 +107,80 @@ CREATE TABLE IF NOT EXISTS app_data (
     key TEXT PRIMARY KEY,
     data JSONB NOT NULL
 );
+
+-- ---------------------------------------------------------------- scans
+
+CREATE TABLE IF NOT EXISTS scans (
+    id BIGSERIAL PRIMARY KEY,
+    policy_id BIGINT,
+    label TEXT NOT NULL,
+    scan_type TEXT NOT NULL,
+    engine TEXT NOT NULL,
+    trigger TEXT NOT NULL,
+    target TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'Running',
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    finished_at TIMESTAMPTZ,
+    duration_ms BIGINT,
+    hosts_total BIGINT NOT NULL DEFAULT 0,
+    alive BIGINT NOT NULL DEFAULT 0,
+    down BIGINT NOT NULL DEFAULT 0,
+    services BIGINT NOT NULL DEFAULT 0,
+    technologies BIGINT NOT NULL DEFAULT 0,
+    vulns BIGINT NOT NULL DEFAULT 0,
+    alerts BIGINT NOT NULL DEFAULT 0,
+    error TEXT
+);
+
+-- The captured state of every host the scanner has seen. A reachability scan
+-- only refreshes `up`, `last_checked` and `last_scan_id`; the HTTP columns are
+-- written by a full scan and left untouched otherwise.
+CREATE TABLE IF NOT EXISTS scan_hosts (
+    id BIGSERIAL PRIMARY KEY,
+    address TEXT NOT NULL UNIQUE,
+    last_scan_id BIGINT,
+    up BOOLEAN NOT NULL DEFAULT FALSE,
+    first_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_checked TIMESTAMPTZ,
+    scheme TEXT,
+    port INT,
+    url TEXT,
+    status_code INT,
+    title TEXT,
+    webserver TEXT,
+    content_length BIGINT,
+    cdn TEXT,
+    cname TEXT,
+    final_url TEXT,
+    response_time TEXT,
+    tls JSONB,
+    tech JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ports JSONB NOT NULL DEFAULT '[]'::jsonb,
+    raw JSONB
+);
+
+CREATE TABLE IF NOT EXISTS alerts (
+    id BIGSERIAL PRIMARY KEY,
+    scan_id BIGINT REFERENCES scans(id) ON DELETE SET NULL,
+    kind TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    host TEXT NOT NULL,
+    message TEXT NOT NULL,
+    detail TEXT,
+    acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
+    acknowledged_by TEXT,
+    acknowledged_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE policies ADD COLUMN IF NOT EXISTS last_run_at TIMESTAMPTZ;
+ALTER TABLE policies ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMPTZ;
+
+ALTER TABLE scan_state ADD COLUMN IF NOT EXISTS scan_id BIGINT;
+ALTER TABLE scan_state ADD COLUMN IF NOT EXISTS scan_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE scan_state ADD COLUMN IF NOT EXISTS engine TEXT NOT NULL DEFAULT '';
+ALTER TABLE scan_state ADD COLUMN IF NOT EXISTS alerts_found INTEGER NOT NULL DEFAULT 0;
 "#;
 
 pub async fn connect() -> anyhow::Result<PgPool> {
@@ -134,6 +209,10 @@ pub async fn init(pool: &PgPool) -> anyhow::Result<()> {
     .await?;
 
     seed(pool).await?;
+
+    // No scan survives a restart, and older databases may still carry the
+    // seeded demo run in the running state.
+    recover_interrupted_scans(pool).await;
     Ok(())
 }
 
@@ -234,16 +313,9 @@ async fn seed(pool: &PgPool) -> anyhow::Result<()> {
         add_host_ranges(pool, ranges, vec![]).await;
     }
 
-    sqlx::query(
-        "INSERT INTO scan_state
-            (id, running, paused, progress, targets_done, target_total, hosts_found, current_target, started_at, completed_at)
-         VALUES (1, TRUE, FALSE, 34.0, 4, 12, 128, $1, $2, NULL)
-         ON CONFLICT (id) DO NOTHING",
-    )
-    .bind(SCAN_TARGETS[4])
-    .bind("November 21, 2026 09:14:02 AM")
-    .execute(pool)
-    .await?;
+    sqlx::query("INSERT INTO scan_state (id) VALUES (1) ON CONFLICT (id) DO NOTHING")
+        .execute(pool)
+        .await?;
 
     seed_json(pool, "scan_history", &mock::scan_history()).await;
     seed_json(pool, "data_events", &mock::data_events()).await;
@@ -324,13 +396,21 @@ async fn seed_roles(pool: &PgPool) -> anyhow::Result<()> {
         (
             "Scan Operator",
             allow(
-                &["dashboards", "scan_management", "policies", "compare", "host_management"],
+                &[
+                    "dashboards",
+                    "scan_management",
+                    "policies",
+                    "compare",
+                    "host_management",
+                    "scan_history",
+                    "alerts",
+                ],
                 true,
             ),
         ),
         (
             "Analyst",
-            allow(&["dashboards", "data_explorer", "scan_history", "host_management"], false),
+            allow(&["dashboards", "data_explorer", "scan_history", "alerts", "host_management"], false),
         ),
     ];
 
@@ -342,6 +422,32 @@ async fn seed_roles(pool: &PgPool) -> anyhow::Result<()> {
         .bind(permissions_json(&permissions))
         .execute(pool)
         .await?;
+
+        // A role seeded before a page existed has no entry for it, which reads
+        // as "no access". Add any missing built-in grants once, leaving every
+        // permission an administrator has changed alone.
+        let stored: Option<Value> =
+            sqlx::query_scalar("SELECT permissions FROM roles WHERE name = $1")
+                .bind(name)
+                .fetch_optional(pool)
+                .await
+                .ok()
+                .flatten();
+        let mut current: Vec<Permission> = stored
+            .and_then(|value| serde_json::from_value(value).ok())
+            .unwrap_or_default();
+
+        for seeded in &permissions {
+            if !current.iter().any(|p| p.page == seeded.page) {
+                current.push(seeded.clone());
+            }
+        }
+
+        sqlx::query("UPDATE roles SET permissions = $2 WHERE name = $1")
+            .bind(name)
+            .bind(permissions_json(&current))
+            .execute(pool)
+            .await?;
     }
     Ok(())
 }
@@ -455,7 +561,8 @@ pub async fn update_policy(
     let ord = if order <= 0 { 1 } else { order };
     let criteria = serde_json::to_value(criteria).unwrap_or(Value::Array(vec![]));
     let row = sqlx::query(
-        "UPDATE policies SET name = $2, ord = $3, enabled = $4, criteria = $5
+        "UPDATE policies SET name = $2, ord = $3, enabled = $4, criteria = $5,
+                next_run_at = NULL
          WHERE id = $1 RETURNING id, name, ord, enabled, criteria",
     )
     .bind(id)
@@ -1312,7 +1419,8 @@ pub async fn delete_session(pool: &PgPool, token: &str) {
 pub async fn get_scan_state(pool: &PgPool) -> ScanStatus {
     let row = sqlx::query(
         "SELECT running, paused, progress, targets_done, target_total, hosts_found,
-                current_target, started_at, completed_at
+                current_target, started_at, completed_at, scan_id, scan_type, engine,
+                alerts_found
          FROM scan_state WHERE id = 1",
     )
     .fetch_optional(pool)
@@ -1331,6 +1439,10 @@ pub async fn get_scan_state(pool: &PgPool) -> ScanStatus {
             current_target: row.get("current_target"),
             started_at: row.get("started_at"),
             completed_at: row.get("completed_at"),
+            scan_id: row.get("scan_id"),
+            scan_type: row.get("scan_type"),
+            engine: row.get("engine"),
+            alerts_found: row.get("alerts_found"),
         },
         None => ScanStatus::default(),
     }
@@ -1339,7 +1451,8 @@ pub async fn get_scan_state(pool: &PgPool) -> ScanStatus {
 async fn save_scan_state(pool: &PgPool, scan: &ScanStatus) {
     let _ = sqlx::query(
         "UPDATE scan_state SET running = $1, paused = $2, progress = $3, targets_done = $4,
-            target_total = $5, hosts_found = $6, current_target = $7, started_at = $8, completed_at = $9
+            target_total = $5, hosts_found = $6, current_target = $7, started_at = $8,
+            completed_at = $9, scan_id = $10, scan_type = $11, engine = $12, alerts_found = $13
          WHERE id = 1",
     )
     .bind(scan.running)
@@ -1351,52 +1464,108 @@ async fn save_scan_state(pool: &PgPool, scan: &ScanStatus) {
     .bind(&scan.current_target)
     .bind(&scan.started_at)
     .bind(&scan.completed_at)
+    .bind(scan.scan_id)
+    .bind(&scan.scan_type)
+    .bind(&scan.engine)
+    .bind(scan.alerts_found)
     .execute(pool)
     .await;
 }
 
-pub async fn tick_scan(pool: &PgPool) {
-    let mut scan = get_scan_state(pool).await;
-    if !scan.running || scan.paused {
-        return;
-    }
+/// Reserves the single scan slot. Returns `None` when a scan is already
+/// running, which keeps the scheduler and the manual controls from overlapping.
+pub async fn claim_scan(
+    pool: &PgPool,
+    scan_id: i64,
+    scan_type: &str,
+    engine: &str,
+    target_total: i32,
+) -> Option<ScanStatus> {
+    let row = sqlx::query(
+        "UPDATE scan_state SET running = TRUE, paused = FALSE, progress = 0,
+                targets_done = 0, target_total = $2, hosts_found = 0, alerts_found = 0,
+                current_target = '—', started_at = $3, completed_at = NULL,
+                scan_id = $1, scan_type = $4, engine = $5
+         WHERE id = 1 AND running = FALSE
+         RETURNING running, paused, progress, targets_done, target_total, hosts_found,
+                   current_target, started_at, completed_at, scan_id, scan_type, engine,
+                   alerts_found",
+    )
+    .bind(scan_id)
+    .bind(target_total)
+    .bind(now_label())
+    .bind(scan_type)
+    .bind(engine)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()?;
 
-    scan.progress = (scan.progress + 0.9).min(100.0);
-    scan.hosts_found += 1 + (scan.progress as i32 % 3);
-
-    let total = scan.target_total.max(1);
-    let idx = ((scan.progress / 100.0) * total as f64).floor() as i32;
-    scan.targets_done = idx.min(total);
-    let current = idx.min(total.saturating_sub(1)) as usize;
-    if let Some(target) = SCAN_TARGETS.get(current) {
-        scan.current_target = target.to_string();
-    }
-
-    if scan.progress >= 100.0 {
-        scan.running = false;
-        scan.paused = false;
-        scan.targets_done = total;
-        scan.completed_at = Some(now_label());
-        scan.current_target = "—".to_string();
-    }
-
-    save_scan_state(pool, &scan).await;
+    Some(ScanStatus {
+        running: row.get("running"),
+        paused: row.get("paused"),
+        progress: row.get("progress"),
+        targets_done: row.get("targets_done"),
+        target_total: row.get("target_total"),
+        hosts_found: row.get("hosts_found"),
+        current_target: row.get("current_target"),
+        started_at: row.get("started_at"),
+        completed_at: row.get("completed_at"),
+        scan_id: row.get("scan_id"),
+        scan_type: row.get("scan_type"),
+        engine: row.get("engine"),
+        alerts_found: row.get("alerts_found"),
+    })
 }
 
-pub async fn start_scan(pool: &PgPool) -> ScanStatus {
-    let scan = ScanStatus {
-        running: true,
-        paused: false,
-        progress: 0.0,
-        targets_done: 0,
-        target_total: SCAN_TARGETS.len() as i32,
-        hosts_found: 0,
-        current_target: SCAN_TARGETS[0].to_string(),
-        started_at: Some(now_label()),
-        completed_at: None,
-    };
-    save_scan_state(pool, &scan).await;
-    scan
+/// Publishes live progress for the running scan. Progress only ever moves
+/// forward, so overlapping writers can never make the bar jump backwards.
+pub async fn save_scan_progress(
+    pool: &PgPool,
+    progress: f64,
+    targets_done: i32,
+    hosts_found: i32,
+    current_target: &str,
+) {
+    let _ = sqlx::query(
+        "UPDATE scan_state SET progress = GREATEST(progress, $1),
+                targets_done = GREATEST(targets_done, $2),
+                hosts_found = GREATEST(hosts_found, $3),
+                current_target = CASE WHEN $1 >= progress THEN $4 ELSE current_target END
+         WHERE id = 1",
+    )
+    .bind(progress)
+    .bind(targets_done)
+    .bind(hosts_found)
+    .bind(current_target)
+    .execute(pool)
+    .await;
+}
+
+/// Records the engine that actually ran (masscan may degrade to a TCP sweep).
+pub async fn set_scan_engine(pool: &PgPool, scan_id: i64, engine: &str) {
+    let _ = sqlx::query("UPDATE scans SET engine = $2 WHERE id = $1")
+        .bind(scan_id)
+        .bind(engine)
+        .execute(pool)
+        .await;
+    let _ = sqlx::query("UPDATE scan_state SET engine = $1 WHERE scan_id = $2")
+        .bind(engine)
+        .bind(scan_id)
+        .execute(pool)
+        .await;
+}
+
+pub async fn release_scan(pool: &PgPool, alerts_found: i32) {
+    let _ = sqlx::query(
+        "UPDATE scan_state SET running = FALSE, paused = FALSE, completed_at = $1,
+                current_target = '—', alerts_found = $2
+         WHERE id = 1",
+    )
+    .bind(now_label())
+    .bind(alerts_found)
+    .execute(pool)
+    .await;
 }
 
 pub async fn pause_scan(pool: &PgPool) -> ScanStatus {
@@ -1415,5 +1584,717 @@ pub async fn cancel_scan(pool: &PgPool) -> ScanStatus {
     scan.completed_at = Some(now_label());
     scan.current_target = "—".to_string();
     save_scan_state(pool, &scan).await;
+    if let Some(id) = scan.scan_id {
+        let _ = sqlx::query(
+            "UPDATE scans SET status = 'Cancelled', finished_at = now(),
+                    duration_ms = EXTRACT(EPOCH FROM (now() - started_at)) * 1000
+             WHERE id = $1 AND status = 'Running'",
+        )
+        .bind(id)
+        .execute(pool)
+        .await;
+    }
     scan
+}
+
+// ---------------------------------------------------------------- scans
+
+fn row_to_scan_view(row: &PgRow) -> ScanRowView {
+    let scan_type: String = row.get("scan_type");
+    let started: chrono::DateTime<chrono::Utc> = row.get("started_at");
+    let now = chrono::Utc::now();
+    let finished: Option<chrono::DateTime<chrono::Utc>> = row.get("finished_at");
+    let duration_ms: Option<i64> = row.get("duration_ms");
+
+    ScanRowView {
+        id: row.get("id"),
+        label: row.get("label"),
+        scan_type_label: ScanType::parse(&scan_type).label().to_string(),
+        scan_type,
+        engine: row.get("engine"),
+        trigger: row.get("trigger"),
+        started: started.format("%b %-d, %Y %-I:%M %p").to_string(),
+        finished: finished
+            .map(|t| t.format("%b %-d, %Y %-I:%M %p").to_string())
+            .unwrap_or_else(|| "—".into()),
+        duration: duration_ms
+            .map(|ms| format!("{}m", (ms / 60_000).max(0)))
+            .unwrap_or_else(|| "—".into()),
+        target: row.get("target"),
+        hosts_total: row.get::<i64, _>("hosts_total").max(0) as u32,
+        alive: row.get::<i64, _>("alive").max(0) as u32,
+        down: row.get::<i64, _>("down").max(0) as u32,
+        services: row.get::<i64, _>("services").max(0) as u32,
+        technologies: row.get::<i64, _>("technologies").max(0) as u32,
+        vulns: row.get::<i64, _>("vulns").max(0) as u32,
+        alerts: row.get::<i64, _>("alerts").max(0) as u32,
+        days_ago: (now - started).num_days().max(0) as u32,
+        status: row.get("status"),
+        demo: false,
+    }
+}
+
+pub async fn list_scans(pool: &PgPool) -> Vec<ScanRowView> {
+    sqlx::query(
+        "SELECT id, label, scan_type, engine, trigger, target, status, started_at,
+                finished_at, duration_ms, hosts_total, alive, down, services, technologies,
+                vulns, alerts
+         FROM scans ORDER BY started_at DESC, id DESC LIMIT 200",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(row_to_scan_view)
+    .collect()
+}
+
+/// Inserts a scan row in the running state and returns its id.
+pub async fn create_scan(
+    pool: &PgPool,
+    policy_id: Option<i64>,
+    label: &str,
+    scan_type: &str,
+    engine: &str,
+    trigger: &str,
+    target: &str,
+) -> Option<i64> {
+    sqlx::query_scalar(
+        "INSERT INTO scans (policy_id, label, scan_type, engine, trigger, target, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'Running') RETURNING id",
+    )
+    .bind(policy_id)
+    .bind(label)
+    .bind(scan_type)
+    .bind(engine)
+    .bind(trigger)
+    .bind(target)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()
+}
+
+/// Seals a finished scan with aggregates computed from the captured hosts.
+pub async fn finish_scan(pool: &PgPool, scan_id: i64, status: &str, error: Option<&str>) {
+    let _ = sqlx::query(
+        "UPDATE scans s SET
+             status = $2,
+             error = $3,
+             finished_at = now(),
+             duration_ms = EXTRACT(EPOCH FROM (now() - s.started_at)) * 1000,
+             hosts_total = (SELECT count(*) FROM scan_hosts WHERE last_scan_id = s.id),
+             alive = (SELECT count(*) FROM scan_hosts WHERE last_scan_id = s.id AND up),
+             down = (SELECT count(*) FROM scan_hosts WHERE last_scan_id = s.id AND NOT up),
+             services = (SELECT count(*) FROM scan_hosts
+                         WHERE last_scan_id = s.id
+                           AND jsonb_array_length(COALESCE(ports, '[]'::jsonb)) > 0),
+             technologies = (SELECT count(*) FROM scan_hosts
+                             WHERE last_scan_id = s.id
+                               AND jsonb_array_length(COALESCE(tech, '[]'::jsonb)) > 0),
+             alerts = (SELECT count(*) FROM alerts WHERE scan_id = s.id)
+         WHERE s.id = $1",
+    )
+    .bind(scan_id)
+    .bind(status)
+    .bind(error)
+    .execute(pool)
+    .await;
+}
+
+/// A scan left in the running state by a crash or restart can never finish.
+pub async fn recover_interrupted_scans(pool: &PgPool) {
+    let _ = sqlx::query(
+        "UPDATE scans SET status = 'Failed', error = 'interrupted by restart',
+                finished_at = now(),
+                duration_ms = EXTRACT(EPOCH FROM (now() - started_at)) * 1000
+         WHERE status = 'Running'",
+    )
+    .execute(pool)
+    .await;
+    let _ = sqlx::query(
+        "UPDATE scan_state SET running = FALSE, paused = FALSE, current_target = '—',
+                scan_id = NULL
+         WHERE id = 1",
+    )
+    .execute(pool)
+    .await;
+}
+
+/// The summary behind the maximized scan-details view.
+pub async fn scan_detail(pool: &PgPool, scan_id: i64) -> Option<ScanDetail> {
+    let row = sqlx::query(
+        "SELECT id, label, scan_type, engine, trigger, target, status, started_at,
+                finished_at, duration_ms, hosts_total, alive, down, services, technologies,
+                vulns, alerts, error
+         FROM scans WHERE id = $1",
+    )
+    .bind(scan_id)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()?;
+
+    let view = row_to_scan_view(&row);
+    let target: String = row.get("target");
+    let error: Option<String> = row.get("error");
+
+    let counts = sqlx::query(
+        "SELECT
+             count(*) FILTER (WHERE kind = 'new_host') AS new_host,
+             count(*) FILTER (WHERE kind = 'host_down') AS host_down,
+             count(*) FILTER (WHERE kind = 'new_cve') AS new_cve,
+             count(*) FILTER (WHERE NOT acknowledged) AS open
+         FROM alerts WHERE scan_id = $1",
+    )
+    .bind(scan_id)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+    let count_of = |key: &str| -> u32 {
+        counts
+            .as_ref()
+            .map(|row| row.get::<i64, _>(key).max(0) as u32)
+            .unwrap_or(0)
+    };
+
+    let techs = sqlx::query(
+        "SELECT t->>'name' AS name, count(DISTINCT address) AS hosts
+         FROM scan_hosts, jsonb_array_elements(COALESCE(tech, '[]'::jsonb)) AS t
+         WHERE last_scan_id = $1 AND COALESCE(t->>'name', '') <> ''
+         GROUP BY 1 ORDER BY hosts DESC, name LIMIT 8",
+    )
+    .bind(scan_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(|row| ScanTechCount {
+        name: row.get("name"),
+        hosts: row.get::<i64, _>("hosts").max(0) as u32,
+    })
+    .collect();
+
+    let services = sqlx::query(
+        "SELECT p->>'service' AS label, count(DISTINCT address) AS hosts
+         FROM scan_hosts, jsonb_array_elements(COALESCE(ports, '[]'::jsonb)) AS p
+         WHERE last_scan_id = $1 AND COALESCE(p->>'service', '') <> ''
+         GROUP BY 1 ORDER BY hosts DESC, label LIMIT 8",
+    )
+    .bind(scan_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(|row| ScanServiceCount {
+        label: row.get("label"),
+        hosts: row.get::<i64, _>("hosts").max(0) as u32,
+    })
+    .collect();
+
+    Some(ScanDetail {
+        id: view.id,
+        label: view.label,
+        demo: false,
+        scan_type_label: view.scan_type_label,
+        scan_type: view.scan_type,
+        engine: view.engine,
+        trigger: view.trigger,
+        status: view.status,
+        started: view.started,
+        finished: view.finished,
+        duration: view.duration,
+        targets: target
+            .split(", ")
+            .map(str::trim)
+            .filter(|t| !t.is_empty())
+            .map(str::to_string)
+            .collect(),
+        hosts_total: view.hosts_total,
+        alive: view.alive,
+        down: view.down,
+        services: view.services,
+        technologies: view.technologies,
+        vulns: view.vulns,
+        alerts: view.alerts,
+        alerts_new_host: count_of("new_host"),
+        alerts_host_down: count_of("host_down"),
+        alerts_new_cve: count_of("new_cve"),
+        alerts_open: count_of("open"),
+        top_technologies: techs,
+        top_services: services,
+        error: error.unwrap_or_default(),
+    })
+}
+
+// ---------------------------------------------------------------- captured hosts
+
+/// Refreshes up/down for one host. Never touches the HTTP capture columns, so
+/// a reachability scan leaves a previous full scan's findings intact.
+pub async fn touch_host(pool: &PgPool, scan_id: i64, address: &str, up: bool) {
+    let _ = sqlx::query(
+        "INSERT INTO scan_hosts (address, up, last_checked, last_scan_id, last_seen)
+         VALUES ($1, $2, now(), $3, now())
+         ON CONFLICT (address) DO UPDATE
+         SET up = $2, last_checked = now(), last_scan_id = $3,
+             last_seen = CASE WHEN $2 THEN now() ELSE scan_hosts.last_seen END",
+    )
+    .bind(address)
+    .bind(up)
+    .bind(scan_id)
+    .execute(pool)
+    .await;
+}
+
+/// Writes everything a full scan learned about one host.
+#[allow(clippy::too_many_arguments)]
+pub async fn upsert_host_capture(
+    pool: &PgPool,
+    scan_id: i64,
+    address: &str,
+    scheme: &str,
+    port: i32,
+    url: &str,
+    status_code: i32,
+    title: &str,
+    webserver: &str,
+    content_length: i64,
+    cdn: &str,
+    cname: &str,
+    final_url: &str,
+    response_time: &str,
+    tls: Option<Value>,
+    tech: &Value,
+    ports: &Value,
+    raw: Option<Value>,
+) {
+    let _ = sqlx::query(
+        "INSERT INTO scan_hosts (address, up, first_seen, last_seen, last_checked, last_scan_id,
+                scheme, port, url, status_code, title, webserver, content_length, cdn, cname,
+                final_url, response_time, tls, tech, ports, raw)
+         VALUES ($1, TRUE, now(), now(), now(), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+                $12, $13, $14, $15, $16, $17)
+         ON CONFLICT (address) DO UPDATE SET
+             up = TRUE, last_seen = now(), last_checked = now(), last_scan_id = $2,
+             scheme = $3, port = $4, url = $5, status_code = $6, title = $7,
+             webserver = $8, content_length = $9, cdn = $10, cname = $11,
+             final_url = $12, response_time = $13, tls = $14, tech = $15, ports = $16,
+             raw = $17",
+    )
+    .bind(address)
+    .bind(scan_id)
+    .bind(scheme)
+    .bind(port)
+    .bind(url)
+    .bind(status_code)
+    .bind(title)
+    .bind(webserver)
+    .bind(content_length)
+    .bind(cdn)
+    .bind(cname)
+    .bind(final_url)
+    .bind(response_time)
+    .bind(tls)
+    .bind(tech)
+    .bind(ports)
+    .bind(raw)
+    .execute(pool)
+    .await;
+}
+
+pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
+    // CVEs are raised as alerts, so the host's vulnerability list comes from the
+    // alerts the scanner generated rather than from the technology list.
+    let vulns = sqlx::query(
+        "SELECT host, detail FROM alerts
+         WHERE kind = 'new_cve' AND COALESCE(detail, '') <> ''
+         ORDER BY severity, detail",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    let mut vulns_by_host: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
+    for row in &vulns {
+        let host: String = row.get("host");
+        let detail: String = row.get("detail");
+        vulns_by_host.entry(host).or_default().push(detail);
+    }
+
+    sqlx::query(
+        "SELECT address, up, scheme, port, status_code, title, webserver, tech, ports,
+                url, final_url, content_length, cdn, cname, response_time, tls,
+                first_seen, last_seen, last_checked, last_scan_id
+         FROM scan_hosts
+         ORDER BY up DESC, address",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(|row| {
+        let tech: Vec<Value> = serde_json::from_value(row.get::<Value, _>("tech"))
+            .unwrap_or_default();
+        let ports: Vec<Value> = serde_json::from_value(row.get::<Value, _>("ports"))
+            .unwrap_or_default();
+        let tls: Option<Value> = row.get("tls");
+
+        let timestamp = |key: &str| -> i64 {
+            row.get::<Option<chrono::DateTime<chrono::Utc>>, _>(key)
+                .map(|t| t.timestamp())
+                .unwrap_or(0)
+        };
+
+        AssetRow {
+            address: row.get("address"),
+            up: row.get("up"),
+            scheme: row.get::<Option<String>, _>("scheme").unwrap_or_default(),
+            port: row
+                .get::<Option<i32>, _>("port")
+                .map(|p| p.to_string())
+                .unwrap_or_default(),
+            status_code: row
+                .get::<Option<i32>, _>("status_code")
+                .map(|c| c.to_string())
+                .unwrap_or_default(),
+            title: row.get::<Option<String>, _>("title").unwrap_or_default(),
+            webserver: row.get::<Option<String>, _>("webserver").unwrap_or_default(),
+            technologies: tech
+                .iter()
+                .filter_map(|t| {
+                    let name = t.get("name")?.as_str()?.to_string();
+                    let version = t.get("version").and_then(Value::as_str).unwrap_or("");
+                    Some(if version.is_empty() {
+                        name
+                    } else {
+                        format!("{name} {version}")
+                    })
+                })
+                .collect(),
+            vulnerabilities: vulns_by_host
+                .get(&row.get::<String, _>("address"))
+                .cloned()
+                .unwrap_or_default(),
+            last_checked: row
+                .get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_checked")
+                .map(|t| t.format("%b %-d, %Y %-I:%M %p").to_string())
+                .unwrap_or_else(|| "—".into()),
+            last_scan: row
+                .get::<Option<i64>, _>("last_scan_id")
+                .map(|id| format!("#{id}"))
+                .unwrap_or_else(|| "—".into()),
+            url: row.get::<Option<String>, _>("url").unwrap_or_default(),
+            final_url: row.get::<Option<String>, _>("final_url").unwrap_or_default(),
+            content_length: row
+                .get::<Option<i64>, _>("content_length")
+                .filter(|len| *len > 0)
+                .map(|len| len.to_string())
+                .unwrap_or_default(),
+            cdn: row.get::<Option<String>, _>("cdn").unwrap_or_default(),
+            cname: row.get::<Option<String>, _>("cname").unwrap_or_default(),
+            response_time: row
+                .get::<Option<String>, _>("response_time")
+                .unwrap_or_default(),
+            tls: tls
+                .as_ref()
+                .map(|tls| {
+                    let version = tls
+                        .get("tls_version")
+                        .and_then(Value::as_str)
+                        .unwrap_or("TLS")
+                        .to_uppercase();
+                    match tls.get("issuer_cn").and_then(Value::as_str) {
+                        Some(issuer) if !issuer.is_empty() => format!("{version} · {issuer}"),
+                        _ => version,
+                    }
+                })
+                .unwrap_or_default(),
+            tls_expires: tls
+                .as_ref()
+                .and_then(|tls| tls.get("not_after").and_then(Value::as_str))
+                .map(|raw| raw.split('T').next().unwrap_or(raw).to_string())
+                .unwrap_or_default(),
+            ports: ports
+                .iter()
+                .filter_map(|p| {
+                    let port = p.get("port")?.as_i64()?;
+                    let service = p.get("service").and_then(Value::as_str).unwrap_or("");
+                    Some(format!("{port}/{service}"))
+                })
+                .collect::<Vec<_>>()
+                .join(", "),
+            first_seen: row
+                .get::<chrono::DateTime<chrono::Utc>, _>("first_seen")
+                .format("%b %-d, %Y %-I:%M %p")
+                .to_string(),
+            last_seen: row
+                .get::<chrono::DateTime<chrono::Utc>, _>("last_seen")
+                .format("%b %-d, %Y %-I:%M %p")
+                .to_string(),
+            last_checked_ts: timestamp("last_checked"),
+            first_seen_ts: timestamp("first_seen"),
+            last_seen_ts: timestamp("last_seen"),
+        }
+    })
+    .collect()
+}
+
+/// Applies an Explorer edit. Only the display-level columns are writable; the
+/// captured scanner evidence (tech, tls, ports) stays as measured.
+pub async fn update_asset(pool: &PgPool, address: &str, edit: &EditAsset) -> bool {
+    sqlx::query(
+        "UPDATE scan_hosts SET
+             title = COALESCE($2, title),
+             webserver = COALESCE($3, webserver),
+             cdn = COALESCE($4, cdn),
+             cname = COALESCE($5, cname),
+             status_code = COALESCE($6, status_code),
+             scheme = COALESCE($7, scheme),
+             port = COALESCE($8, port),
+             up = COALESCE($9, up)
+         WHERE address = $1",
+    )
+    .bind(address)
+    .bind(&edit.title)
+    .bind(&edit.webserver)
+    .bind(&edit.cdn)
+    .bind(&edit.cname)
+    .bind(edit.status_code)
+    .bind(&edit.scheme)
+    .bind(edit.port)
+    .bind(edit.up)
+    .execute(pool)
+    .await
+    .map(|result| result.rows_affected() > 0)
+    .unwrap_or(false)
+}
+
+// ---------------------------------------------------------------- alerts
+
+fn row_to_alert(row: &PgRow) -> AlertRow {
+    let kind: String = row.get("kind");
+    let created: chrono::DateTime<chrono::Utc> = row.get("created_at");
+    AlertRow {
+        id: row.get("id"),
+        kind_label: match kind.as_str() {
+            "new_host" => "New host",
+            "host_down" => "Host down",
+            "new_cve" => "New CVE",
+            _ => "Alert",
+        }
+        .to_string(),
+        kind,
+        severity: row.get("severity"),
+        host: row.get("host"),
+        message: row.get("message"),
+        detail: row.get::<Option<String>, _>("detail").unwrap_or_default(),
+        acknowledged: row.get("acknowledged"),
+        acknowledged_by: row
+            .get::<Option<String>, _>("acknowledged_by")
+            .unwrap_or_default(),
+        detected: created.format("%b %-d, %Y %-I:%M %p").to_string(),
+        days_ago: (chrono::Utc::now() - created).num_days().max(0) as u32,
+        scan_label: row
+            .get::<Option<String>, _>("scan_label")
+            .unwrap_or_else(|| "—".into()),
+    }
+}
+
+pub async fn list_alerts(pool: &PgPool) -> Vec<AlertRow> {
+    sqlx::query(
+        "SELECT a.id, a.kind, a.severity, a.host, a.message, a.detail, a.acknowledged,
+                a.acknowledged_by, a.created_at, s.label AS scan_label
+         FROM alerts a
+         LEFT JOIN scans s ON s.id = a.scan_id
+         ORDER BY a.acknowledged, a.created_at DESC, a.id DESC
+         LIMIT 500",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(row_to_alert)
+    .collect()
+}
+
+pub async fn count_open_alerts(pool: &PgPool) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM alerts WHERE NOT acknowledged")
+        .fetch_one(pool)
+        .await
+        .unwrap_or(0)
+}
+
+/// Records an alert unless the same finding is already on file for that host.
+pub async fn insert_alert(
+    pool: &PgPool,
+    scan_id: i64,
+    kind: &str,
+    severity: &str,
+    host: &str,
+    message: &str,
+    detail: Option<&str>,
+) {
+    let _ = sqlx::query(
+        "INSERT INTO alerts (scan_id, kind, severity, host, message, detail)
+         SELECT $1, $2, $3, $4, $5, $6
+         WHERE NOT EXISTS (
+             SELECT 1 FROM alerts
+             WHERE kind = $2 AND host = $4 AND COALESCE(detail, '') = COALESCE($6, '')
+         )",
+    )
+    .bind(scan_id)
+    .bind(kind)
+    .bind(severity)
+    .bind(host)
+    .bind(message)
+    .bind(detail)
+    .execute(pool)
+    .await;
+}
+
+/// Marks the given alerts acknowledged. Returns how many rows changed.
+pub async fn acknowledge_alerts(pool: &PgPool, ids: &[i64], admin: &str) -> u64 {
+    if ids.is_empty() {
+        return 0;
+    }
+    sqlx::query(
+        "UPDATE alerts SET acknowledged = TRUE, acknowledged_by = $2,
+                acknowledged_at = now()
+         WHERE id = ANY($1) AND NOT acknowledged",
+    )
+    .bind(ids)
+    .bind(admin)
+    .execute(pool)
+    .await
+    .map(|r| r.rows_affected())
+    .unwrap_or(0)
+}
+
+/// Hosts that responded before this scan started, used to spot regressions.
+pub async fn up_hosts_before(pool: &PgPool, scan_id: i64) -> Vec<String> {
+    sqlx::query_scalar(
+        "SELECT address FROM scan_hosts WHERE up AND last_scan_id IS DISTINCT FROM $1",
+    )
+    .bind(scan_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+}
+
+pub async fn known_hosts(pool: &PgPool) -> Vec<String> {
+    sqlx::query_scalar("SELECT address FROM scan_hosts")
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default()
+}
+
+/// The up/down outcome of every host this scan touched.
+pub async fn scan_host_states(pool: &PgPool, scan_id: i64) -> Vec<(String, bool)> {
+    sqlx::query("SELECT address, up FROM scan_hosts WHERE last_scan_id = $1")
+        .bind(scan_id)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default()
+        .iter()
+        .map(|row| (row.get("address"), row.get("up")))
+        .collect()
+}
+
+/// Expressions whose detected technology version matches a known vulnerable
+/// version, keyed by host.
+pub async fn detected_vulns_for_scan(pool: &PgPool, scan_id: i64) -> Vec<(String, String, String, String)> {
+    sqlx::query(
+        "SELECT DISTINCT h.address, vb->>'service' AS service, vb->>'cve' AS cve,
+                vb->>'severity' AS severity
+         FROM scan_hosts h, jsonb_array_elements(COALESCE(h.tech, '[]'::jsonb)) AS t
+         JOIN app_data d ON d.key = 'vulnerabilities'
+         CROSS JOIN LATERAL jsonb_array_elements(d.data) AS vb
+         WHERE h.last_scan_id = $1
+           AND lower(COALESCE(t->>'name', '')) = lower(COALESCE(vb->>'service', ''))
+           AND COALESCE(t->>'version', '') <> ''
+           AND (vb->>'version') LIKE COALESCE(t->>'version', '') || '%'",
+    )
+    .bind(scan_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(|row| {
+        (
+            row.get("address"),
+            row.get("service"),
+            row.get("cve"),
+            row.get("severity"),
+        )
+    })
+    .collect()
+}
+
+// ---------------------------------------------------------------- policies
+
+/// Policies whose scheduled time has arrived, oldest first.
+pub async fn due_policies(pool: &PgPool) -> Vec<Policy> {
+    sqlx::query(
+        "SELECT id, name, ord, enabled, criteria FROM policies
+         WHERE enabled AND next_run_at IS NOT NULL AND next_run_at <= now()
+         ORDER BY next_run_at, ord, id",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(row_to_policy)
+    .collect()
+}
+
+pub async fn set_policy_runs(
+    pool: &PgPool,
+    id: i64,
+    last_run_at: Option<chrono::DateTime<chrono::Utc>>,
+    next_run_at: Option<chrono::DateTime<chrono::Utc>>,
+) {
+    let _ = sqlx::query("UPDATE policies SET last_run_at = $2, next_run_at = $3 WHERE id = $1")
+        .bind(id)
+        .bind(last_run_at)
+        .bind(next_run_at)
+        .execute(pool)
+        .await;
+}
+
+pub async fn policy_next_run(
+    pool: &PgPool,
+    id: i64,
+) -> Option<chrono::DateTime<chrono::Utc>> {
+    sqlx::query_scalar("SELECT next_run_at FROM policies WHERE id = $1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten()
+        .flatten()
+}
+
+/// Every policy with its computed next run, for the Upcoming card.
+pub async fn policy_schedule(pool: &PgPool) -> Vec<(i64, String, Option<chrono::DateTime<chrono::Utc>>)> {
+    sqlx::query(
+        "SELECT id, name, next_run_at FROM policies WHERE enabled ORDER BY next_run_at NULLS LAST, ord, id",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(|row| (row.get("id"), row.get("name"), row.get("next_run_at")))
+    .collect()
+}
+
+pub async fn policy_by_id(pool: &PgPool, id: i64) -> Option<Policy> {
+    sqlx::query("SELECT id, name, ord, enabled, criteria FROM policies WHERE id = $1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten()
+        .as_ref()
+        .map(row_to_policy)
 }

@@ -25,7 +25,7 @@ pub struct PermissionPage {
     pub label: &'static str,
 }
 
-pub const PERMISSION_PAGES: [PermissionPage; 9] = [
+pub const PERMISSION_PAGES: [PermissionPage; 10] = [
     PermissionPage { key: "dashboards", label: "Dashboards" },
     PermissionPage { key: "scan_management", label: "Scan Management" },
     PermissionPage { key: "policies", label: "Scan Scheduling" },
@@ -33,6 +33,7 @@ pub const PERMISSION_PAGES: [PermissionPage; 9] = [
     PermissionPage { key: "host_management", label: "Host management" },
     PermissionPage { key: "data_explorer", label: "Data Explorer" },
     PermissionPage { key: "scan_history", label: "Scan Results" },
+    PermissionPage { key: "alerts", label: "Alerts" },
     PermissionPage { key: "admin_management", label: "Admin management" },
     PermissionPage { key: "settings", label: "Settings" },
 ];
@@ -87,6 +88,8 @@ pub fn nav_permission(href: &str) -> Option<&'static str> {
         Some("data_explorer")
     } else if href.starts_with("/log-center/scan-history") {
         Some("scan_history")
+    } else if href.starts_with("/log-center/alerts") {
+        Some("alerts")
     } else if href.starts_with("/admin-management") {
         Some("admin_management")
     } else if href.starts_with("/settings") {
@@ -108,10 +111,12 @@ pub fn page_for_path(path: &str) -> Option<&'static str> {
         Some("compare")
     } else if path.starts_with("/host-management") || path.starts_with("/api/host-") {
         Some("host_management")
-    } else if path.starts_with("/log-center/data-explorer") {
+    } else if path.starts_with("/log-center/data-explorer") || path.starts_with("/api/assets") {
         Some("data_explorer")
-    } else if path.starts_with("/log-center/scan-history") {
+    } else if path.starts_with("/log-center/scan-history") || path.starts_with("/api/scans") {
         Some("scan_history")
+    } else if path.starts_with("/log-center/alerts") || path.starts_with("/api/alerts") {
+        Some("alerts")
     } else if path.starts_with("/admin-management")
         || path.starts_with("/api/admins")
         || path.starts_with("/api/roles")
@@ -124,7 +129,7 @@ pub fn page_for_path(path: &str) -> Option<&'static str> {
     }
 }
 
-const PAGE_PATHS: [(&str, &str); 9] = [
+const PAGE_PATHS: [(&str, &str); 10] = [
     ("dashboards", nav::SCAN_SUMMARY),
     ("scan_management", nav::SCANNING_MANAGEMENT),
     ("policies", nav::SCANNING_POLICIES),
@@ -132,6 +137,7 @@ const PAGE_PATHS: [(&str, &str); 9] = [
     ("host_management", nav::HOST_MANAGEMENT),
     ("data_explorer", nav::DATA_EXPLORER),
     ("scan_history", nav::SCAN_HISTORY),
+    ("alerts", nav::ALERTS),
     ("admin_management", nav::ADMIN_MANAGEMENT),
     ("settings", nav::SETTINGS),
 ];
