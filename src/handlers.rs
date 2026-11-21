@@ -21,7 +21,7 @@ use crate::state::{
     ScanStatus, UpdateAdmin,
 };
 
-const PRODUCT: &str = "Attack Surface Intelligence";
+const PRODUCT: &str = "Visibly";
 
 pub struct NavItemView {
     pub label: &'static str,
@@ -198,7 +198,7 @@ pub async fn scanning_policies(
 
     let page = PoliciesPage {
         shell: build_shell(nav::SCANNING_POLICIES, &admin),
-        title: "Scan policies",
+        title: "Scan scheduling",
         policies,
         options_json,
         policies_json,

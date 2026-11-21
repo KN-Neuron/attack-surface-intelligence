@@ -48,7 +48,7 @@ pub const SETTINGS: &str = "/settings";
 /// The single application navigation used by every page.
 pub fn main_nav() -> SidebarDef {
     SidebarDef {
-        title: "Attack Surface Intelligence",
+        title: "Visibly",
         icon: "shield",
         groups: vec![
             group("Dashboards", "bar-chart", vec![
@@ -58,7 +58,7 @@ pub fn main_nav() -> SidebarDef {
             ]),
             group("Scanning", "scan", vec![
                 item("Scan Management", SCANNING_MANAGEMENT, "activity"),
-                item("Scan Policies", SCANNING_POLICIES, "sliders"),
+                item("Scan Scheduling", SCANNING_POLICIES, "sliders"),
                 item("Compare Scans", SCAN_COMPARE, "git-compare"),
             ]),
             group("Log Center", "file-text", vec![
