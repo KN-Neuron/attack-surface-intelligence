@@ -310,10 +310,22 @@ button {
     border-color 0.3s ease;
 }
 
-.sidebar:hover,
-.sidebar.is-pinned {
+.sidebar.is-pinned,
+.sidebar:hover {
   width: var(--sidebar-w);
 }
+
+/* Pre-paint collapsed state only. The inline script in <head> adds
+   `nav-collapsed` from the stored preference so a folded nav does not flash
+   open; app.js then applies the real state and removes the class. */
+
+html.nav-collapsed .shell.has-rail { padding-left: var(--rail-w); }
+html.nav-collapsed .sidebar { width: var(--rail-w); }
+html.nav-collapsed .sidebar .nav-label,
+html.nav-collapsed .sidebar .nav-group-title span,
+html.nav-collapsed .sidebar .sidebar-title span { opacity: 0; max-width: 0; }
+html.nav-collapsed .sidebar .nav-group-items,
+html.nav-collapsed .sidebar .nav-item:not(.root) { display: none; }
 
 .sidebar:hover {
   box-shadow: 22px 0 50px rgba(0, 0, 0, 0.55);
@@ -534,7 +546,7 @@ button {
 .nav-item::after {
   content: "";
   position: absolute;
-  inset: 3px 0;
+  inset: 1.5px 0;
   border-radius: 5px;
   background: transparent;
   pointer-events: none;
@@ -572,10 +584,16 @@ button {
   box-shadow: 0 0 10px rgba(74, 168, 255, 0.6);
 }
 
+/* Collapsed header: the title text collapses to zero width but keeps its
+   flex gap, which would pull the icon off-centre; drop the gap in rail mode. */
+
 .sidebar:not(:hover):not(.is-pinned) .sidebar-title {
   justify-content: center;
   padding: 0;
+  gap: 0;
 }
+
+.sidebar:not(:hover):not(.is-pinned) .sidebar-foot { justify-content: center; }
 
 .sidebar:not(:hover):not(.is-pinned) .nav-section-label {
   justify-content: center;
@@ -617,7 +635,7 @@ button {
    a root label starts at 8 (margin) + 7 (padding) + 15 (icon) + 8 (gap) = 38px,
    so nested rows use 30px of padding inside the same 8px margin. */
 
-.nav-item { padding: 13px 10px 13px 30px; line-height: 1.5; }
+.nav-item { padding: 10.5px 10px 10.5px 30px; line-height: 1.5; }
 
 .nav-item.root {
   padding: 10.5px 10px 10.5px 7px;

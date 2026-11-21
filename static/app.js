@@ -163,20 +163,35 @@
     searchClear.hidden = searchInput.value.length === 0;
   }
 
-  // The nav always starts pinned on load; the collapsed/expanded choice is
-  // deliberately session-only and is not persisted across a refresh.
+  // The collapsed/expanded choice is remembered across reloads, so a user who
+  // folded the nav keeps it folded on refresh.
+  var NAV_STATE_KEY = "asi.nav.collapsed";
   var sidebar = document.getElementById("sidebar");
   var railToggle = document.getElementById("sidebar-toggle");
   if (sidebar && railToggle) {
-    sidebar.classList.add("is-pinned");
-    railToggle.setAttribute("aria-expanded", "true");
-    railToggle.setAttribute("title", "Collapse navigation");
-
-    railToggle.addEventListener("click", function () {
-      var pinned = sidebar.classList.toggle("is-pinned");
+    var applyNavState = function (pinned) {
+      sidebar.classList.toggle("is-pinned", pinned);
       railToggle.setAttribute("aria-expanded", String(pinned));
       railToggle.classList.toggle("is-active", pinned);
       railToggle.setAttribute("title", pinned ? "Collapse navigation" : "Expand navigation");
+    };
+
+    var stored = null;
+    try {
+      stored = window.localStorage.getItem(NAV_STATE_KEY);
+    } catch (_) {
+      // storage can be unavailable (private mode); fall back to expanded
+    }
+    applyNavState(stored !== "true");
+    // the pre-paint class has done its job; real state now drives the layout
+    document.documentElement.classList.remove("nav-collapsed");
+
+    railToggle.addEventListener("click", function () {
+      var pinned = !sidebar.classList.contains("is-pinned");
+      applyNavState(pinned);
+      try {
+        window.localStorage.setItem(NAV_STATE_KEY, String(!pinned));
+      } catch (_) {}
     });
   }
 

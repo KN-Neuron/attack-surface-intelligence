@@ -7,6 +7,15 @@
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
+  <script>
+    // Apply the remembered nav width before first paint so a folded sidebar
+    // does not flash open while app.js loads.
+    try {
+      if (window.localStorage.getItem("asi.nav.collapsed") === "true") {
+        document.documentElement.classList.add("nav-collapsed");
+      }
+    } catch (e) {}
+  </script>
   <header class="topbar">
     <div class="topbar-left">
       <button class="icon-btn" type="button" aria-label="Help">{{ crate::icons::icon("help")|safe }}</button>
