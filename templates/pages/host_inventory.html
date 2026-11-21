@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block bodyclass %}screen-redesign{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>{{ title }}</h1>
@@ -28,7 +29,6 @@
           <input type="search" placeholder="Search IPs..." aria-label="Search IPs" data-table-filter="ip-table">
           {{ crate::icons::icon("search")|safe }}
         </div>
-        <span class="card-note">{{ ips.len() }} IPs</span>
       </div>
       <div class="tbl-wrap">
         <table class="tbl" id="ip-table">
@@ -78,7 +78,6 @@
           <input type="search" placeholder="Search ranges..." aria-label="Search IP ranges" data-table-filter="range-table">
           {{ crate::icons::icon("search")|safe }}
         </div>
-        <span class="card-note">{{ ranges.len() }} ranges</span>
       </div>
       <div class="tbl-wrap">
         <table class="tbl" id="range-table">
@@ -130,7 +129,6 @@
           <input type="search" placeholder="Search FQDNs..." aria-label="Search FQDNs" data-table-filter="fqdn-table">
           {{ crate::icons::icon("search")|safe }}
         </div>
-        <span class="card-note">{{ fqdns.len() }} FQDNs</span>
       </div>
       <div class="tbl-wrap">
         <table class="tbl" id="fqdn-table">
@@ -180,7 +178,6 @@
           <input type="search" placeholder="Search groups..." aria-label="Search groups" data-table-filter="group-table">
           {{ crate::icons::icon("search")|safe }}
         </div>
-        <span class="card-note">{{ groups.len() }} groups</span>
       </div>
       <div class="tbl-wrap">
         <table class="tbl" id="group-table">
@@ -497,7 +494,6 @@
 
         <div class="field">
           <span class="field-label">IP addresses</span>
-          <p class="field-hint">Select individual IPs from the inventory.</p>
           <div class="picker-search">
             <input type="search" data-filter-input placeholder="Filter IPs..." aria-label="Filter IPs">
           </div>
@@ -515,7 +511,6 @@
 
         <div class="field">
           <span class="field-label">IP ranges</span>
-          <p class="field-hint">Select CIDR blocks from the inventory.</p>
           <div class="picker-search">
             <input type="search" data-filter-input placeholder="Filter ranges..." aria-label="Filter IP ranges">
           </div>
@@ -533,7 +528,6 @@
 
         <div class="field">
           <span class="field-label">FQDNs</span>
-          <p class="field-hint">Select hostnames from the inventory.</p>
           <div class="picker-search">
             <input type="search" data-filter-input placeholder="Filter FQDNs..." aria-label="Filter FQDNs">
           </div>

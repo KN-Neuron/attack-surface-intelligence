@@ -7,20 +7,15 @@
 
 <div class="page-body">
   <section class="card vuln-card">
-    <div class="card-head">
-      <h2>Detected vulnerable versions</h2>
-      <span class="spacer"></span>
-      <div class="search-box">
-        <input type="search" placeholder="Search service, CVE, host..." aria-label="Search detected vulnerable versions" data-table-filter="vuln-table">
-        {{ crate::icons::icon("search")|safe }}
-      </div>
-    </div>
     <div class="vuln-tabs" role="group" aria-label="Filter findings by severity">
       <button type="button" class="is-on" data-sev-filter="" aria-pressed="true">All<span>{{ detected.len() }}</span></button>
       <button type="button" data-sev-filter="Critical" aria-pressed="false"><i class="sev-dot sev-d-Critical"></i>Critical<span>{{ critical }}</span></button>
       <button type="button" data-sev-filter="High" aria-pressed="false"><i class="sev-dot sev-d-High"></i>High<span>{{ high }}</span></button>
       <button type="button" data-sev-filter="Medium" aria-pressed="false"><i class="sev-dot sev-d-Medium"></i>Medium<span>{{ medium }}</span></button>
-      <span class="vuln-tabs-note">{{ unique_hosts }} affected hosts</span>
+      <div class="search-box">
+        <input type="search" placeholder="Search service, CVE, host..." aria-label="Search detected vulnerable versions" data-table-filter="vuln-table">
+        {{ crate::icons::icon("search")|safe }}
+      </div>
     </div>
     <div class="tbl-wrap">
       <table class="tbl vuln-tbl" id="vuln-table">

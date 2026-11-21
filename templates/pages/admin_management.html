@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block bodyclass %}screen-redesign{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>{{ title }}</h1>
@@ -15,11 +16,6 @@
 
   <div data-tab-panel="accounts">
     <section class="card">
-      <div class="card-head">
-        <h2>Portal administrators</h2>
-        <span class="spacer"></span>
-        <span class="card-note">{{ admins.len() }} accounts</span>
-      </div>
       <div class="tbl-wrap">
         <table class="tbl">
           <thead>
@@ -56,11 +52,6 @@
 
   <div data-tab-panel="roles" hidden>
     <section class="card">
-      <div class="card-head">
-        <h2>Roles</h2>
-        <span class="spacer"></span>
-        <span class="card-note">{{ roles.len() }} roles</span>
-      </div>
       <div class="tbl-wrap">
         <table class="tbl">
           <thead>

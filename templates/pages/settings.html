@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block bodyclass %}screen-redesign{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>{{ title }}</h1>
@@ -12,7 +13,6 @@
     <div class="settings-row">
       <div class="settings-copy">
         <div class="settings-title">Theme</div>
-        <div class="settings-desc">Choose how the portal looks. Your choice is remembered on this device.</div>
       </div>
       <div class="theme-choice" role="group" aria-label="Theme">
         <button type="button" class="theme-option" data-theme-choice="light">
@@ -32,7 +32,6 @@
     <div class="settings-row">
       <div class="settings-copy">
         <div class="settings-title">Default scan depth</div>
-        <div class="settings-desc">Applied to new policies unless overridden by a criterion.</div>
       </div>
       <div class="select-wrap settings-select">
         <select aria-label="Default scan depth">
@@ -45,7 +44,6 @@
     <div class="settings-row">
       <div class="settings-copy">
         <div class="settings-title">Scan concurrency</div>
-        <div class="settings-desc">How many targets are scanned in parallel.</div>
       </div>
       <div class="select-wrap settings-select">
         <select aria-label="Scan concurrency">
