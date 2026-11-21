@@ -109,12 +109,12 @@ pub struct ServiceSlice {
 
 pub fn service_slices() -> Vec<ServiceSlice> {
     let raw = [
-        ("Web (HTTP/HTTPS)", 1024u32, 42.0, "#3dbb82"),
-        ("SSH", 438, 18.0, "#4fa3e0"),
+        ("Web (HTTP/HTTPS)", 1024u32, 42.0, "#8b6cff"),
+        ("SSH", 438, 18.0, "#2dd4bf"),
         ("DNS", 341, 14.0, "#f2c14e"),
-        ("Database", 268, 11.0, "#f26b78"),
+        ("Database", 268, 11.0, "#f472b6"),
         ("Remote desktop", 171, 7.0, "#ff9a62"),
-        ("Others", 195, 8.0, "#8a8587"),
+        ("Others", 195, 8.0, "#6f6c8c"),
     ];
 
     let mut cumulative = 0.0;
@@ -144,13 +144,13 @@ pub struct PopularService {
 
 pub fn popular_services() -> Vec<PopularService> {
     vec![
-        PopularService { service: "HTTPS".into(), count: 1840, pct: 100, color: "#3dbb82".into() },
-        PopularService { service: "HTTP".into(), count: 1210, pct: 66, color: "#3dbb82".into() },
-        PopularService { service: "SSH".into(), count: 640, pct: 35, color: "#4fa3e0".into() },
+        PopularService { service: "HTTPS".into(), count: 1840, pct: 100, color: "#8b6cff".into() },
+        PopularService { service: "HTTP".into(), count: 1210, pct: 66, color: "#8b6cff".into() },
+        PopularService { service: "SSH".into(), count: 640, pct: 35, color: "#2dd4bf".into() },
         PopularService { service: "DNS".into(), count: 512, pct: 28, color: "#f2c14e".into() },
-        PopularService { service: "MySQL".into(), count: 188, pct: 10, color: "#f26b78".into() },
+        PopularService { service: "MySQL".into(), count: 188, pct: 10, color: "#f472b6".into() },
         PopularService { service: "RDP".into(), count: 142, pct: 8, color: "#ff9a62".into() },
-        PopularService { service: "SMB".into(), count: 96, pct: 5, color: "#8a8587".into() },
+        PopularService { service: "SMB".into(), count: 96, pct: 5, color: "#6f6c8c".into() },
     ]
 }
 
@@ -165,16 +165,16 @@ pub struct PopularTech {
 
 pub fn popular_technologies() -> Vec<PopularTech> {
     vec![
-        PopularTech { name: "WordPress".into(), version: "6.4.2".into(), count: 14, pct: 100, color: "#3dbb82".into() },
-        PopularTech { name: "Node.js".into(), version: "20.10.0".into(), count: 12, pct: 86, color: "#4fa3e0".into() },
+        PopularTech { name: "WordPress".into(), version: "6.4.2".into(), count: 14, pct: 100, color: "#8b6cff".into() },
+        PopularTech { name: "Node.js".into(), version: "20.10.0".into(), count: 12, pct: 86, color: "#2dd4bf".into() },
         PopularTech { name: "nginx".into(), version: "1.24.0".into(), count: 11, pct: 79, color: "#f2c14e".into() },
-        PopularTech { name: "WordPress".into(), version: "6.2.1".into(), count: 9, pct: 64, color: "#3dbb82".into() },
-        PopularTech { name: "PHP".into(), version: "8.2.13".into(), count: 9, pct: 64, color: "#f26b78".into() },
+        PopularTech { name: "WordPress".into(), version: "6.2.1".into(), count: 9, pct: 64, color: "#8b6cff".into() },
+        PopularTech { name: "PHP".into(), version: "8.2.13".into(), count: 9, pct: 64, color: "#f472b6".into() },
         PopularTech { name: "Joomla".into(), version: "4.3.2".into(), count: 6, pct: 43, color: "#ff9a62".into() },
-        PopularTech { name: "Django".into(), version: "4.2".into(), count: 5, pct: 36, color: "#8a8587".into() },
-        PopularTech { name: "Laravel".into(), version: "10.2".into(), count: 4, pct: 29, color: "#a6e3c4".into() },
-        PopularTech { name: "Drupal".into(), version: "10.1".into(), count: 3, pct: 21, color: "#8cc3ea".into() },
-        PopularTech { name: "Rails".into(), version: "7.1".into(), count: 2, pct: 14, color: "#ff9a8f".into() },
+        PopularTech { name: "Django".into(), version: "4.2".into(), count: 5, pct: 36, color: "#6f6c8c".into() },
+        PopularTech { name: "Laravel".into(), version: "10.2".into(), count: 4, pct: 29, color: "#c4b5fd".into() },
+        PopularTech { name: "Drupal".into(), version: "10.1".into(), count: 3, pct: 21, color: "#5eead4".into() },
+        PopularTech { name: "Rails".into(), version: "7.1".into(), count: 2, pct: 14, color: "#fb7185".into() },
     ]
 }
 

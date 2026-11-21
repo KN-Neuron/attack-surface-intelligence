@@ -241,33 +241,33 @@ async fn seed(pool: &PgPool) -> anyhow::Result<()> {
 /// Seeded chart colours live in `app_data`, and seeding never overwrites existing
 /// rows. Rewrite the legacy blue palette to the current one so charts match the UI.
 async fn migrate_chart_palette(pool: &PgPool) {
-    // Older palettes (blue, violet, AGH red) -> current AGH green set. No key equals a
+    // Older palettes (blue, AGH red, AGH green) -> current violet set. No key equals a
     // current value, so running this on every start is a no-op once migrated.
     const LEGACY: [(&str, &str); 21] = [
         // original blue palette
-        ("#4aa8ff", "#3dbb82"),
-        ("#67c17f", "#4fa3e0"),
+        ("#4aa8ff", "#8b6cff"),
+        ("#67c17f", "#2dd4bf"),
         ("#e5c458", "#f2c14e"),
-        ("#b58cff", "#f26b78"),
+        ("#b58cff", "#f472b6"),
         ("#ff8f6b", "#ff9a62"),
-        ("#5d7085", "#8a8587"),
-        ("#c98bff", "#a6e3c4"),
-        ("#6bd1c4", "#8cc3ea"),
-        ("#e06b8b", "#ff9a8f"),
-        // violet palette
-        ("#8b6cff", "#3dbb82"),
-        ("#2dd4bf", "#4fa3e0"),
-        ("#f472b6", "#f26b78"),
-        ("#6f6c8c", "#8a8587"),
-        ("#c4b5fd", "#a6e3c4"),
-        ("#5eead4", "#8cc3ea"),
-        ("#fb7185", "#ff9a8f"),
+        ("#5d7085", "#6f6c8c"),
+        ("#c98bff", "#c4b5fd"),
+        ("#6bd1c4", "#5eead4"),
+        ("#e06b8b", "#fb7185"),
         // AGH red palette
-        ("#e5566c", "#3dbb82"),
-        ("#3fb27f", "#4fa3e0"),
-        ("#5aa9e6", "#f26b78"),
-        ("#f28a9b", "#a6e3c4"),
-        ("#7ad3a9", "#8cc3ea"),
+        ("#e5566c", "#8b6cff"),
+        ("#3fb27f", "#2dd4bf"),
+        ("#5aa9e6", "#f472b6"),
+        ("#8a8587", "#6f6c8c"),
+        ("#f28a9b", "#c4b5fd"),
+        ("#7ad3a9", "#5eead4"),
+        ("#ff9a8f", "#fb7185"),
+        // AGH green palette
+        ("#3dbb82", "#8b6cff"),
+        ("#4fa3e0", "#2dd4bf"),
+        ("#f26b78", "#f472b6"),
+        ("#a6e3c4", "#c4b5fd"),
+        ("#8cc3ea", "#5eead4"),
     ];
     for (old, new) in LEGACY {
         let _ = sqlx::query(
