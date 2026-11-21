@@ -2,47 +2,98 @@
 {% block content %}
 <div class="page-head">
   <h1>{{ title }}</h1>
+  <span class="spacer"></span>
+  <div class="search-box">
+    <input type="search" placeholder="Search..." aria-label="Search IP ranges" data-table-filter="ip-table">
+    {{ crate::icons::icon("search")|safe }}
+  </div>
+  <button class="btn primary" type="button" data-open-modal="ip-modal">{{ crate::icons::icon("plus")|safe }} Add IP range</button>
 </div>
 
 <div class="page-body">
-  <div class="toolbar">
-    <button class="tool-link" type="button">{{ crate::icons::icon("plus-circle")|safe }} Add Static IP</button>
-    <button class="tool-link" type="button">{{ crate::icons::icon("upload")|safe }} Import CSV File</button>
-    <a class="tool-link" href="/api/static-ips?format=csv">{{ crate::icons::icon("download")|safe }} Download CSV File</a>
-    <a class="tool-link" href="/static/samples/static-ips-sample.csv">{{ crate::icons::icon("file")|safe }} Sample Import CSV file</a>
-    <div class="search-box">
-      <input type="search" placeholder="Search..." aria-label="Search static IPs" data-table-filter="ip-table">
-      {{ crate::icons::icon("search")|safe }}
+  <section class="card">
+    <div class="card-head">
+      <h2>IP ranges</h2>
+      <span class="spacer"></span>
+      <span class="card-note">{{ ips.len() }} ranges</span>
     </div>
-  </div>
+    <div class="tbl-wrap">
+      <table class="tbl" id="ip-table">
+        <thead>
+          <tr>
+            <th class="w-narrow">No.</th>
+            <th>IP range</th>
+            <th>City</th>
+            <th>Managed By</th>
+            <th>Last Modified Time</th>
+            <th>Last Modified By</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ip in ips %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td class="strong-cell mono">{{ ip.address }}</td>
+            <td>{{ ip.city }}</td>
+            <td>{{ ip.managed_by }}</td>
+            <td>{{ ip.last_modified }}</td>
+            <td>{{ ip.last_modified_by }}</td>
+            <td>{{ ip.description }}</td>
+          </tr>
+          {% endfor %}
+          {% if ips.is_empty() %}
+          <tr><td colspan="7" class="empty-cell">No IP ranges yet. Add one or import a list.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}
 
-  <table class="tbl" id="ip-table">
-    <thead>
-      <tr>
-        <th>No.</th>
-        <th><span class="th-inner">Static IP <span class="th-icon">{{ crate::icons::icon("clock")|safe }}</span></span></th>
-        <th>City</th>
-        <th>Managed By</th>
-        <th>Last Modified Time</th>
-        <th>Last Modified By</th>
-        <th>Description</th>
-        <th class="right"><span class="th-icon">{{ crate::icons::icon("more")|safe }}</span></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for ip in ips %}
-      <tr>
-        <td>{{ ip.no }}</td>
-        <td>{{ ip.address }}</td>
-        <td>{{ ip.city }}</td>
-        <td>{{ ip.managed_by }}</td>
-        <td>{{ ip.last_modified }}</td>
-        <td>{{ ip.last_modified_by }}</td>
-        <td>{{ ip.description }}</td>
-        <td class="right"><span class="link-cell">{{ crate::icons::icon("settings")|safe }}</span></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% block modals %}
+<div class="modal-backdrop" id="ip-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ip-modal-title">
+    <div class="modal-head">
+      <h2 id="ip-modal-title">Add IP range</h2>
+      <button class="icon-btn subtle" type="button" data-close-modal aria-label="Close">{{ crate::icons::icon("close")|safe }}</button>
+    </div>
+    <form id="ip-form">
+      <div class="modal-body">
+        <div class="seg ip-mode" id="ip-mode">
+          <button type="button" class="active" data-ip-mode="single">Single range</button>
+          <button type="button" data-ip-mode="import">Import from CSV</button>
+        </div>
+
+        <div id="ip-single">
+          <div class="field">
+            <label class="field-label" for="ip-address">IP or CIDR range</label>
+            <input id="ip-address" name="address" type="text" placeholder="e.g. 10.0.12.0/24">
+          </div>
+          <div class="field">
+            <label class="field-label" for="ip-city">City</label>
+            <input id="ip-city" name="city" type="text" placeholder="e.g. Warsaw, Masovia, Poland">
+          </div>
+          <div class="field">
+            <label class="field-label" for="ip-description">Description</label>
+            <input id="ip-description" name="description" type="text" placeholder="e.g. Branch office range">
+          </div>
+        </div>
+
+        <div id="ip-import" hidden>
+          <div class="field">
+            <label class="field-label" for="ip-csv">IP list</label>
+            <textarea id="ip-csv" rows="7" placeholder="10.0.12.0/24&#10;10.0.13.0/24&#10;192.168.40.0/24"></textarea>
+            <p class="field-hint">Paste one IP or CIDR range per line. Duplicate addresses are skipped.</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" data-close-modal>Cancel</button>
+        <button class="btn primary" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}

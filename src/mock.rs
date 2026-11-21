@@ -3,10 +3,8 @@ use serde::Serialize;
 // ---------------------------------------------------------------- static IPs
 
 pub struct StaticIp {
-    pub no: usize,
     pub address: &'static str,
     pub city: &'static str,
-    pub managed_by: &'static str,
     pub last_modified: &'static str,
     pub last_modified_by: &'static str,
     pub description: &'static str,
@@ -15,101 +13,41 @@ pub struct StaticIp {
 pub fn static_ips() -> Vec<StaticIp> {
     vec![
         StaticIp {
-            no: 1,
             address: "35.159.0.131",
             city: "Frankfurt am Main, Hesse, Germany",
-            managed_by: "Self",
             last_modified: "July 18, 2025 11:27 AM",
             last_modified_by: "Dawid Janikowski",
             description: "Edge reverse proxy",
         },
         StaticIp {
-            no: 2,
             address: "10.0.0.0/24",
             city: "Warsaw, Masovia, Poland",
-            managed_by: "Self",
             last_modified: "October 02, 2025 08:12 AM",
             last_modified_by: "Marta Kowalska",
             description: "Perimeter DMZ range",
         },
         StaticIp {
-            no: 3,
             address: "10.0.4.0/24",
             city: "Warsaw, Masovia, Poland",
-            managed_by: "Self",
             last_modified: "November 09, 2025 03:40 PM",
             last_modified_by: "Dawid Janikowski",
             description: "Core services range",
         },
         StaticIp {
-            no: 4,
             address: "10.0.5.0/24",
             city: "Krakow, Lesser Poland, Poland",
-            managed_by: "Self",
             last_modified: "November 12, 2025 10:05 AM",
             last_modified_by: "Marta Kowalska",
             description: "Database tier range",
         },
         StaticIp {
-            no: 5,
             address: "172.16.20.0/24",
             city: "Gdansk, Pomerania, Poland",
-            managed_by: "Self",
             last_modified: "November 18, 2025 01:22 PM",
             last_modified_by: "Dawid Janikowski",
             description: "Branch office range",
         },
     ]
-}
-
-pub fn static_ips_csv() -> String {
-    let mut out =
-        String::from("No,Static IP,City,Managed By,Last Modified Time,Last Modified By,Description\n");
-    for ip in static_ips() {
-        out.push_str(&format!(
-            "{},{},\"{}\",{},\"{}\",{},{}\n",
-            ip.no,
-            ip.address,
-            ip.city,
-            ip.managed_by,
-            ip.last_modified,
-            ip.last_modified_by,
-            ip.description
-        ));
-    }
-    out
-}
-
-#[derive(Serialize)]
-pub struct StaticIpDto {
-    pub no: usize,
-    pub static_ip: String,
-    pub city: String,
-    pub managed_by: String,
-    pub last_modified_time: String,
-    pub last_modified_by: String,
-    pub description: String,
-}
-
-pub fn static_ips_api() -> Vec<StaticIpDto> {
-    static_ips()
-        .into_iter()
-        .map(|ip| StaticIpDto {
-            no: ip.no,
-            static_ip: ip.address.to_string(),
-            city: ip.city.to_string(),
-            managed_by: ip.managed_by.to_string(),
-            last_modified_time: ip.last_modified.to_string(),
-            last_modified_by: ip.last_modified_by.to_string(),
-            description: ip.description.to_string(),
-        })
-        .collect()
-}
-
-/// The addresses a host group may be built from — the entries defined on the
-/// IP ranges page.
-pub fn ip_ranges() -> Vec<&'static str> {
-    static_ips().into_iter().map(|ip| ip.address).collect()
 }
 
 // ---------------------------------------------------------------- upcoming
@@ -153,9 +91,10 @@ pub fn timeline_points() -> Vec<TimelinePoint> {
     vec![
         TimelinePoint { label: "24 hours", days: 1, alive: 132, alive_new: 6, down: 9, down_new: -2, services: 214 },
         TimelinePoint { label: "7 days", days: 7, alive: 148, alive_new: 14, down: 12, down_new: 3, services: 246 },
+        TimelinePoint { label: "14 days", days: 14, alive: 156, alive_new: 18, down: 13, down_new: 2, services: 261 },
         TimelinePoint { label: "30 days", days: 30, alive: 171, alive_new: 23, down: 15, down_new: 2, services: 289 },
-        TimelinePoint { label: "90 days", days: 90, alive: 188, alive_new: 31, down: 18, down_new: 1, services: 312 },
-        TimelinePoint { label: "1 year", days: 365, alive: 204, alive_new: 42, down: 21, down_new: 4, services: 331 },
+        TimelinePoint { label: "180 days", days: 180, alive: 196, alive_new: 34, down: 19, down_new: 1, services: 318 },
+        TimelinePoint { label: "365 days", days: 365, alive: 204, alive_new: 42, down: 21, down_new: 4, services: 331 },
     ]
 }
 
@@ -205,6 +144,29 @@ pub fn popular_services() -> Vec<PopularService> {
         PopularService { service: "MySQL", count: 188, pct: 10, color: "#b58cff" },
         PopularService { service: "RDP", count: 142, pct: 8, color: "#ff8f6b" },
         PopularService { service: "SMB", count: 96, pct: 5, color: "#5d7085" },
+    ]
+}
+
+pub struct PopularTech {
+    pub name: &'static str,
+    pub version: &'static str,
+    pub count: u32,
+    pub pct: u32,
+    pub color: &'static str,
+}
+
+pub fn popular_technologies() -> Vec<PopularTech> {
+    vec![
+        PopularTech { name: "WordPress", version: "6.4.2", count: 14, pct: 100, color: "#4aa8ff" },
+        PopularTech { name: "Node.js", version: "20.10.0", count: 12, pct: 86, color: "#67c17f" },
+        PopularTech { name: "nginx", version: "1.24.0", count: 11, pct: 79, color: "#e5c458" },
+        PopularTech { name: "WordPress", version: "6.2.1", count: 9, pct: 64, color: "#4aa8ff" },
+        PopularTech { name: "PHP", version: "8.2.13", count: 9, pct: 64, color: "#b58cff" },
+        PopularTech { name: "Joomla", version: "4.3.2", count: 6, pct: 43, color: "#ff8f6b" },
+        PopularTech { name: "Django", version: "4.2", count: 5, pct: 36, color: "#5d7085" },
+        PopularTech { name: "Laravel", version: "10.2", count: 4, pct: 29, color: "#c98bff" },
+        PopularTech { name: "Drupal", version: "10.1", count: 3, pct: 21, color: "#6bd1c4" },
+        PopularTech { name: "Rails", version: "7.1", count: 2, pct: 14, color: "#e06b8b" },
     ]
 }
 
@@ -456,4 +418,50 @@ pub fn scan_history() -> Vec<ScanRow> {
 
 pub fn scan_options() -> Vec<ScanRow> {
     build_scan_rows()
+}
+
+// ---------------------------------------------------------------- data explorer
+
+pub struct DataEvent {
+    pub no: usize,
+    pub event_time: String,
+    pub host: &'static str,
+    pub category: &'static str,
+    pub event: &'static str,
+    pub severity: &'static str,
+}
+
+pub fn data_events() -> Vec<DataEvent> {
+    let base = chrono::NaiveDate::from_ymd_opt(2026, 11, 21)
+        .unwrap()
+        .and_hms_opt(9, 14, 2)
+        .unwrap();
+
+    let hosts = ["10.0.4.9", "10.0.5.7", "35.159.0.131", "10.0.0.14", "10.0.6.3", "10.0.4.21"];
+    let categories = ["Discovery", "Service", "Technology", "Vulnerability"];
+    let events = [
+        ("Host responded to ICMP probe", "Info"),
+        ("TCP port 443 open (HTTPS)", "Info"),
+        ("Detected nginx 1.24.0", "Info"),
+        ("Outdated OpenSSH 8.9p1 (CVE-2023-38408)", "Critical"),
+        ("TCP port 22 open (SSH)", "Info"),
+        ("Detected WordPress 6.4.2", "Info"),
+        ("HTTP/2 rapid reset possible (CVE-2023-44487)", "High"),
+        ("TLS certificate expires in 12 days", "Medium"),
+    ];
+
+    (0..80)
+        .map(|i| {
+            let time = base - chrono::Duration::minutes((i as i64) * 7 + 3);
+            let ev = events[i % events.len()];
+            DataEvent {
+                no: i + 1,
+                event_time: time.format("%b %-d, %Y %-I:%M:%S %p").to_string(),
+                host: hosts[i % hosts.len()],
+                category: categories[i % categories.len()],
+                event: ev.0,
+                severity: ev.1,
+            }
+        })
+        .collect()
 }

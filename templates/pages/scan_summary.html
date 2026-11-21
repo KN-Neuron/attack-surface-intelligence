@@ -3,21 +3,15 @@
 <div class="page-head">
   <h1>{{ title }}</h1>
   <span class="spacer"></span>
-  <div class="timeline" id="timeline">
-    <div class="timeline-top">
-      <span class="timeline-label" id="timeline-label">Last {{ initial.label }}</span>
-    </div>
-    <div class="timeline-track">
-      <div class="timeline-fill" id="timeline-fill"></div>
-      <input type="range" min="0" max="4" step="1" value="1" id="timeline-range" aria-label="Timeline range">
-      <div class="timeline-ticks">
-        <button type="button" data-tick="0">24h</button>
-        <button type="button" data-tick="1">7d</button>
-        <button type="button" data-tick="2">30d</button>
-        <button type="button" data-tick="3">90d</button>
-        <button type="button" data-tick="4">1y</button>
-      </div>
-    </div>
+  <div class="select-wrap range-select summary-range">
+    <select id="summary-range" aria-label="Time range">
+      <option value="0">Last 24 hours</option>
+      <option value="1" selected>Last 7 days</option>
+      <option value="2">Last 14 days</option>
+      <option value="3">Last 30 days</option>
+      <option value="4">Last 180 days</option>
+      <option value="5">Last 365 days</option>
+    </select>
   </div>
 </div>
 
@@ -105,6 +99,33 @@
               <td class="right">{{ s.count }}</td>
               <td class="bar-col">
                 <span class="mini-bar"><span style="width: {{ s.pct }}%; background: {{ s.color }}"></span></span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card span-2">
+      <div class="card-head">
+        <h2>Most popular technologies</h2>
+        <span class="spacer"></span>
+        <span class="card-note">By host count</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Technology</th><th>Version</th><th class="right">Hosts</th><th class="bar-col">Share</th></tr>
+          </thead>
+          <tbody>
+            {% for t in tech_popular %}
+            <tr>
+              <td class="strong-cell">{{ t.name }}</td>
+              <td>{{ t.version }}</td>
+              <td class="right">{{ t.count }}</td>
+              <td class="bar-col">
+                <span class="mini-bar"><span style="width: {{ t.pct }}%; background: {{ t.color }}"></span></span>
               </td>
             </tr>
             {% endfor %}

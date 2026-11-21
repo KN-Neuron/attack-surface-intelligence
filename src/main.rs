@@ -7,7 +7,7 @@ mod state;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use axum::{Router, routing::{get, post}};
+use axum::{Router, routing::{get, post, put}};
 use tower_http::{compression::CompressionLayer, services::ServeDir};
 
 use crate::state::AppState;
@@ -32,6 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Scanning.
         .route("/scanning/management", get(handlers::scanning_management))
         .route("/scanning/policies", get(handlers::scanning_policies))
+        .route("/scanning/compare-scans", get(handlers::scan_compare))
         // Dashboards.
         .route("/dashboards/scan-summary", get(handlers::scan_summary))
         .route("/dashboards/technologies-used", get(handlers::technologies_used))
@@ -40,8 +41,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/host-management/ip-ranges", get(handlers::ip_ranges))
         .route("/host-management/host-groups", get(handlers::host_groups))
         // Log Center.
+        .route("/log-center/data-explorer", get(handlers::data_explorer))
         .route("/log-center/scan-history", get(handlers::scan_history))
-        .route("/log-center/scan-compare", get(handlers::scan_compare))
         // Single destinations.
         .route("/admin-management", get(handlers::admin_management))
         .route("/settings", get(handlers::settings))
@@ -51,9 +52,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/scan/cancel", post(handlers::scan_cancel))
         .route("/api/scan/start", post(handlers::scan_start))
         .route("/api/policies", post(handlers::create_policy))
+        .route("/api/policies/{id}", put(handlers::update_policy))
+        .route("/api/policies/{id}/toggle", post(handlers::toggle_policy))
         .route("/api/host-groups", post(handlers::create_group))
+        .route("/api/ip-ranges", post(handlers::create_ip_range))
+        .route("/api/ip-ranges/import", post(handlers::import_ip_ranges))
         .route("/api/admins", post(handlers::create_admin))
-        .route("/api/static-ips", get(handlers::static_ips_feed))
+        .route("/api/admins/{id}", put(handlers::update_admin))
+        .route("/api/admins/{id}/toggle", post(handlers::toggle_admin))
         .route("/api/search", get(handlers::search))
         .nest_service("/static", ServeDir::new("static"))
         .layer(CompressionLayer::new())

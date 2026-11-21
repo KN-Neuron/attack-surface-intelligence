@@ -1,15 +1,18 @@
 use askama::Template;
 use axum::{
     Json,
-    extract::{Query, State},
-    http::header,
-    response::{Html, IntoResponse, Redirect, Response},
+    extract::{Path, Query, State},
+    http::StatusCode,
+    response::{Html, Redirect},
 };
 use serde::Deserialize;
 
-use crate::mock::{self, DetectedVuln, PopularService, ScanRow, ServiceSlice, StaticIp, TechRow, TimelinePoint, UpcomingScan, VulnDbRow};
+use crate::mock::{self, DataEvent, DetectedVuln, PopularService, PopularTech, ScanRow, ServiceSlice, TechRow, TimelinePoint, UpcomingScan, VulnDbRow};
 use crate::nav::{self, NavGroup};
-use crate::state::{self, Admin, HostGroup, NewAdmin, NewGroup, NewPolicy, Policy, Scan, ScanStatus, SharedState};
+use crate::state::{
+    self, Admin, HostGroup, ImportIpRanges, IpRange, NewAdmin, NewGroup, NewIpRange, NewPolicy, Policy,
+    Scan, ScanStatus, SharedState,
+};
 
 const PRODUCT: &str = "Attack Surface Intelligence";
 
@@ -166,27 +169,30 @@ struct PoliciesPage {
     title: &'static str,
     policies: Vec<Policy>,
     options_json: String,
+    policies_json: String,
 }
 
 pub async fn scanning_policies(State(state): State<SharedState>) -> Html<String> {
-    let (policies, host_groups) = {
+    let (policies, host_groups, ip_ranges) = {
         let guard = state.lock().unwrap();
         (
             guard.policies.clone(),
             guard.host_groups.iter().map(|g| g.name.clone()).collect::<Vec<_>>(),
+            guard.ip_addresses(),
         )
     };
-    let ip_ranges = mock::ip_ranges();
     let options_json = serde_json::json!({
         "groups": &host_groups,
         "ranges": &ip_ranges,
     })
     .to_string();
+    let policies_json = serde_json::to_string(&policies).unwrap_or_else(|_| "[]".into());
     let page = PoliciesPage {
         shell: build_shell(nav::SCANNING_POLICIES),
         title: "Scan policies",
         policies,
         options_json,
+        policies_json,
     };
     render(&page)
 }
@@ -198,6 +204,27 @@ pub async fn create_policy(
     let mut guard = state.lock().unwrap();
     let order = if payload.order == 0 { guard.policies.len() as u32 + 1 } else { payload.order };
     Json(guard.add_policy(payload.name, order, payload.criteria, payload.enabled))
+}
+
+pub async fn update_policy(
+    State(state): State<SharedState>,
+    Path(id): Path<u32>,
+    Json(payload): Json<NewPolicy>,
+) -> Result<Json<Policy>, StatusCode> {
+    let mut guard = state.lock().unwrap();
+    let order = if payload.order == 0 { guard.policies.len() as u32 + 1 } else { payload.order };
+    guard
+        .update_policy(id, payload.name, order, payload.criteria, payload.enabled)
+        .map(Json)
+        .ok_or(StatusCode::NOT_FOUND)
+}
+
+pub async fn toggle_policy(
+    State(state): State<SharedState>,
+    Path(id): Path<u32>,
+) -> Result<Json<Policy>, StatusCode> {
+    let mut guard = state.lock().unwrap();
+    guard.toggle_policy(id).map(Json).ok_or(StatusCode::NOT_FOUND)
 }
 
 // ---------------------------------------------------------------- scan summary
@@ -212,6 +239,7 @@ struct ScanSummaryPage {
     initial: TimelinePoint,
     services: Vec<ServiceSlice>,
     popular: Vec<PopularService>,
+    tech_popular: Vec<PopularTech>,
 }
 
 pub async fn scan_summary() -> Html<String> {
@@ -240,6 +268,7 @@ pub async fn scan_summary() -> Html<String> {
         initial,
         services: mock::service_slices(),
         popular: mock::popular_services(),
+        tech_popular: mock::popular_technologies(),
     };
     render(&page)
 }
@@ -299,16 +328,42 @@ pub async fn vulnerable_versions() -> Html<String> {
 struct HostManagementPage {
     shell: Shell,
     title: &'static str,
-    ips: Vec<StaticIp>,
+    ips: Vec<IpRange>,
 }
 
-pub async fn ip_ranges() -> Html<String> {
+pub async fn ip_ranges(State(state): State<SharedState>) -> Html<String> {
+    let ips = state.lock().unwrap().ip_ranges.clone();
     let page = HostManagementPage {
         shell: build_shell(nav::IP_RANGES),
         title: "IP ranges",
-        ips: mock::static_ips(),
+        ips,
     };
     render(&page)
+}
+
+pub async fn create_ip_range(
+    State(state): State<SharedState>,
+    Json(payload): Json<NewIpRange>,
+) -> Json<IpRange> {
+    let mut guard = state.lock().unwrap();
+    let now = chrono::Local::now()
+        .format("%B %-d, %Y %-I:%M %p")
+        .to_string();
+    Json(guard.add_ip_range(
+        payload.address,
+        if payload.city.is_empty() { "—".into() } else { payload.city },
+        if payload.description.is_empty() { "—".into() } else { payload.description },
+        now,
+        "Admin".into(),
+    ))
+}
+
+pub async fn import_ip_ranges(
+    State(state): State<SharedState>,
+    Json(payload): Json<ImportIpRanges>,
+) -> Json<usize> {
+    let mut guard = state.lock().unwrap();
+    Json(guard.import_ip_ranges(payload.ranges))
 }
 
 #[derive(Template)]
@@ -317,16 +372,19 @@ struct HostGroupsPage {
     shell: Shell,
     title: &'static str,
     groups: Vec<HostGroup>,
-    ip_ranges: Vec<&'static str>,
+    ip_ranges: Vec<String>,
 }
 
 pub async fn host_groups(State(state): State<SharedState>) -> Html<String> {
-    let groups = state.lock().unwrap().host_groups.clone();
+    let (groups, ip_ranges) = {
+        let guard = state.lock().unwrap();
+        (guard.host_groups.clone(), guard.ip_addresses())
+    };
     let page = HostGroupsPage {
         shell: build_shell(nav::HOST_GROUPS),
         title: "Host groups",
         groups,
-        ip_ranges: mock::ip_ranges(),
+        ip_ranges,
     };
     render(&page)
 }
@@ -373,8 +431,29 @@ pub async fn scan_compare() -> Html<String> {
     let scan_json = serde_json::to_string(&scans).unwrap_or_else(|_| "[]".into());
     let page = ScanComparePage {
         shell: build_shell(nav::SCAN_COMPARE),
-        title: "Scan Compare",
+        title: "Compare Scans",
         scan_json,
+    };
+    render(&page)
+}
+
+// ---------------------------------------------------------------- data explorer
+
+#[derive(Template)]
+#[template(path = "pages/data_explorer.html")]
+struct DataExplorerPage {
+    shell: Shell,
+    title: &'static str,
+    rows: Vec<DataEvent>,
+    range_label: &'static str,
+}
+
+pub async fn data_explorer() -> Html<String> {
+    let page = DataExplorerPage {
+        shell: build_shell(nav::DATA_EXPLORER),
+        title: "Data Explorer",
+        rows: mock::data_events(),
+        range_label: "Nov 21, 2026 09:14 AM - now",
     };
     render(&page)
 }
@@ -387,14 +466,17 @@ struct AdminPage {
     shell: Shell,
     title: &'static str,
     admins: Vec<Admin>,
+    admins_json: String,
 }
 
 pub async fn admin_management(State(state): State<SharedState>) -> Html<String> {
     let admins = state.lock().unwrap().admins.clone();
+    let admins_json = serde_json::to_string(&admins).unwrap_or_else(|_| "[]".into());
     let page = AdminPage {
         shell: build_shell(nav::ADMIN_MANAGEMENT),
         title: "Admin management",
         admins,
+        admins_json,
     };
     render(&page)
 }
@@ -405,7 +487,32 @@ pub async fn create_admin(
 ) -> Json<Admin> {
     let mut guard = state.lock().unwrap();
     let role = if payload.role.is_empty() { "Analyst".to_string() } else { payload.role };
-    Json(guard.add_admin(payload.name, payload.email, role))
+    let mut admin = guard.add_admin(payload.name, payload.email, role);
+    if payload.status == "Disabled" {
+        admin = guard.toggle_admin(admin.id).unwrap_or(admin);
+    }
+    Json(admin)
+}
+
+pub async fn update_admin(
+    State(state): State<SharedState>,
+    Path(id): Path<u32>,
+    Json(payload): Json<state::UpdateAdmin>,
+) -> Result<Json<Admin>, StatusCode> {
+    let role = if payload.role.is_empty() { "Analyst".to_string() } else { payload.role };
+    let mut guard = state.lock().unwrap();
+    guard
+        .update_admin(id, payload.name, payload.email, role, payload.status)
+        .map(Json)
+        .ok_or(StatusCode::NOT_FOUND)
+}
+
+pub async fn toggle_admin(
+    State(state): State<SharedState>,
+    Path(id): Path<u32>,
+) -> Result<Json<Admin>, StatusCode> {
+    let mut guard = state.lock().unwrap();
+    guard.toggle_admin(id).map(Json).ok_or(StatusCode::NOT_FOUND)
 }
 
 // ---------------------------------------------------------------- settings
@@ -501,26 +608,4 @@ pub async fn search(Query(q): Query<SearchQuery>) -> Json<Vec<SearchHit>> {
 
     scored.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
     Json(scored.into_iter().take(limit).map(|(_, _, hit)| hit).collect())
-}
-
-#[derive(Deserialize)]
-pub struct IpQuery {
-    pub format: Option<String>,
-}
-
-pub async fn static_ips_feed(Query(q): Query<IpQuery>) -> Response {
-    if q.format.as_deref() == Some("csv") {
-        return (
-            [
-                (header::CONTENT_TYPE, "text/csv; charset=utf-8"),
-                (
-                    header::CONTENT_DISPOSITION,
-                    "attachment; filename=\"ip-ranges.csv\"",
-                ),
-            ],
-            mock::static_ips_csv(),
-        )
-            .into_response();
-    }
-    Json(mock::static_ips_api()).into_response()
 }

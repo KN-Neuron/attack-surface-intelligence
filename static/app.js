@@ -264,18 +264,6 @@
     });
   });
 
-  // ---- table row selection ----------------------------------------------------
-  document.querySelectorAll("table.tbl").forEach(function (table) {
-    table.addEventListener("click", function (event) {
-      var row = event.target.closest("tbody tr");
-      if (!row) return;
-      table.querySelectorAll("tbody tr.selected").forEach(function (r) {
-        if (r !== row) r.classList.remove("selected");
-      });
-      row.classList.toggle("selected");
-    });
-  });
-
   // ---- generic client-side table filter --------------------------------------
   document.querySelectorAll("[data-table-filter]").forEach(function (input) {
     var table = document.getElementById(input.getAttribute("data-table-filter"));
@@ -590,6 +578,59 @@
     var addCriterionBtn = document.querySelector("[data-add-criterion]");
     if (addCriterionBtn) addCriterionBtn.addEventListener("click", function () { addCriterion("host group"); });
 
+    var policyDataEl = document.getElementById("policy-data");
+    var policyData = [];
+    try { policyData = JSON.parse(policyDataEl.textContent || "[]"); } catch (_) {}
+
+    var policyIdInput = document.getElementById("policy-id");
+    var policyTitle = document.getElementById("policy-modal-title");
+    var policyStatus = document.getElementById("policy-status");
+    var editingPolicyId = null;
+
+    function resetPolicyForm() {
+      editingPolicyId = null;
+      policyForm.reset();
+      if (policyIdInput) policyIdInput.value = "";
+      if (policyStatus) policyStatus.value = "enabled";
+      if (policyTitle) policyTitle.textContent = "Add scan policy";
+      criteriaList.innerHTML = "";
+      updateEmpty();
+    }
+
+    function openPolicyEditor(policy) {
+      editingPolicyId = policy.id;
+      if (policyIdInput) policyIdInput.value = String(policy.id);
+      policyForm.querySelector("[name=name]").value = policy.name;
+      policyForm.querySelector("[name=order]").value = policy.order;
+      if (policyStatus) policyStatus.value = policy.enabled ? "enabled" : "disabled";
+      if (policyTitle) policyTitle.textContent = "Edit scan policy";
+      criteriaList.innerHTML = "";
+      (policy.criteria || []).forEach(function (c) { addCriterion(c.kind, c.value); });
+      updateEmpty();
+      openModal("policy-modal");
+    }
+
+    var addPolicyBtn = document.querySelector("[data-policy-add]");
+    if (addPolicyBtn) addPolicyBtn.addEventListener("click", resetPolicyForm);
+
+    document.querySelectorAll("[data-policy-edit]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = Number(btn.getAttribute("data-policy-edit"));
+        var policy = policyData.filter(function (p) { return p.id === id; })[0];
+        if (policy) openPolicyEditor(policy);
+      });
+    });
+
+    document.querySelectorAll("[data-policy-toggle]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-policy-toggle");
+        fetch("/api/policies/" + id + "/toggle", { method: "POST" })
+          .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+          .then(function () { window.location.reload(); })
+          .catch(function () { window.alert("Could not update the policy. Please try again."); });
+      });
+    });
+
     policyForm.addEventListener("submit", function (event) {
       event.preventDefault();
       var crit = [];
@@ -606,10 +647,12 @@
         name: policyForm.querySelector("[name=name]").value,
         order: Number(policyForm.querySelector("[name=order]").value) || 0,
         criteria: crit,
-        enabled: true
+        enabled: !policyStatus || policyStatus.value === "enabled"
       };
-      fetch("/api/policies", {
-        method: "POST",
+      var url = editingPolicyId ? "/api/policies/" + editingPolicyId : "/api/policies";
+      var method = editingPolicyId ? "PUT" : "POST";
+      fetch(url, {
+        method: method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       })
@@ -690,21 +733,158 @@
   // ==========================================================================
   var adminForm = document.getElementById("admin-form");
   if (adminForm) {
+    var adminDataEl = document.getElementById("admin-data");
+    var adminData = [];
+    try { adminData = JSON.parse(adminDataEl.textContent || "[]"); } catch (_) {}
+
+    var adminIdInput = document.getElementById("admin-id");
+    var adminTitle = document.getElementById("admin-modal-title");
+    var adminStatus = document.getElementById("admin-status");
+    var adminPasswordField = document.getElementById("admin-password-field");
+    var editingAdminId = null;
+
+    function resetAdminForm() {
+      editingAdminId = null;
+      adminForm.reset();
+      if (adminIdInput) adminIdInput.value = "";
+      if (adminStatus) adminStatus.value = "Active";
+      if (adminTitle) adminTitle.textContent = "Add administrator";
+      if (adminPasswordField) adminPasswordField.hidden = false;
+    }
+
+    function openAdminEditor(admin) {
+      editingAdminId = admin.id;
+      if (adminIdInput) adminIdInput.value = String(admin.id);
+      adminForm.querySelector("[name=name]").value = admin.name;
+      adminForm.querySelector("[name=email]").value = admin.email;
+      adminForm.querySelector("[name=role]").value = admin.role;
+      if (adminStatus) adminStatus.value = admin.status;
+      if (adminTitle) adminTitle.textContent = "Edit administrator";
+      if (adminPasswordField) adminPasswordField.hidden = true;
+      openModal("admin-modal");
+    }
+
+    var addAdminBtn = document.querySelector("[data-admin-add]");
+    if (addAdminBtn) addAdminBtn.addEventListener("click", resetAdminForm);
+
+    document.querySelectorAll("[data-admin-edit]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = Number(btn.getAttribute("data-admin-edit"));
+        var admin = adminData.filter(function (a) { return a.id === id; })[0];
+        if (admin) openAdminEditor(admin);
+      });
+    });
+
+    document.querySelectorAll("[data-admin-toggle]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-admin-toggle");
+        fetch("/api/admins/" + id + "/toggle", { method: "POST" })
+          .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+          .then(function () { window.location.reload(); })
+          .catch(function () { window.alert("Could not update the administrator. Please try again."); });
+      });
+    });
+
     adminForm.addEventListener("submit", function (event) {
       event.preventDefault();
       var payload = {
         name: adminForm.querySelector("[name=name]").value,
         email: adminForm.querySelector("[name=email]").value,
-        role: adminForm.querySelector("[name=role]").value
+        role: adminForm.querySelector("[name=role]").value,
+        status: adminStatus ? adminStatus.value : "Active"
       };
-      fetch("/api/admins", {
-        method: "POST",
+      var url = editingAdminId ? "/api/admins/" + editingAdminId : "/api/admins";
+      var method = editingAdminId ? "PUT" : "POST";
+      fetch(url, {
+        method: method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       })
         .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
         .then(function () { window.location.reload(); })
-        .catch(function () { window.alert("Could not add the administrator. Please try again."); });
+        .catch(function () { window.alert("Could not save the administrator. Please try again."); });
+    });
+  }
+
+  // ==========================================================================
+  // IP ranges — add single range or import CSV
+  // ==========================================================================
+  var ipForm = document.getElementById("ip-form");
+  if (ipForm) {
+    var ipMode = "single";
+    var ipSingle = document.getElementById("ip-single");
+    var ipImport = document.getElementById("ip-import");
+    var ipAddress = document.getElementById("ip-address");
+    var ipCity = document.getElementById("ip-city");
+    var ipDescription = document.getElementById("ip-description");
+    var ipCsv = document.getElementById("ip-csv");
+
+    function setIpMode(mode) {
+      ipMode = mode;
+      document.querySelectorAll("[data-ip-mode]").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-ip-mode") === mode);
+      });
+      if (ipSingle) ipSingle.hidden = mode !== "single";
+      if (ipImport) ipImport.hidden = mode !== "import";
+    }
+
+    document.querySelectorAll("[data-ip-mode]").forEach(function (btn) {
+      btn.addEventListener("click", function () { setIpMode(btn.getAttribute("data-ip-mode")); });
+    });
+
+    var ipOpenBtn = document.querySelector('[data-open-modal="ip-modal"]');
+    if (ipOpenBtn) ipOpenBtn.addEventListener("click", function () {
+      ipForm.reset();
+      setIpMode("single");
+    });
+
+    ipForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (ipMode === "import") {
+        var ranges = (ipCsv.value || "").split(/[\n,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+        if (!ranges.length) {
+          if (ipCsv) ipCsv.focus();
+          return;
+        }
+        fetch("/api/ip-ranges/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ranges: ranges })
+        })
+          .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+          .then(function () { window.location.reload(); })
+          .catch(function () { window.alert("Could not import the IP list. Please try again."); });
+        return;
+      }
+
+      var address = (ipAddress.value || "").trim();
+      if (!address) {
+        if (ipAddress) ipAddress.focus();
+        return;
+      }
+      fetch("/api/ip-ranges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address: address,
+          city: (ipCity.value || "").trim(),
+          description: (ipDescription.value || "").trim()
+        })
+      })
+        .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+        .then(function () { window.location.reload(); })
+        .catch(function () { window.alert("Could not add the IP range. Please try again."); });
+    });
+  }
+
+  // ==========================================================================
+  // Data Explorer — run query
+  // ==========================================================================
+  var explorerRun = document.getElementById("explorer-run");
+  var explorerFilter = document.getElementById("explorer-filter");
+  if (explorerRun && explorerFilter) {
+    explorerRun.addEventListener("click", function () {
+      explorerFilter.dispatchEvent(new Event("input"));
     });
   }
 
@@ -737,24 +917,17 @@
   }
 
   // ==========================================================================
-  // Scan summary — timeline selector
+  // Scan summary — range dropdown
   // ==========================================================================
   var summaryDataEl = document.getElementById("summary-data");
   if (summaryDataEl) {
     var points = [];
     try { points = JSON.parse(summaryDataEl.textContent || "[]"); } catch (_) {}
-    var timeline = document.getElementById("timeline");
-    if (points.length && timeline) {
-      var range = document.getElementById("timeline-range");
-      var fill = document.getElementById("timeline-fill");
-      var label = document.getElementById("timeline-label");
-      var ticks = timeline.querySelectorAll("[data-tick]");
-
+    var summaryRange = document.getElementById("summary-range");
+    if (points.length && summaryRange) {
       var renderPoint = function (idx) {
         idx = Math.max(0, Math.min(points.length - 1, idx));
         var p = points[idx];
-        if (label) label.textContent = "Last " + p.label;
-        if (fill) fill.style.width = (idx / (points.length - 1) * 100) + "%";
 
         var set = function (id, text) {
           var el = document.getElementById(id);
@@ -775,21 +948,12 @@
           downDelta.textContent = (p.down_new >= 0 ? "+" : "") + p.down_new + " since last scan";
           downDelta.className = "metric-delta " + (p.down_new >= 0 ? "down" : "up");
         }
-
-        ticks.forEach(function (t) {
-          t.classList.toggle("active", Number(t.getAttribute("data-tick")) === idx);
-        });
       };
 
-      range.addEventListener("input", function () { renderPoint(Number(range.value)); });
-      ticks.forEach(function (t) {
-        t.addEventListener("click", function () {
-          var idx = Number(t.getAttribute("data-tick"));
-          range.value = String(idx);
-          renderPoint(idx);
-        });
+      summaryRange.addEventListener("change", function () {
+        renderPoint(Number(summaryRange.value));
       });
-      renderPoint(Number(range.value));
+      renderPoint(Number(summaryRange.value));
     }
   }
 

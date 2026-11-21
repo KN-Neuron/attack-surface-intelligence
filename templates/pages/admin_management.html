@@ -3,7 +3,7 @@
 <div class="page-head">
   <h1>{{ title }}</h1>
   <span class="spacer"></span>
-  <button class="btn primary" type="button" data-open-modal="admin-modal">{{ crate::icons::icon("plus")|safe }} Add Admin</button>
+  <button class="btn primary" type="button" data-open-modal="admin-modal" data-admin-add>{{ crate::icons::icon("plus")|safe }} Add Admin</button>
 </div>
 
 <div class="page-body">
@@ -16,7 +16,7 @@
     <div class="tbl-wrap">
       <table class="tbl">
         <thead>
-          <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last login</th></tr>
+          <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last login</th><th class="right w-actions">Actions</th></tr>
         </thead>
         <tbody>
           {% for admin in admins %}
@@ -24,8 +24,16 @@
             <td class="strong-cell">{{ admin.name }}</td>
             <td>{{ admin.email }}</td>
             <td>{{ admin.role }}</td>
-            <td>{% if admin.status == "Active" %}<span class="badge">Active</span>{% else %}<span class="badge blocked">{{ admin.status }}</span>{% endif %}</td>
+            <td>{% if admin.status == "Active" %}<span class="badge">Active</span>{% else %}<span class="badge blocked">Disabled</span>{% endif %}</td>
             <td>{{ admin.last_login }}</td>
+            <td class="right">
+              <div class="row-actions">
+                <button class="link-btn" type="button" data-admin-edit="{{ admin.id }}">{{ crate::icons::icon("user-cog")|safe }} Edit</button>
+                <button class="link-btn" type="button" data-admin-toggle="{{ admin.id }}">
+                  {% if admin.status == "Active" %}Disable{% else %}Enable{% endif %}
+                </button>
+              </div>
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -37,7 +45,7 @@
     <div class="note-icon">{{ crate::icons::icon("key")|safe }}</div>
     <div>
       <h3>Portal access</h3>
-      <p>Administrators added here can sign in to the Attack Surface Intelligence portal with the role assigned to their account.</p>
+      <p>Administrators added here can sign in to the Attack Surface Intelligence portal with the role assigned to their account. Disabling an account revokes their access.</p>
     </div>
   </section>
 </div>
@@ -51,6 +59,7 @@
       <button class="icon-btn subtle" type="button" data-close-modal aria-label="Close">{{ crate::icons::icon("close")|safe }}</button>
     </div>
     <form id="admin-form">
+      <input type="hidden" id="admin-id" value="">
       <div class="modal-body">
         <div class="field">
           <label class="field-label" for="admin-name">Full name</label>
@@ -71,6 +80,15 @@
           </div>
         </div>
         <div class="field">
+          <label class="field-label" for="admin-status">Status</label>
+          <div class="select-wrap">
+            <select id="admin-status" name="status">
+              <option value="Active">Active</option>
+              <option value="Disabled">Disabled</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" id="admin-password-field">
           <label class="field-label" for="admin-password">Temporary password</label>
           <input id="admin-password" name="password" type="password" placeholder="At least 12 characters">
           <p class="field-hint">The administrator will be prompted to change this on first sign-in.</p>
@@ -78,9 +96,10 @@
       </div>
       <div class="modal-foot">
         <button class="btn" type="button" data-close-modal>Cancel</button>
-        <button class="btn primary" type="submit">Save</button>
+        <button class="btn primary" type="submit" id="admin-save">Save</button>
       </div>
     </form>
   </div>
 </div>
+<script type="application/json" id="admin-data">{{ admins_json|safe }}</script>
 {% endblock %}

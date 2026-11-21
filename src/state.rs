@@ -30,6 +30,17 @@ pub struct HostGroup {
 }
 
 #[derive(Clone, Serialize)]
+pub struct IpRange {
+    pub id: u32,
+    pub address: String,
+    pub city: String,
+    pub managed_by: String,
+    pub last_modified: String,
+    pub last_modified_by: String,
+    pub description: String,
+}
+
+#[derive(Clone, Serialize)]
 pub struct Admin {
     pub id: u32,
     pub name: String,
@@ -161,10 +172,12 @@ impl From<&Scan> for ScanStatus {
 pub struct AppState {
     pub policies: Vec<Policy>,
     pub host_groups: Vec<HostGroup>,
+    pub ip_ranges: Vec<IpRange>,
     pub admins: Vec<Admin>,
     pub scan: Scan,
     next_policy_id: u32,
     next_group_id: u32,
+    next_ip_id: u32,
     next_admin_id: u32,
 }
 
@@ -173,12 +186,24 @@ impl AppState {
         let mut state = Self {
             policies: Vec::new(),
             host_groups: Vec::new(),
+            ip_ranges: Vec::new(),
             admins: Vec::new(),
             scan: Scan::seeded(),
             next_policy_id: 1,
             next_group_id: 1,
+            next_ip_id: 1,
             next_admin_id: 1,
         };
+
+        for ip in crate::mock::static_ips() {
+            state.add_ip_range(
+                ip.address.into(),
+                ip.city.into(),
+                ip.description.into(),
+                ip.last_modified.into(),
+                ip.last_modified_by.into(),
+            );
+        }
 
         state.add_policy(
             "Nightly perimeter sweep".into(),
@@ -237,6 +262,74 @@ impl AppState {
         group
     }
 
+    pub fn add_ip_range(
+        &mut self,
+        address: String,
+        city: String,
+        description: String,
+        last_modified: String,
+        last_modified_by: String,
+    ) -> IpRange {
+        let range = IpRange {
+            id: self.next_ip_id,
+            address,
+            city,
+            managed_by: "Self".into(),
+            last_modified,
+            last_modified_by,
+            description,
+        };
+        self.next_ip_id += 1;
+        self.ip_ranges.push(range.clone());
+        range
+    }
+
+    pub fn import_ip_ranges(&mut self, addresses: Vec<String>) -> usize {
+        let now = now_label();
+        let mut added = 0;
+        for address in addresses {
+            let address = address.trim().to_string();
+            if address.is_empty() || self.ip_ranges.iter().any(|r| r.address == address) {
+                continue;
+            }
+            self.add_ip_range(
+                address,
+                "—".into(),
+                "Imported from CSV".into(),
+                now.clone(),
+                "Admin".into(),
+            );
+            added += 1;
+        }
+        added
+    }
+
+    pub fn ip_addresses(&self) -> Vec<String> {
+        self.ip_ranges.iter().map(|r| r.address.clone()).collect()
+    }
+
+    pub fn update_policy(
+        &mut self,
+        id: u32,
+        name: String,
+        order: u32,
+        criteria: Vec<Criterion>,
+        enabled: bool,
+    ) -> Option<Policy> {
+        let policy = self.policies.iter_mut().find(|p| p.id == id)?;
+        policy.name = name;
+        policy.order = order;
+        policy.criteria = criteria;
+        policy.enabled = enabled;
+        Some(policy.clone())
+    }
+
+    pub fn toggle_policy(&mut self, id: u32) -> Option<Policy> {
+        let policy = self.policies.iter_mut().find(|p| p.id == id)?;
+        policy.enabled = !policy.enabled;
+        Some(policy.clone())
+    }
+
     pub fn add_admin(&mut self, name: String, email: String, role: String) -> Admin {
         let admin = Admin {
             id: self.next_admin_id,
@@ -249,6 +342,32 @@ impl AppState {
         self.next_admin_id += 1;
         self.admins.push(admin.clone());
         admin
+    }
+
+    pub fn update_admin(
+        &mut self,
+        id: u32,
+        name: String,
+        email: String,
+        role: String,
+        status: String,
+    ) -> Option<Admin> {
+        let admin = self.admins.iter_mut().find(|a| a.id == id)?;
+        admin.name = name;
+        admin.email = email;
+        admin.role = role;
+        admin.status = status;
+        Some(admin.clone())
+    }
+
+    pub fn toggle_admin(&mut self, id: u32) -> Option<Admin> {
+        let admin = self.admins.iter_mut().find(|a| a.id == id)?;
+        admin.status = if admin.status == "Active" {
+            "Disabled".into()
+        } else {
+            "Active".into()
+        };
+        Some(admin.clone())
     }
 }
 
@@ -282,4 +401,35 @@ pub struct NewAdmin {
     pub email: String,
     #[serde(default)]
     pub role: String,
+    #[serde(default = "active_status")]
+    pub status: String,
+}
+
+fn active_status() -> String {
+    "Active".into()
+}
+
+#[derive(Deserialize)]
+pub struct UpdateAdmin {
+    pub name: String,
+    pub email: String,
+    #[serde(default)]
+    pub role: String,
+    #[serde(default = "active_status")]
+    pub status: String,
+}
+
+#[derive(Deserialize)]
+pub struct NewIpRange {
+    pub address: String,
+    #[serde(default)]
+    pub city: String,
+    #[serde(default)]
+    pub description: String,
+}
+
+#[derive(Deserialize)]
+pub struct ImportIpRanges {
+    #[serde(default)]
+    pub ranges: Vec<String>,
 }

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block mainclass %}main-flush{% endblock %}
+{% block content %}
+<div class="explorer">
+  <section class="filter-panel">
+    <div class="field">
+      <div class="field-label">Scope</div>
+      <div class="settings-desc">Current scan · all discovered hosts</div>
+    </div>
+
+    <div class="field">
+      <div class="field-label">Search events</div>
+      <div class="search-box explorer-search">
+        <input type="search" placeholder="Host, event, severity..." aria-label="Search events" data-table-filter="explorer-table" id="explorer-filter">
+        {{ crate::icons::icon("search")|safe }}
+      </div>
+    </div>
+
+    <button class="run-btn" type="button" id="explorer-run">Apply filter</button>
+  </section>
+
+  <section class="log-panel">
+    <div class="log-head">
+      <h1>{{ title }}</h1>
+      <div class="log-meta">
+        <div class="log-range">{{ range_label }}</div>
+        <div class="log-count"><span class="count-dot"></span>{{ rows.len() }} Events Found</div>
+      </div>
+    </div>
+
+    <div class="log-table-wrap">
+      <table class="tbl log-tbl" id="explorer-table">
+        <thead>
+          <tr>
+            <th>No.</th>
+            <th>Event Time</th>
+            <th>Host</th>
+            <th>Category</th>
+            <th>Event</th>
+            <th>Severity</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.no }}</td>
+            <td>{{ row.event_time }}</td>
+            <td><span class="mono">{{ row.host }}</span></td>
+            <td>{{ row.category }}</td>
+            <td class="wrap-cell">{{ row.event }}</td>
+            <td><span class="severity sev-{{ row.severity }}">{{ row.severity }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="log-foot">
+      <span class="rows-per">Rows per page:
+        <select aria-label="Rows per page">
+          <option>100</option>
+          <option>250</option>
+          <option>500</option>
+        </select>
+      </span>
+      <span class="log-range-text">1–{{ rows.len() }} of {{ rows.len() }}</span>
+      <div class="pager">
+        <button type="button" disabled aria-label="First page">{{ crate::icons::icon("double-left")|safe }}</button>
+        <button type="button" disabled aria-label="Previous page">{{ crate::icons::icon("chevron-left")|safe }}</button>
+        <span class="page-num">1 / 1</span>
+        <button type="button" disabled aria-label="Next page">{{ crate::icons::icon("chevron-right")|safe }}</button>
+        <button type="button" disabled aria-label="Last page">{{ crate::icons::icon("double-right")|safe }}</button>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

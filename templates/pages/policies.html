@@ -3,7 +3,7 @@
 <div class="page-head">
   <h1>{{ title }}</h1>
   <span class="spacer"></span>
-  <button class="btn primary" type="button" data-open-modal="policy-modal">{{ crate::icons::icon("plus")|safe }} Add Scan</button>
+  <button class="btn primary" type="button" data-open-modal="policy-modal" data-policy-add>{{ crate::icons::icon("plus")|safe }} Add Scan</button>
 </div>
 
 <div class="page-body">
@@ -21,6 +21,7 @@
             <th>Name</th>
             <th>Criteria</th>
             <th class="w-status">Status</th>
+            <th class="right w-actions">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -37,6 +38,14 @@
             </td>
             <td>
               {% if policy.enabled %}<span class="badge">Enabled</span>{% else %}<span class="badge blocked">Disabled</span>{% endif %}
+            </td>
+            <td class="right">
+              <div class="row-actions">
+                <button class="link-btn" type="button" data-policy-edit="{{ policy.id }}">{{ crate::icons::icon("sliders")|safe }} Edit</button>
+                <button class="link-btn" type="button" data-policy-toggle="{{ policy.id }}">
+                  {% if policy.enabled %}Disable{% else %}Enable{% endif %}
+                </button>
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -55,6 +64,7 @@
       <button class="icon-btn subtle" type="button" data-close-modal aria-label="Close">{{ crate::icons::icon("close")|safe }}</button>
     </div>
     <form id="policy-form">
+      <input type="hidden" id="policy-id" value="">
       <div class="modal-body">
         <div class="form-grid">
           <div class="field">
@@ -67,6 +77,16 @@
           </div>
         </div>
 
+        <div class="field">
+          <label class="field-label" for="policy-status">Status</label>
+          <div class="select-wrap">
+            <select id="policy-status" name="status">
+              <option value="enabled">Enabled</option>
+              <option value="disabled">Disabled</option>
+            </select>
+          </div>
+        </div>
+
         <div class="criteria-head">
           <span class="field-label">Criteria</span>
           <button class="add-criterion" type="button" data-add-criterion>{{ crate::icons::icon("plus")|safe }} New criteria</button>
@@ -76,10 +96,11 @@
       </div>
       <div class="modal-foot">
         <button class="btn" type="button" data-close-modal>Cancel</button>
-        <button class="btn primary" type="submit">Save</button>
+        <button class="btn primary" type="submit" id="policy-save">Save</button>
       </div>
     </form>
   </div>
 </div>
 <script type="application/json" id="policy-options">{{ options_json|safe }}</script>
+<script type="application/json" id="policy-data">{{ policies_json|safe }}</script>
 {% endblock %}
