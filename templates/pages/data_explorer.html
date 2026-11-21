@@ -28,16 +28,9 @@
       </div>
 
       <div class="filter-active" id="filter-active"></div>
-    </div>
 
-    <!-- Action + summary stay pinned to the bottom of the sidebar. -->
-    <div class="filter-footer">
-      <div class="filter-summary">
-        <span class="filter-count" data-filter-count>{{ total }} hosts</span>
-        <span class="filter-tally" data-filter-tally></span>
-        <button class="link-btn" type="button" id="explorer-clear" hidden>Clear all</button>
-      </div>
-
+      <!-- Sticks to the bottom of the filter list, so it stays attached to the
+           last chip however many filters are added. -->
       <div class="filter-add">
         <div class="filter-menu" id="filter-menu" hidden>
           <div class="search-box filter-menu-search">
@@ -53,6 +46,15 @@
         </div>
       </div>
     </div>
+
+    <!-- Result summary sits under the action button, pinned to the sidebar. -->
+    <div class="filter-footer">
+      <div class="filter-summary">
+        <span class="filter-count" data-filter-count>{{ total }} hosts</span>
+        <span class="filter-tally" data-filter-tally></span>
+        <button class="link-btn" type="button" id="explorer-clear" hidden>Clear all</button>
+      </div>
+    </div>
   </section>
 
   <section class="log-panel">
@@ -64,7 +66,7 @@
       <div class="log-empty" id="assets-empty" hidden>No hosts match the current filters.</div>
     </div>
 
-    {% include "partials/pager.html" %}
+    {% include "partials/pager-large.html" %}
   </section>
 </div>
 <script type="application/json" id="assets-data">{{ assets_json|safe }}</script>

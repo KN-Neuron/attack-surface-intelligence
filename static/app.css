@@ -3205,19 +3205,27 @@ body.modal-open { overflow: hidden; }
   flex-direction: column;
   gap: 16px;
   margin: 0 -16px;
-  padding: 0 16px 8px;
+  padding: 0 16px 0;
 }
 
 .filter-active { display: flex; flex-direction: column; gap: 8px; }
 .filter-empty { margin: 0; font-size: 11.5px; line-height: 1.5; color: var(--text-mute); }
 
-/* Action button + result summary always sit at the bottom of the sidebar. */
+/* The action button stays glued just below the last filter chip: it is the last
+   child of the scrolling region and sticks to its bottom edge, so adding more
+   filters scrolls the list but never detaches the button from it. */
+.filter-add {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: 10px 0;
+  background: var(--canvas);
+}
+
+/* The result summary is the only thing under the button. */
 .filter-footer {
   flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 12px;
+  padding-top: 10px;
   border-top: 1px solid var(--border-soft);
 }
 
@@ -3250,7 +3258,7 @@ body.modal-open { overflow: hidden; }
 /* The popup opens upward because the button lives at the bottom. */
 .filter-add .filter-menu {
   top: auto;
-  bottom: calc(100% + 6px);
+  bottom: calc(100% + 2px);
 }
 
 .filter-chip {

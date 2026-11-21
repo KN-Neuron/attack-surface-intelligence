@@ -510,6 +510,8 @@
   }
 
   document.querySelectorAll("[data-pager]").forEach(function (pager) {
+    // The Data Explorer paginates its client-side dataset itself.
+    if (pager.hasAttribute("data-pager-manual")) return;
     var card = pager.closest(".card") || pager.parentElement;
     var table = card ? card.querySelector("table.tbl") : null;
     if (table) initTablePager(table, pager);
@@ -1798,7 +1800,7 @@
       from: null,
       to: null,
       page: 1,
-      size: 10,
+      size: 100,
       editing: false
     };
 
