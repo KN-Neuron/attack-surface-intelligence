@@ -19,7 +19,7 @@
       } catch (e) {}
     })();
   </script>
-  <link rel="stylesheet" href="/static/app.css?v=12">
+  <link rel="stylesheet" href="/static/app.css?v=13">
 </head>
 <body class="{% block bodyclass %}{% endblock %}">
   <header class="topbar">
@@ -37,7 +37,13 @@
       {% block search_hint %}{% endblock %}
     </div>
     <div class="topbar-right">
-      <span class="topbar-user">{{ shell.admin_name }}</span>
+      <div class="topbar-user" title="{{ shell.admin_name }}{% if !shell.admin_role.is_empty() %} · {{ shell.admin_role }}{% endif %}">
+        <span class="user-avatar" aria-hidden="true">{{ shell.admin_initials }}</span>
+        <span class="user-meta">
+          <span class="user-name">{{ shell.admin_name }}</span>
+          {% if !shell.admin_role.is_empty() %}<span class="user-role">{{ shell.admin_role }}</span>{% endif %}
+        </span>
+      </div>
       <form method="post" action="/logout" class="signout-form">
         <button class="icon-btn" type="submit" title="Sign out" aria-label="Sign out">{{ crate::icons::icon("logout")|safe }}</button>
       </form>
@@ -83,6 +89,6 @@
 
   {% block modals %}{% endblock %}
 
-  <script src="/static/app.js?v=12"></script>
+  <script src="/static/app.js?v=13"></script>
 </body>
 </html>

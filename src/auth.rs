@@ -40,6 +40,7 @@ pub const PERMISSION_PAGES: [PermissionPage; 9] = [
 #[derive(Clone)]
 pub struct CurrentAdmin {
     pub name: String,
+    pub role: String,
     pub is_default: bool,
     pub permissions: HashMap<String, Permission>,
 }
@@ -53,6 +54,7 @@ impl CurrentAdmin {
             .collect();
         Self {
             name: admin.name,
+            role: admin.role,
             is_default: admin.is_default,
             permissions,
         }
