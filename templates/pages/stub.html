@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="stub">
+  <div class="stub-inner">
+    <div class="stub-icon">{{ crate::icons::icon(icon)|safe }}</div>
+    <div class="breadcrumb">{{ breadcrumb }}</div>
+    <h1>{{ heading }}</h1>
+    <p>This surface is staged for the network scanner. The layout, navigation and theme are live; data wiring comes next.</p>
+    <a class="ghost-btn" href="/internet-access/dashboards/web-browsing">{{ crate::icons::icon("chevron-left")|safe }} Back to Web Browsing</a>
+  </div>
+</div>
+{% endblock %}

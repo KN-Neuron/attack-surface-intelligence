@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ title }}</h1>
+</div>
+
+<div class="page-body">
+  <div class="tabs-bar">
+    <button class="tab-link active" type="button">Static IP ({{ ips.len() }})</button>
+    <button class="tab-link" type="button">GRE Tunnels ({{ gre_count }})</button>
+  </div>
+
+  <div class="toolbar">
+    <button class="tool-link" type="button">{{ crate::icons::icon("plus-circle")|safe }} Add Static IP</button>
+    <button class="tool-link" type="button">{{ crate::icons::icon("upload")|safe }} Import CSV File</button>
+    <a class="tool-link" href="/api/static-ips?format=csv">{{ crate::icons::icon("download")|safe }} Download CSV File</a>
+    <a class="tool-link" href="/static/samples/static-ips-sample.csv">{{ crate::icons::icon("file")|safe }} Sample Import CSV file</a>
+    <div class="search-box">
+      <input type="search" placeholder="Search..." aria-label="Search static IPs" data-table-filter="ip-table">
+      {{ crate::icons::icon("search")|safe }}
+    </div>
+  </div>
+
+  <table class="tbl" id="ip-table">
+    <thead>
+      <tr>
+        <th>No.</th>
+        <th><span class="th-inner">Static IP <span class="th-icon">{{ crate::icons::icon("clock")|safe }}</span></span></th>
+        <th>City</th>
+        <th>Managed By</th>
+        <th>Last Modified Time</th>
+        <th>Last Modified By</th>
+        <th>Description</th>
+        <th class="right"><span class="th-icon">{{ crate::icons::icon("more")|safe }}</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ip in ips %}
+      <tr>
+        <td>{{ ip.no }}</td>
+        <td>{{ ip.address }}</td>
+        <td>{{ ip.city }}</td>
+        <td>{{ ip.managed_by }}</td>
+        <td>{{ ip.last_modified }}</td>
+        <td>{{ ip.last_modified_by }}</td>
+        <td>{{ ip.description }}</td>
+        <td class="right"><span class="link-cell">{{ crate::icons::icon("settings")|safe }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

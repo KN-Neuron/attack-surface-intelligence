@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block mainclass %}main-flush{% endblock %}
+{% block content %}
+<div class="explorer">
+  <section class="filter-panel">
+    <div class="ptabs">
+      <button class="ptab active" type="button">Insights</button>
+      <button class="ptab" type="button">Logs</button>
+    </div>
+
+    <div class="field">
+      <div class="field-label">Timeframe</div>
+      <div class="select-wrap">
+        <select aria-label="Timeframe">
+          <option>Current Week: 11/15/2026 - 11/21/2026</option>
+          <option>Previous Week: 11/08/2026 - 11/14/2026</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field-label">Select Filters</div>
+    <button class="add-filter" type="button">Add Filter <span class="caret"></span></button>
+
+    <div class="btn-row">
+      <a class="btn" href="/api/web-insights?format=csv&amp;page_size=60">{{ crate::icons::icon("download")|safe }} Download (.csv)</a>
+      <button class="btn primary" type="button" data-display>{{ crate::icons::icon("help")|safe }} Display</button>
+    </div>
+
+    <div class="field-label">Number of Records Displayed</div>
+    <div class="seg" data-seg>
+      <button type="button" data-size="1000">1K</button>
+      <button type="button" class="active" data-size="5000">{{ crate::icons::icon("help")|safe }} 5K</button>
+      <button type="button" data-size="10000">10K</button>
+      <button type="button" data-size="25000">25K</button>
+    </div>
+
+    <button class="run-btn" type="button" id="run-query">Run Query</button>
+  </section>
+
+  <section class="log-panel">
+    <div class="log-head">
+      <h1>{{ title }}</h1>
+      <div class="log-meta">
+        <div class="log-range">{{ range_label }}</div>
+        <div class="log-count"><span class="count-dot"></span>{{ total }} Log Records Found</div>
+      </div>
+      <a class="export-btn" href="/api/web-insights?format=csv&amp;page_size=60">{{ crate::icons::icon("export")|safe }} Export</a>
+    </div>
+
+    <div class="log-table-wrap">
+      <table class="tbl log-tbl">
+        <thead>
+          <tr>
+            <th>No.</th>
+            <th>Event Time</th>
+            <th>User</th>
+            <th>Policy Action</th>
+            <th>Location</th>
+            <th class="right"><span class="th-icon">{{ crate::icons::icon("more")|safe }}</span></th>
+          </tr>
+        </thead>
+        <tbody id="log-body">
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.no }}</td>
+            <td>{{ row.event_time }}</td>
+            <td><span class="link-cell">{{ row.user }}</span></td>
+            <td><span class="badge">{{ row.action }}</span></td>
+            <td>{{ row.location }}</td>
+            <td class="right"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="log-foot">
+      <span class="rows-per">Rows per page:
+        <select aria-label="Rows per page">
+          <option>100</option>
+          <option>250</option>
+          <option>500</option>
+        </select>
+      </span>
+      <span id="range-text">1–{{ page_size }} of {{ total }}</span>
+      <div class="pager">
+        <button type="button" disabled aria-label="First page">{{ crate::icons::icon("double-left")|safe }}</button>
+        <button type="button" disabled aria-label="Previous page">{{ crate::icons::icon("chevron-left")|safe }}</button>
+        <span class="page-num">1 / {{ pages }}</span>
+        <button type="button" aria-label="Next page">{{ crate::icons::icon("chevron-right")|safe }}</button>
+        <button type="button" aria-label="Last page">{{ crate::icons::icon("double-right")|safe }}</button>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

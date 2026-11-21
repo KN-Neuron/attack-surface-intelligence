@@ -1,0 +1,12 @@
+[package]
+name = "attack-surface-intelligence"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+askama = "0.16"
+axum = "0.8"
+chrono = "0.4"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
+tower-http = { version = "0.7", features = ["compression-gzip", "fs"] }
