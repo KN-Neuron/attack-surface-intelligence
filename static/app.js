@@ -559,14 +559,14 @@
       closeModal(closer.closest(".modal-backdrop"));
       return;
     }
-    if (event.target.classList.contains("modal-backdrop")) {
+    if (event.target.classList.contains("modal-backdrop") && !event.target.hasAttribute("data-static-modal")) {
       closeModal(event.target);
     }
   });
 
   document.addEventListener("keydown", function (event) {
     if (event.key !== "Escape") return;
-    var open = document.querySelector(".modal-backdrop:not([hidden])");
+    var open = document.querySelector(".modal-backdrop:not([hidden]):not([data-static-modal])");
     if (open) closeModal(open);
   });
 
@@ -1161,7 +1161,7 @@
   document.querySelectorAll("[data-open-modal]").forEach(function (btn) {
     var modal = document.getElementById(btn.getAttribute("data-open-modal"));
     if (!modal) return;
-    var form = modal.querySelector("form[data-host-add], form[data-group-form]");
+    var form = modal.querySelector("form[data-host-add], form[data-host-import], form[data-group-form]");
     if (!form) return;
     btn.addEventListener("click", function () {
       form.reset();
@@ -1230,6 +1230,117 @@
         .then(function () { window.location.reload(); })
         .catch(function () { window.alert("Could not remove this entry. Please try again."); });
     });
+  });
+
+  // ==========================================================================
+  // Host inventory — CSV import (preview, then commit only on Confirm)
+  // ==========================================================================
+  var pendingImport = null;
+
+  function showImportPreview(preview) {
+    var modal = document.getElementById("import-result-modal");
+    if (!modal) return;
+    modal.querySelector("[data-result-ips]").textContent = preview.ips;
+    modal.querySelector("[data-result-ranges]").textContent = preview.ranges;
+    modal.querySelector("[data-result-fqdns]").textContent = preview.fqdns;
+    var extra = modal.querySelector("[data-result-extra]");
+    if (extra) {
+      extra.textContent = preview.skipped
+        ? preview.skipped + " unmatchable entry(ies) will be skipped."
+        : "";
+    }
+    closeModal(document.getElementById("import-modal"));
+    openModal("import-result-modal");
+  }
+
+  var importForm = document.querySelector("form[data-host-import]");
+  if (importForm) {
+    importForm._tagHandle = initTagInput(importForm);
+    var importFile = importForm.querySelector("input[type=file]");
+    var importStatus = importForm.querySelector("[data-import-status]");
+    var importEntries = [];
+
+    function parseImportEntries(text) {
+      return String(text || "")
+        .split(/[\n,;]+/)
+        .map(function (s) { return s.trim().replace(/^"|"$/g, ""); })
+        .filter(function (s) { return s.length > 0; });
+    }
+
+    if (importFile) {
+      importFile.addEventListener("change", function () {
+        importEntries = [];
+        if (importStatus) importStatus.textContent = "";
+        var file = importFile.files && importFile.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+          importEntries = parseImportEntries(reader.result);
+          if (importStatus) {
+            importStatus.textContent = importEntries.length
+              ? importEntries.length + " entries found in " + file.name
+              : "No entries found in " + file.name + ".";
+          }
+        };
+        reader.onerror = function () {
+          if (importStatus) importStatus.textContent = "Could not read " + file.name + ".";
+        };
+        reader.readAsText(file);
+      });
+    }
+
+    importForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (!importEntries.length) {
+        if (importFile) importFile.focus();
+        return;
+      }
+      var endpoint = importForm.getAttribute("data-endpoint");
+      fetch(endpoint + "/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries: importEntries })
+      })
+        .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+        .then(function (preview) {
+          pendingImport = {
+            entries: importEntries.slice(),
+            tags: importForm._tagHandle.values(),
+            endpoint: endpoint
+          };
+          showImportPreview(preview);
+        })
+        .catch(function () { window.alert("Could not read the entries. Please try again."); });
+    });
+
+    var importOpen = document.querySelector('[data-open-modal="import-modal"]');
+    if (importOpen) importOpen.addEventListener("click", function () {
+      importEntries = [];
+      pendingImport = null;
+      if (importStatus) importStatus.textContent = "";
+    });
+  }
+
+  var importConfirm = document.querySelector("[data-import-confirm]");
+  if (importConfirm) importConfirm.addEventListener("click", function () {
+    if (!pendingImport) {
+      closeModal(document.getElementById("import-result-modal"));
+      return;
+    }
+    fetch(pendingImport.endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entries: pendingImport.entries, tags: pendingImport.tags })
+    })
+      .then(function (r) { if (!r.ok) throw new Error(); })
+      .then(function () { window.location.reload(); })
+      .catch(function () { window.alert("Could not import the file. Please try again."); });
+  });
+
+  var importUndo = document.querySelector("[data-import-undo]");
+  if (importUndo) importUndo.addEventListener("click", function () {
+    pendingImport = null;
+    closeModal(document.getElementById("import-result-modal"));
   });
 
   // ==========================================================================

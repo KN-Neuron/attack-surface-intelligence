@@ -2,6 +2,8 @@
 {% block content %}
 <div class="page-head">
   <h1>{{ title }}</h1>
+  <span class="spacer"></span>
+  <button class="link-btn import-link" type="button" data-open-modal="import-modal">{{ crate::icons::icon("upload")|safe }} Import hosts</button>
 </div>
 
 <div class="page-body">
@@ -347,6 +349,53 @@
         <button class="btn primary" type="submit">Save</button>
       </div>
     </form>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="import-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="import-title">
+    <div class="modal-head">
+      <h2 id="import-title">Import hosts</h2>
+      <button class="icon-btn subtle" type="button" data-close-modal aria-label="Close">{{ crate::icons::icon("close")|safe }}</button>
+    </div>
+    <form data-host-import data-endpoint="/api/host-import">
+      <div class="modal-body">
+        <div class="field">
+          <label class="field-label" for="import-file">CSV file</label>
+          <input id="import-file" name="file" type="file" accept=".csv,.txt,text/csv,text/plain">
+          <p class="field-hint">One entry per line or comma-separated. IPs, IP ranges (CIDR) and FQDNs are detected automatically, and can be mixed in one file.</p>
+          <p class="field-hint" data-import-status></p>
+        </div>
+        <div class="field">
+          <span class="field-label">Tags (optional)</span>
+          <div class="tag-input">
+            <input type="text" data-tag-entry placeholder="e.g. imported" aria-label="Add a tag">
+            <button class="btn" type="button" data-tag-add>{{ crate::icons::icon("plus")|safe }} Add</button>
+          </div>
+          <div class="host-chips" data-tag-chips></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" data-close-modal>Cancel</button>
+        <button class="btn primary" type="submit">Import</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="import-result-modal" hidden data-static-modal>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="import-result-title">
+    <div class="modal-head">
+      <h2 id="import-result-title">Import complete</h2>
+    </div>
+    <div class="modal-body">
+      <p class="import-result-text">Added <strong data-result-ips>0</strong> IPs, <strong data-result-ranges>0</strong> IP ranges and <strong data-result-fqdns>0</strong> FQDNs.</p>
+      <p class="field-hint" data-result-extra></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" type="button" data-import-undo>Undo</button>
+      <button class="btn primary" type="button" data-import-confirm>Confirm</button>
+    </div>
   </div>
 </div>
 {% endblock %}

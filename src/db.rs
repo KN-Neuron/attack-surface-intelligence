@@ -7,8 +7,8 @@ use sqlx::{PgPool, Row};
 use crate::auth::PERMISSION_PAGES;
 use crate::mock;
 use crate::state::{
-    Admin, Criterion, HostFqdn, HostGroup, HostIp, HostRange, Permission, Policy, Role, ScanStatus,
-    SCAN_TARGETS, now_label,
+    Admin, Criterion, HostFqdn, HostGroup, HostIp, HostRange, ImportPreview, ImportSummary,
+    Permission, Policy, Role, ScanStatus, SCAN_TARGETS, now_label,
 };
 
 /// Hardcoded Railway Postgres connection (per project requirement).
@@ -592,6 +592,143 @@ pub async fn add_host_fqdns(pool: &PgPool, values: Vec<String>, tags: Vec<String
         .map(|v| v.trim().to_lowercase())
         .collect();
     insert_host_entries(pool, "host_fqdns", "fqdn", values, tags).await
+}
+
+const IMPORT_HEADER_WORDS: [&str; 14] = [
+    "ip", "ips", "address", "addresses", "host", "hosts", "fqdn", "fqdns", "range", "ranges",
+    "cidr", "target", "targets", "hostname",
+];
+
+fn is_ipv4(value: &str) -> bool {
+    value.parse::<std::net::Ipv4Addr>().is_ok()
+}
+
+fn is_cidr(value: &str) -> bool {
+    match value.split_once('/') {
+        Some((addr, prefix)) => {
+            is_ipv4(addr) && prefix.parse::<u8>().map(|p| p <= 32).unwrap_or(false)
+        }
+        None => false,
+    }
+}
+
+fn is_fqdn(value: &str) -> bool {
+    let value = value.trim_end_matches('.');
+    if value.is_empty() || value.len() > 253 || !value.contains('.') {
+        return false;
+    }
+    value.split('.').all(|label| {
+        !label.is_empty()
+            && label.len() <= 63
+            && label.chars().next().map(|c| c.is_ascii_alphanumeric()).unwrap_or(false)
+            && label.chars().last().map(|c| c.is_ascii_alphanumeric()).unwrap_or(false)
+            && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+    })
+}
+
+struct ClassifiedEntries {
+    ips: Vec<String>,
+    ranges: Vec<String>,
+    fqdns: Vec<String>,
+    skipped: usize,
+}
+
+/// Splits a mixed list of entries into IPs, CIDR ranges and FQDNs, dropping
+/// blanks, header words, duplicates and unparseable entries.
+fn classify_entries(entries: Vec<String>) -> ClassifiedEntries {
+    let mut ips = Vec::new();
+    let mut ranges = Vec::new();
+    let mut fqdns = Vec::new();
+    let mut skipped = 0usize;
+
+    for raw in entries {
+        let entry = raw.trim().trim_matches('"').trim();
+        if entry.is_empty() {
+            continue;
+        }
+        let lower = entry.to_lowercase();
+        if IMPORT_HEADER_WORDS.contains(&lower.as_str()) {
+            continue;
+        }
+        if is_cidr(entry) {
+            ranges.push(entry.to_string());
+        } else if is_ipv4(entry) {
+            ips.push(entry.to_string());
+        } else if is_fqdn(entry) {
+            fqdns.push(lower);
+        } else {
+            skipped += 1;
+        }
+    }
+
+    ips.sort();
+    ips.dedup();
+    ranges.sort();
+    ranges.dedup();
+    fqdns.sort();
+    fqdns.dedup();
+
+    ClassifiedEntries {
+        ips,
+        ranges,
+        fqdns,
+        skipped,
+    }
+}
+
+/// Counts what an import would add without touching the database.
+pub async fn preview_import(pool: &PgPool, entries: Vec<String>) -> ImportPreview {
+    let classified = classify_entries(entries);
+
+    let existing_ips: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM host_ips WHERE address = ANY($1::text[])")
+            .bind(&classified.ips)
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
+    let existing_ranges: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM host_ranges WHERE cidr = ANY($1::text[])")
+            .bind(&classified.ranges)
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
+    let existing_fqdns: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM host_fqdns WHERE fqdn = ANY($1::text[])")
+            .bind(&classified.fqdns)
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
+
+    ImportPreview {
+        ips: classified.ips.len().saturating_sub(existing_ips as usize),
+        ranges: classified.ranges.len().saturating_sub(existing_ranges as usize),
+        fqdns: classified.fqdns.len().saturating_sub(existing_fqdns as usize),
+        skipped: classified.skipped,
+    }
+}
+
+/// Classifies a mixed list of entries and files each one into the IP, range or
+/// FQDN inventory, applying the same tag set to everything imported.
+pub async fn import_hosts(pool: &PgPool, entries: Vec<String>, tags: Vec<String>) -> ImportSummary {
+    let classified = classify_entries(entries);
+    let (ip_total, range_total, fqdn_total) = (
+        classified.ips.len(),
+        classified.ranges.len(),
+        classified.fqdns.len(),
+    );
+
+    let ips = add_host_ips(pool, classified.ips, tags.clone()).await;
+    let ranges = add_host_ranges(pool, classified.ranges, tags.clone()).await;
+    let fqdns = add_host_fqdns(pool, classified.fqdns, tags).await;
+    let duplicates = (ip_total - ips) + (range_total - ranges) + (fqdn_total - fqdns);
+
+    ImportSummary {
+        ips,
+        ranges,
+        fqdns,
+        duplicates,
+        skipped: classified.skipped,
+    }
 }
 
 /// Rewrites a value wherever it appears in a group's membership array, so a

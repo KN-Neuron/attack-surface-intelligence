@@ -745,6 +745,8 @@ html.nav-collapsed .sidebar .nav-item:not(.root) { display: none; }
 }
 
 .page-head .spacer { flex: 1 1 auto; }
+.page-head .import-link { font-size: 13px; }
+.import-result-text { margin: 0 0 6px; font-size: 13.5px; color: var(--text); }
 
 .page-body { padding: 14px 20px 26px; }
 

@@ -77,6 +77,8 @@ async fn main() -> anyhow::Result<()> {
             put(handlers::update_host_ranges).delete(handlers::delete_host_ranges),
         )
         .route("/api/host-fqdns", post(handlers::create_host_fqdns))
+        .route("/api/host-import", post(handlers::import_hosts))
+        .route("/api/host-import/preview", post(handlers::preview_host_import))
         .route(
             "/api/host-fqdns/{id}",
             put(handlers::update_host_fqdns).delete(handlers::delete_host_fqdns),

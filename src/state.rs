@@ -213,3 +213,32 @@ pub struct EditHostEntry {
     #[serde(default)]
     pub tags: Vec<String>,
 }
+
+/// A mixed list of host entries to import. Each entry is classified as an IP,
+/// a CIDR range or an FQDN by the server.
+#[derive(Deserialize)]
+pub struct ImportHosts {
+    #[serde(default)]
+    pub entries: Vec<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+/// Per-type counts returned after a host import.
+#[derive(Serialize)]
+pub struct ImportSummary {
+    pub ips: usize,
+    pub ranges: usize,
+    pub fqdns: usize,
+    pub duplicates: usize,
+    pub skipped: usize,
+}
+
+/// Counts of what a host import *would* add, computed without writing.
+#[derive(Serialize)]
+pub struct ImportPreview {
+    pub ips: usize,
+    pub ranges: usize,
+    pub fqdns: usize,
+    pub skipped: usize,
+}

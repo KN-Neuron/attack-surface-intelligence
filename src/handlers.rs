@@ -16,8 +16,9 @@ use crate::mock::{
 };
 use crate::nav::{self, NavGroup};
 use crate::state::{
-    Admin, EditHostEntry, HostFqdn, HostGroup, HostIp, HostRange, NewAdmin, NewGroup,
-    NewHostEntries, NewPolicy, Policy, Role, RolePayload, ScanStatus, UpdateAdmin,
+    Admin, EditHostEntry, HostFqdn, HostGroup, HostIp, HostRange, ImportHosts, ImportPreview,
+    ImportSummary, NewAdmin, NewGroup, NewHostEntries, NewPolicy, Policy, Role, RolePayload,
+    ScanStatus, UpdateAdmin,
 };
 
 const PRODUCT: &str = "Attack Surface Intelligence";
@@ -402,6 +403,20 @@ pub async fn create_host_fqdns(
     Json(payload): Json<NewHostEntries>,
 ) -> Json<usize> {
     Json(db::add_host_fqdns(&pool, payload.values, payload.tags).await)
+}
+
+pub async fn import_hosts(
+    State(pool): State<PgPool>,
+    Json(payload): Json<ImportHosts>,
+) -> Json<ImportSummary> {
+    Json(db::import_hosts(&pool, payload.entries, payload.tags).await)
+}
+
+pub async fn preview_host_import(
+    State(pool): State<PgPool>,
+    Json(payload): Json<ImportHosts>,
+) -> Json<ImportPreview> {
+    Json(db::preview_import(&pool, payload.entries).await)
 }
 
 pub async fn update_host_ips(
