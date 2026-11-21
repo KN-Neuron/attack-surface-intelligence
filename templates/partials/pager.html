@@ -1,0 +1,17 @@
+<div class="log-foot table-foot" data-pager>
+  <span class="rows-per">Rows per page:
+    <select data-page-size aria-label="Rows per page">
+      <option value="10" selected>10</option>
+      <option value="25">25</option>
+      <option value="100">100</option>
+    </select>
+  </span>
+  <span class="log-range-text" data-page-range></span>
+  <div class="pager">
+    <button type="button" data-page-first aria-label="First page">{{ crate::icons::icon("double-left")|safe }}</button>
+    <button type="button" data-page-prev aria-label="Previous page">{{ crate::icons::icon("chevron-left")|safe }}</button>
+    <span class="page-num" data-page-num>1 / 1</span>
+    <button type="button" data-page-next aria-label="Next page">{{ crate::icons::icon("chevron-right")|safe }}</button>
+    <button type="button" data-page-last aria-label="Last page">{{ crate::icons::icon("double-right")|safe }}</button>
+  </div>
+</div>

@@ -42,16 +42,18 @@
             <td class="right">
               <div class="row-actions">
                 <button class="link-btn" type="button" data-policy-edit="{{ policy.id }}">{{ crate::icons::icon("sliders")|safe }} Edit</button>
-                <button class="link-btn" type="button" data-policy-toggle="{{ policy.id }}">
-                  {% if policy.enabled %}Disable{% else %}Enable{% endif %}
-                </button>
+                <button class="link-btn danger-link" type="button" data-policy-remove="{{ policy.id }}">{{ crate::icons::icon("trash")|safe }} Remove</button>
               </div>
             </td>
           </tr>
           {% endfor %}
+          {% if policies.is_empty() %}
+          <tr><td colspan="5" class="empty-cell">No scan policies yet. Add one to get started.</td></tr>
+          {% endif %}
         </tbody>
       </table>
     </div>
+    {% include "partials/pager.html" %}
   </section>
 </div>
 {% endblock %}
@@ -78,13 +80,12 @@
         </div>
 
         <div class="field">
-          <label class="field-label" for="policy-status">Status</label>
-          <div class="select-wrap">
-            <select id="policy-status" name="status">
-              <option value="enabled">Enabled</option>
-              <option value="disabled">Disabled</option>
-            </select>
-          </div>
+          <span class="field-label">Status</span>
+          <label class="switch">
+            <input type="checkbox" id="policy-enabled" checked>
+            <span class="switch-track"></span>
+            <span class="switch-text" id="policy-enabled-text">Enabled</span>
+          </label>
         </div>
 
         <div class="criteria-head">

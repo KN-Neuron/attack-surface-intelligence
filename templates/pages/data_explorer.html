@@ -55,23 +55,7 @@
       </table>
     </div>
 
-    <div class="log-foot">
-      <span class="rows-per">Rows per page:
-        <select aria-label="Rows per page">
-          <option>100</option>
-          <option>250</option>
-          <option>500</option>
-        </select>
-      </span>
-      <span class="log-range-text">1–{{ rows.len() }} of {{ rows.len() }}</span>
-      <div class="pager">
-        <button type="button" disabled aria-label="First page">{{ crate::icons::icon("double-left")|safe }}</button>
-        <button type="button" disabled aria-label="Previous page">{{ crate::icons::icon("chevron-left")|safe }}</button>
-        <span class="page-num">1 / 1</span>
-        <button type="button" disabled aria-label="Next page">{{ crate::icons::icon("chevron-right")|safe }}</button>
-        <button type="button" disabled aria-label="Last page">{{ crate::icons::icon("double-right")|safe }}</button>
-      </div>
-    </div>
+    {% include "partials/pager.html" %}
   </section>
 </div>
 {% endblock %}

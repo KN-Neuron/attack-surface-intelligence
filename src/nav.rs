@@ -51,15 +51,15 @@ pub fn main_nav() -> SidebarDef {
         title: "Attack Surface Intelligence",
         icon: "shield",
         groups: vec![
-            group("Scanning", "scan", vec![
-                item("Scan Management", SCANNING_MANAGEMENT, "activity"),
-                item("Scan Policies", SCANNING_POLICIES, "sliders"),
-                item("Compare Scans", SCAN_COMPARE, "git-compare"),
-            ]),
             group("Dashboards", "bar-chart", vec![
                 item("Scan summary", SCAN_SUMMARY, "bar-chart"),
                 item("Technologies used", TECHNOLOGIES, "grid"),
                 item("Vulnerable versions", VULNERABLE, "shield"),
+            ]),
+            group("Scanning", "scan", vec![
+                item("Scan Management", SCANNING_MANAGEMENT, "activity"),
+                item("Scan Policies", SCANNING_POLICIES, "sliders"),
+                item("Compare Scans", SCAN_COMPARE, "git-compare"),
             ]),
             group("Host management", "server", vec![
                 item("IP ranges", IP_RANGES, "globe"),

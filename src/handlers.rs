@@ -219,12 +219,15 @@ pub async fn update_policy(
         .ok_or(StatusCode::NOT_FOUND)
 }
 
-pub async fn toggle_policy(
+pub async fn delete_policy(
     State(state): State<SharedState>,
     Path(id): Path<u32>,
-) -> Result<Json<Policy>, StatusCode> {
-    let mut guard = state.lock().unwrap();
-    guard.toggle_policy(id).map(Json).ok_or(StatusCode::NOT_FOUND)
+) -> StatusCode {
+    if state.lock().unwrap().delete_policy(id) {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
 }
 
 // ---------------------------------------------------------------- scan summary

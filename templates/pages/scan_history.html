@@ -20,7 +20,7 @@
 <div class="page-body">
   <section class="card history-card">
     <div class="tbl-wrap">
-      <table class="tbl" id="history-table">
+      <table class="tbl" id="history-table" data-page-range="history-range">
         <thead>
           <tr>
             <th>Scan</th>
@@ -60,23 +60,7 @@
       </table>
     </div>
 
-    <div class="log-foot">
-      <span class="rows-per">Rows per page:
-        <select id="history-page-size" aria-label="Rows per page">
-          <option value="10" selected>10</option>
-          <option value="25">25</option>
-          <option value="100">100</option>
-        </select>
-      </span>
-      <span id="history-range-text" class="log-range-text"></span>
-      <div class="pager">
-        <button type="button" id="history-first" aria-label="First page">{{ crate::icons::icon("double-left")|safe }}</button>
-        <button type="button" id="history-prev" aria-label="Previous page">{{ crate::icons::icon("chevron-left")|safe }}</button>
-        <span class="page-num" id="history-page-num">1 / 1</span>
-        <button type="button" id="history-next" aria-label="Next page">{{ crate::icons::icon("chevron-right")|safe }}</button>
-        <button type="button" id="history-last" aria-label="Last page">{{ crate::icons::icon("double-right")|safe }}</button>
-      </div>
-    </div>
+    {% include "partials/pager.html" %}
   </section>
 </div>
 {% endblock %}

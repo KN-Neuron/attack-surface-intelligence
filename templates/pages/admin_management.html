@@ -43,14 +43,7 @@
         </tbody>
       </table>
     </div>
-  </section>
-
-  <section class="card note-card">
-    <div class="note-icon">{{ crate::icons::icon("key")|safe }}</div>
-    <div>
-      <h3>Portal access</h3>
-      <p>Administrators added here can sign in to the Attack Surface Intelligence portal with the role assigned to their account. Disabling an account revokes their access.</p>
-    </div>
+    {% include "partials/pager.html" %}
   </section>
 </div>
 {% endblock %}

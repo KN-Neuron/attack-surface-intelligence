@@ -268,6 +268,9 @@
   document.querySelectorAll("[data-table-filter]").forEach(function (input) {
     var table = document.getElementById(input.getAttribute("data-table-filter"));
     if (!table) return;
+    // Tables with a pager are filtered by the pager controller below.
+    var container = table.closest(".card, .log-panel");
+    if (container && container.querySelector("[data-pager]")) return;
     input.addEventListener("input", function () {
       var needle = input.value.trim().toLowerCase();
       table.querySelectorAll("tbody tr").forEach(function (row) {
@@ -275,6 +278,114 @@
         row.style.display = hit ? "" : "none";
       });
     });
+  });
+
+  // ---- shared table pager -----------------------------------------------------
+  // Every `[data-pager]` footer drives the nearest table in its card. Optional
+  // features: a `[data-table-filter="<table id>"]` search box and a
+  // `data-page-range="<select id>"` time-range select (rows carry `data-days`).
+  function initTablePager(table, pager) {
+    var tbody = table.querySelector("tbody");
+    if (!tbody) return;
+
+    var allRows = Array.prototype.slice.call(tbody.querySelectorAll("tr")).filter(function (row) {
+      return !row.querySelector(".empty-cell");
+    });
+
+    var sizeSel = pager.querySelector("[data-page-size]");
+    var rangeOut = pager.querySelector("[data-page-range]");
+    var pageNum = pager.querySelector("[data-page-num]");
+    var firstBtn = pager.querySelector("[data-page-first]");
+    var prevBtn = pager.querySelector("[data-page-prev]");
+    var nextBtn = pager.querySelector("[data-page-next]");
+    var lastBtn = pager.querySelector("[data-page-last]");
+
+    var filterInput = table.id
+      ? document.querySelector('[data-table-filter="' + table.id + '"]')
+      : null;
+    var rangeId = table.getAttribute("data-page-range");
+    var rangeSel = rangeId ? document.getElementById(rangeId) : null;
+
+    if (!allRows.length) {
+      if (rangeOut) rangeOut.textContent = "No entries";
+      if (pageNum) pageNum.textContent = "1 / 1";
+      [firstBtn, prevBtn, nextBtn, lastBtn].forEach(function (btn) {
+        if (btn) btn.disabled = true;
+      });
+      return;
+    }
+
+    var state = { page: 1, size: sizeSel ? Number(sizeSel.value) || 10 : 10, filter: "" };
+
+    function matches(row) {
+      if (rangeSel) {
+        var days = Number(rangeSel.value);
+        if (days && Number(row.getAttribute("data-days")) > days) return false;
+      }
+      if (state.filter && row.textContent.toLowerCase().indexOf(state.filter) === -1) return false;
+      return true;
+    }
+
+    function render() {
+      var rows = allRows.filter(matches);
+      var pages = Math.max(1, Math.ceil(rows.length / state.size));
+      if (state.page > pages) state.page = pages;
+      if (state.page < 1) state.page = 1;
+
+      var start = (state.page - 1) * state.size;
+      var end = Math.min(start + state.size, rows.length);
+
+      allRows.forEach(function (row) { row.style.display = "none"; });
+      rows.slice(start, end).forEach(function (row) { row.style.display = ""; });
+
+      if (rangeOut) {
+        rangeOut.textContent = rows.length
+          ? (start + 1) + "–" + end + " of " + rows.length
+          : "No entries";
+      }
+      if (pageNum) pageNum.textContent = state.page + " / " + pages;
+      if (firstBtn) firstBtn.disabled = state.page <= 1;
+      if (prevBtn) prevBtn.disabled = state.page <= 1;
+      if (nextBtn) nextBtn.disabled = state.page >= pages;
+      if (lastBtn) lastBtn.disabled = state.page >= pages;
+    }
+
+    if (sizeSel) {
+      state.size = Number(sizeSel.value) || 10;
+      sizeSel.addEventListener("change", function () {
+        state.size = Number(sizeSel.value) || 10;
+        state.page = 1;
+        render();
+      });
+    }
+    if (filterInput) {
+      filterInput.addEventListener("input", function () {
+        state.filter = filterInput.value.trim().toLowerCase();
+        state.page = 1;
+        render();
+      });
+    }
+    if (rangeSel) {
+      rangeSel.addEventListener("change", function () {
+        state.page = 1;
+        render();
+      });
+    }
+    if (firstBtn) firstBtn.addEventListener("click", function () { state.page = 1; render(); });
+    if (prevBtn) prevBtn.addEventListener("click", function () { state.page -= 1; render(); });
+    if (nextBtn) nextBtn.addEventListener("click", function () { state.page += 1; render(); });
+    if (lastBtn) lastBtn.addEventListener("click", function () {
+      state.page = Math.ceil(allRows.filter(matches).length / state.size) || 1;
+      render();
+    });
+
+    render();
+  }
+
+  document.querySelectorAll("[data-pager]").forEach(function (pager) {
+    var card = pager.closest(".card") || pager.parentElement;
+    var table = card ? card.querySelector("table.tbl") : null;
+    if (table) initTablePager(table, pager);
   });
 
   // ---- log "run query" refresh ------------------------------------------------
@@ -584,14 +695,24 @@
 
     var policyIdInput = document.getElementById("policy-id");
     var policyTitle = document.getElementById("policy-modal-title");
-    var policyStatus = document.getElementById("policy-status");
+    var policyEnabled = document.getElementById("policy-enabled");
+    var policyEnabledText = document.getElementById("policy-enabled-text");
     var editingPolicyId = null;
+
+    function syncPolicyEnabled() {
+      if (policyEnabledText) {
+        policyEnabledText.textContent = policyEnabled && policyEnabled.checked ? "Enabled" : "Disabled";
+      }
+    }
+
+    if (policyEnabled) policyEnabled.addEventListener("change", syncPolicyEnabled);
 
     function resetPolicyForm() {
       editingPolicyId = null;
       policyForm.reset();
       if (policyIdInput) policyIdInput.value = "";
-      if (policyStatus) policyStatus.value = "enabled";
+      if (policyEnabled) policyEnabled.checked = true;
+      syncPolicyEnabled();
       if (policyTitle) policyTitle.textContent = "Add scan policy";
       criteriaList.innerHTML = "";
       updateEmpty();
@@ -602,7 +723,8 @@
       if (policyIdInput) policyIdInput.value = String(policy.id);
       policyForm.querySelector("[name=name]").value = policy.name;
       policyForm.querySelector("[name=order]").value = policy.order;
-      if (policyStatus) policyStatus.value = policy.enabled ? "enabled" : "disabled";
+      if (policyEnabled) policyEnabled.checked = !!policy.enabled;
+      syncPolicyEnabled();
       if (policyTitle) policyTitle.textContent = "Edit scan policy";
       criteriaList.innerHTML = "";
       (policy.criteria || []).forEach(function (c) { addCriterion(c.kind, c.value); });
@@ -621,13 +743,14 @@
       });
     });
 
-    document.querySelectorAll("[data-policy-toggle]").forEach(function (btn) {
+    document.querySelectorAll("[data-policy-remove]").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        var id = btn.getAttribute("data-policy-toggle");
-        fetch("/api/policies/" + id + "/toggle", { method: "POST" })
-          .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+        var id = btn.getAttribute("data-policy-remove");
+        if (!window.confirm("Remove this scan policy? This cannot be undone.")) return;
+        fetch("/api/policies/" + id, { method: "DELETE" })
+          .then(function (r) { if (!r.ok) throw new Error(); })
           .then(function () { window.location.reload(); })
-          .catch(function () { window.alert("Could not update the policy. Please try again."); });
+          .catch(function () { window.alert("Could not remove the policy. Please try again."); });
       });
     });
 
@@ -647,7 +770,7 @@
         name: policyForm.querySelector("[name=name]").value,
         order: Number(policyForm.querySelector("[name=order]").value) || 0,
         criteria: crit,
-        enabled: !policyStatus || policyStatus.value === "enabled"
+        enabled: policyEnabled ? policyEnabled.checked : true
       };
       var url = editingPolicyId ? "/api/policies/" + editingPolicyId : "/api/policies";
       var method = editingPolicyId ? "PUT" : "POST";
@@ -955,68 +1078,6 @@
       });
       renderPoint(Number(summaryRange.value));
     }
-  }
-
-  // ==========================================================================
-  // Scan history — range filter + client-side pagination
-  // ==========================================================================
-  var historyBody = document.getElementById("history-body");
-  if (historyBody) {
-    var allRows = Array.prototype.slice.call(historyBody.querySelectorAll("tr"));
-    var rangeSel = document.getElementById("history-range");
-    var sizeSel = document.getElementById("history-page-size");
-    var rangeText = document.getElementById("history-range-text");
-    var pageNum = document.getElementById("history-page-num");
-    var firstBtn = document.getElementById("history-first");
-    var prevBtn = document.getElementById("history-prev");
-    var nextBtn = document.getElementById("history-next");
-    var lastBtn = document.getElementById("history-last");
-    var currentPage = 1;
-
-    var filteredRows = function () {
-      var days = Number(rangeSel.value);
-      if (!days) return allRows.slice();
-      return allRows.filter(function (row) {
-        return Number(row.getAttribute("data-days")) <= days;
-      });
-    };
-
-    var renderHistory = function () {
-      var rows = filteredRows();
-      var size = Number(sizeSel.value);
-      var pages = Math.max(1, Math.ceil(rows.length / size));
-      if (currentPage > pages) currentPage = pages;
-      if (currentPage < 1) currentPage = 1;
-
-      var start = (currentPage - 1) * size;
-      var end = Math.min(start + size, rows.length);
-
-      allRows.forEach(function (row) { row.style.display = "none"; });
-      rows.slice(start, end).forEach(function (row) { row.style.display = ""; });
-
-      if (rangeText) {
-        rangeText.textContent = rows.length
-          ? (start + 1) + "–" + end + " of " + rows.length
-          : "No scans in range";
-      }
-      if (pageNum) pageNum.textContent = currentPage + " / " + pages;
-      if (firstBtn) firstBtn.disabled = currentPage <= 1;
-      if (prevBtn) prevBtn.disabled = currentPage <= 1;
-      if (nextBtn) nextBtn.disabled = currentPage >= pages;
-      if (lastBtn) lastBtn.disabled = currentPage >= pages;
-    };
-
-    rangeSel.addEventListener("change", function () { currentPage = 1; renderHistory(); });
-    sizeSel.addEventListener("change", function () { currentPage = 1; renderHistory(); });
-    if (firstBtn) firstBtn.addEventListener("click", function () { currentPage = 1; renderHistory(); });
-    if (prevBtn) prevBtn.addEventListener("click", function () { currentPage -= 1; renderHistory(); });
-    if (nextBtn) nextBtn.addEventListener("click", function () { currentPage += 1; renderHistory(); });
-    if (lastBtn) lastBtn.addEventListener("click", function () {
-      currentPage = Math.ceil(filteredRows().length / Number(sizeSel.value)) || 1;
-      renderHistory();
-    });
-
-    renderHistory();
   }
 
   // ==========================================================================

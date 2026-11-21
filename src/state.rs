@@ -326,10 +326,10 @@ impl AppState {
         Some(policy.clone())
     }
 
-    pub fn toggle_policy(&mut self, id: u32) -> Option<Policy> {
-        let policy = self.policies.iter_mut().find(|p| p.id == id)?;
-        policy.enabled = !policy.enabled;
-        Some(policy.clone())
+    pub fn delete_policy(&mut self, id: u32) -> bool {
+        let before = self.policies.len();
+        self.policies.retain(|p| p.id != id);
+        self.policies.len() != before
     }
 
     pub fn add_admin(&mut self, name: String, email: String, role: String) -> Admin {
