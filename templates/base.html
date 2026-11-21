@@ -8,8 +8,8 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="topbar-actions">
-      <button class="icon-btn" type="button" id="nav-open" title="All modules" aria-label="Open module menu" aria-expanded="false" aria-controls="flyout">{{ crate::icons::icon("hamburger")|safe }}</button>
+    <div class="topbar-left">
+      <button class="icon-btn" type="button" aria-label="Help">{{ crate::icons::icon("help")|safe }}</button>
     </div>
     <div class="topbar-search" id="search">
       {{ crate::icons::icon("search")|safe }}
@@ -19,40 +19,12 @@
       <div class="search-results" id="search-results" role="listbox" aria-label="Search results" hidden></div>
     </div>
     <div class="topbar-right">
-      <button class="icon-btn" type="button" aria-label="Help">{{ crate::icons::icon("help")|safe }}</button>
       <button class="icon-btn" type="button" aria-label="Account">{{ crate::icons::icon("user")|safe }}</button>
     </div>
   </header>
 
-  <div class="nav-scrim" id="nav-scrim" hidden></div>
-
-  <aside class="flyout" id="flyout" aria-label="Module menu" aria-hidden="true">
-    <div class="flyout-modules">
-      <div class="flyout-head">
-        {{ crate::icons::icon("grid")|safe }}<span>Experience Center</span>
-        <button class="flyout-close" type="button" id="flyout-close" aria-label="Close module menu">{{ crate::icons::icon("close")|safe }}</button>
-      </div>
-      {% for item in shell.modules %}
-      <a class="module-link{% if item.active %} active{% endif %}" href="{{ item.href }}">
-        {{ crate::icons::icon(item.icon)|safe }}<span class="module-label">{{ item.label }}</span>
-        {% if item.external %}<span class="ext-mark">{{ crate::icons::icon("external")|safe }}</span>{% endif %}
-      </a>
-      {% endfor %}
-    </div>
-    <div class="flyout-catalog">
-      {% for section in shell.catalog %}
-      <div class="catalog-head">{{ crate::icons::icon(section.icon)|safe }}<span>{{ section.title }}</span></div>
-      <div class="catalog-grid">
-        {% for link in section.links %}
-        <a class="catalog-link" href="{{ link.href }}">{{ link.label }}</a>
-        {% endfor %}
-      </div>
-      {% endfor %}
-    </div>
-  </aside>
-
   <div class="shell has-rail">
-    <aside class="sidebar" id="sidebar" aria-label="Section navigation">
+    <aside class="sidebar is-pinned" id="sidebar" aria-label="Section navigation">
       <div class="sidebar-title">
         {{ crate::icons::icon(shell.section_icon)|safe }}<span>{{ shell.section }}</span>
       </div>
@@ -62,22 +34,16 @@
             {% for item in group.items %}
               <a class="nav-item root{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.label }}">
                 {{ crate::icons::icon(item.icon)|safe }}<span class="nav-label">{{ item.label }}</span>
-                {% if item.chevron %}{{ crate::icons::icon("chevron-right")|safe }}{% endif %}
               </a>
             {% endfor %}
           {% else %}
-            {% if group.collapsible %}
             <button class="nav-group-title" type="button" data-collapse-target="grp-{{ loop.index }}" title="{{ group.title }}">
               {{ crate::icons::icon(group.icon)|safe }}<span>{{ group.title }}</span>{{ crate::icons::icon("chevron-down")|safe }}
             </button>
             <div class="nav-group-items" id="grp-{{ loop.index }}">
-            {% else %}
-            <div class="nav-section-label">{{ crate::icons::icon(group.icon)|safe }}<span>{{ group.title }}</span></div>
-            <div class="nav-group-items">
-            {% endif %}
               {% for item in group.items %}
-                <a class="nav-item{% if item.level == 1 %} sub{% endif %}{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.label }}">
-                  {{ crate::icons::icon(item.icon)|safe }}<span class="nav-label">{{ item.label }}</span>
+                <a class="nav-item{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.label }}">
+                  <span class="nav-label">{{ item.label }}</span>
                 </a>
               {% endfor %}
             </div>

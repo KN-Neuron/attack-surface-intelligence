@@ -163,57 +163,20 @@
     searchClear.hidden = searchInput.value.length === 0;
   }
 
+  // The nav always starts pinned on load; the collapsed/expanded choice is
+  // deliberately session-only and is not persisted across a refresh.
   var sidebar = document.getElementById("sidebar");
   var railToggle = document.getElementById("sidebar-toggle");
   if (sidebar && railToggle) {
+    sidebar.classList.add("is-pinned");
+    railToggle.setAttribute("aria-expanded", "true");
+    railToggle.setAttribute("title", "Collapse navigation");
+
     railToggle.addEventListener("click", function () {
       var pinned = sidebar.classList.toggle("is-pinned");
       railToggle.setAttribute("aria-expanded", String(pinned));
       railToggle.classList.toggle("is-active", pinned);
-      railToggle.setAttribute("title", pinned ? "Unpin navigation" : "Pin navigation open");
-    });
-  }
-
-  // ---- module flyout (hamburger) ----------------------------------------------
-  var flyout = document.getElementById("flyout");
-  var scrim = document.getElementById("nav-scrim");
-  var opener = document.getElementById("nav-open");
-  var closer = document.getElementById("flyout-close");
-  var flyoutOpen = false;
-
-  function openFlyout() {
-    if (!flyout) return;
-    flyoutOpen = true;
-    flyout.classList.remove("closing");
-    flyout.classList.add("open");
-    flyout.setAttribute("aria-hidden", "false");
-    if (scrim) { scrim.hidden = false; scrim.classList.add("open"); }
-    if (opener) opener.setAttribute("aria-expanded", "true");
-  }
-
-  function closeFlyout() {
-    if (!flyout) return;
-    flyoutOpen = false;
-    flyout.classList.add("closing");
-    flyout.classList.remove("open");
-    flyout.setAttribute("aria-hidden", "true");
-    if (scrim) scrim.classList.remove("open");
-    if (opener) opener.setAttribute("aria-expanded", "false");
-    window.setTimeout(function () {
-      if (flyoutOpen) return;
-      flyout.classList.remove("closing");
-      if (scrim) scrim.hidden = true;
-    }, 300);
-  }
-
-  if (flyout) {
-    if (opener) opener.addEventListener("click", function () {
-      flyoutOpen ? closeFlyout() : openFlyout();
-    });
-    if (closer) closer.addEventListener("click", closeFlyout);
-    if (scrim) scrim.addEventListener("click", closeFlyout);
-    document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && flyoutOpen) closeFlyout();
+      railToggle.setAttribute("title", pinned ? "Collapse navigation" : "Expand navigation");
     });
   }
 
@@ -258,10 +221,10 @@
   }
 
   // ---- segmented controls -----------------------------------------------------
-  document.querySelectorAll("[data-seg]").forEach(function (group) {
-    group.querySelectorAll("button").forEach(function (btn) {
+  document.querySelectorAll("[data-seg]").forEach(function (segGroup) {
+    segGroup.querySelectorAll("button").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        group.querySelectorAll("button").forEach(function (b) {
+        segGroup.querySelectorAll("button").forEach(function (b) {
           b.classList.toggle("active", b === btn);
         });
       });
@@ -269,8 +232,8 @@
   });
 
   // ---- tab groups -------------------------------------------------------------
-  document.querySelectorAll(".tabs-bar, .ptabs").forEach(function (group) {
-    var buttons = group.querySelectorAll("button");
+  document.querySelectorAll(".tabs-bar, .ptabs").forEach(function (tabGroup) {
+    var buttons = tabGroup.querySelectorAll("button");
     buttons.forEach(function (btn) {
       btn.addEventListener("click", function () {
         buttons.forEach(function (b) { b.classList.toggle("active", b === btn); });
@@ -335,7 +298,7 @@
     });
   }
 
-  // ---- weekly bars animate when visible --------------------------------------
+  // ---- stagger card entrance --------------------------------------------------
   if ("IntersectionObserver" in window) {
     var observer = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
@@ -350,4 +313,5 @@
       observer.observe(card);
     });
   }
+
 })();

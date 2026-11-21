@@ -94,17 +94,15 @@ button {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 12px 0 6px;
+  padding: 0 12px 0 8px;
   position: relative;
   z-index: 70;
 }
 
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 0 0 auto;
-}
+/* left group holds the help affordance at the very top-left of the screen */
+.topbar-left { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+
+.topbar-right { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 
 .icon-btn {
   width: 30px;
@@ -273,13 +271,6 @@ button {
 
 .search-empty strong { color: var(--text-dim); font-weight: 600; }
 
-.topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-}
-
 /* ---------- layout ---------- */
 
 .shell {
@@ -433,118 +424,6 @@ button {
   display: none;
 }
 
-/* ---------- module flyout (hamburger) ---------- */
-
-.nav-scrim {
-  position: fixed;
-  inset: var(--topbar-h) 0 0 0;
-  z-index: 55;
-  background: rgba(3, 6, 11, 0.52);
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.28s ease, visibility 0.28s;
-}
-
-.nav-scrim.open { opacity: 1; visibility: visible; }
-
-.flyout {
-  position: fixed;
-  top: calc(var(--topbar-h) + 8px);
-  left: 8px;
-  bottom: 8px;
-  width: min(760px, calc(100vw - 24px));
-  z-index: 60;
-  display: flex;
-  overflow: hidden;
-  background: #0b1017;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow:
-    0 28px 70px rgba(0, 0, 0, 0.66),
-    0 6px 18px rgba(0, 0, 0, 0.5);
-  transform: translateX(calc(-100% - 20px));
-  opacity: 0;
-  visibility: hidden;
-  will-change: transform, opacity;
-  transition:
-    transform 0.36s cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 0.24s ease,
-    visibility 0.36s;
-}
-
-.flyout.open {
-  transform: none;
-  opacity: 1;
-  visibility: visible;
-}
-
-.flyout.closing {
-  transition:
-    transform 0.26s cubic-bezier(0.4, 0, 1, 1),
-    opacity 0.2s ease,
-    visibility 0.26s;
-}
-
-.flyout-modules {
-  width: 250px;
-  flex: 0 0 250px;
-  border-right: 1px solid var(--border-soft);
-  background: #0a0f16;
-  overflow-y: auto;
-  padding: 14px 10px;
-  scrollbar-width: thin;
-  scrollbar-color: #24313f transparent;
-}
-
-.flyout-head {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: #fff;
-  padding: 2px 8px 12px;
-}
-
-.flyout-head .ico { width: 17px; height: 17px; }
-
-.flyout-catalog {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow-y: auto;
-  padding: 14px 22px 30px;
-  scrollbar-width: thin;
-  scrollbar-color: #24313f transparent;
-}
-
-.flyout .catalog { padding: 0; overflow: visible; }
-
-.flyout .catalog-link {
-  animation: nav-row-in 0.3s cubic-bezier(0.32, 0.72, 0, 1) both;
-}
-
-.flyout.open .catalog-link:nth-child(2) { animation-delay: 0.03s; }
-.flyout.open .catalog-link:nth-child(3) { animation-delay: 0.06s; }
-.flyout.open .catalog-link:nth-child(4) { animation-delay: 0.09s; }
-.flyout.open .catalog-link:nth-child(n + 5) { animation-delay: 0.12s; }
-
-.flyout-close {
-  margin-left: auto;
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius);
-  color: var(--text-mute);
-  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
-}
-
-.flyout-close:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  transform: rotate(90deg);
-}
-
 .nav-group-title {
   display: flex;
   align-items: center;
@@ -604,15 +483,29 @@ button {
 
 .nav-item .ico { flex: 0 0 auto; width: 17px; height: 17px; }
 
-/* rail mode: square icon targets, perfectly centred */
+/* Rail mode keeps the first-level icons (foldable groups and top-level links)
+   and hides nested sub-entries, which carry no icon of their own. */
 
-.sidebar:not(:hover):not(.is-pinned) .nav-item {
-  padding: 9px 0;
-  justify-content: center;
-  gap: 0;
+.sidebar:not(:hover):not(.is-pinned) .nav-group-items,
+.sidebar:not(:hover):not(.is-pinned) .nav-item:not(.root) {
+  display: none;
 }
 
-.sidebar:not(:hover):not(.is-pinned) .nav-item .ico { margin: 0 auto; }
+.sidebar:not(:hover):not(.is-pinned) .nav-group-title,
+.sidebar:not(:hover):not(.is-pinned) .nav-item.root {
+  padding: 11px 0 10px;
+  justify-content: center;
+  gap: 0;
+  margin-left: 8px;
+  margin-right: 8px;
+  /* `width: 100%` plus the side margins would overflow the rail by 16px and
+     shift the icon off centre, while `auto` makes a <button> shrink to its
+     content. Subtracting the margins keeps both row types on one centre line. */
+  width: calc(100% - 16px);
+}
+
+.sidebar:not(:hover):not(.is-pinned) .nav-group-title .ico,
+.sidebar:not(:hover):not(.is-pinned) .nav-item.root .ico { margin: 0 auto; }
 
 .sidebar:not(:hover):not(.is-pinned) .nav-item::before,
 .sidebar:not(:hover):not(.is-pinned) .nav-item .chev {
@@ -634,33 +527,49 @@ button {
 
 .nav-item .chev { margin-left: auto; color: var(--text-mute); transition: color 0.16s ease, transform 0.18s ease; }
 
+/* The row keeps its full height for spacing, but the highlight pill is drawn
+   by ::after inset from the top and bottom, so it reads a little shorter than
+   the row instead of filling it edge to edge. */
+
+.nav-item::after {
+  content: "";
+  position: absolute;
+  inset: 3px 0;
+  border-radius: 5px;
+  background: transparent;
+  pointer-events: none;
+  transition: background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.nav-item > * { position: relative; z-index: 1; }
+
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.055);
   color: #fff;
   transform: translateX(2px);
+}
+
+.nav-item:hover::after {
+  background: rgba(255, 255, 255, 0.055);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.nav-item.active {
+  color: #fff;
+  font-weight: 600;
+}
+
+.nav-item.active::after {
+  background: linear-gradient(90deg, rgba(74, 168, 255, 0.16), rgba(74, 168, 255, 0.04));
+  box-shadow: inset 0 0 0 1px rgba(74, 168, 255, 0.16);
 }
 
 .nav-item:hover::before { height: 46%; background: var(--sidebar-hover); }
 .nav-item:hover .chev { color: var(--text); transform: translateX(2px); }
 
-.nav-item.active {
-  background: linear-gradient(90deg, rgba(74, 168, 255, 0.16), rgba(74, 168, 255, 0.04));
-  color: #fff;
-  font-weight: 600;
-  box-shadow: inset 0 0 0 1px rgba(74, 168, 255, 0.16);
-}
-
 .nav-item.active::before {
   height: 62%;
   background: var(--accent);
   box-shadow: 0 0 10px rgba(74, 168, 255, 0.6);
-}
-
-.nav-item.root {
-  padding-left: 15px;
-  color: var(--text);
-  font-size: 13px;
 }
 
 .sidebar:not(:hover):not(.is-pinned) .sidebar-title {
@@ -674,8 +583,18 @@ button {
   padding-right: 0;
 }
 
-.nav-item.root .ico { color: var(--text-dim); }
-.nav-item.root:hover .ico { color: var(--text); }
+/* Colour policy: every unselected menu row is the same grey; only the active
+   row turns white. That applies to top-level links as well as nested ones. */
+
+.nav-item,
+.nav-item.root {
+  color: var(--text-dim);
+}
+
+.nav-item.active,
+.nav-item.active .nav-label {
+  color: #fff;
+}
 
 .main {
   flex: 1 1 auto;
@@ -693,10 +612,21 @@ button {
 .range-select { width: 128px; }
 .range-select select { height: 31px; }
 
-.nav-item.sub { padding-left: 26px; }
-.sidebar:not(:hover):not(.is-pinned) .nav-item.sub { padding-left: 0; }
-.nav-item.root { padding-left: 10px; font-size: 13px; }
-.sidebar:not(:hover):not(.is-pinned) .nav-item.root { padding-left: 0; }
+/* Every row is 40px tall (5px more than before) so entries breathe.
+   Sub-entries are text-only and line up with the first-level labels:
+   a root label starts at 8 (margin) + 7 (padding) + 15 (icon) + 8 (gap) = 38px,
+   so nested rows use 30px of padding inside the same 8px margin. */
+
+.nav-item { padding: 13px 10px 13px 30px; line-height: 1.5; }
+
+.nav-item.root {
+  padding: 10.5px 10px 10.5px 7px;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.nav-item.root .ico { width: 15px; height: 15px; }
+
 .nav-item .nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .nav-section-label {
@@ -1572,88 +1502,6 @@ button {
 
 .tab-link:hover { color: var(--text); }
 .tab-link.active { color: #fff; border-bottom-color: var(--accent); font-weight: 600; }
-
-/* ---------- experience center menu ---------- */
-
-.menu-page .shell { align-items: stretch; }
-
-.module-list {
-  width: 268px;
-  flex: 0 0 268px;
-  border-right: 1px solid var(--border-soft);
-  overflow-y: auto;
-  padding: 14px 12px;
-  scrollbar-width: thin;
-  scrollbar-color: #24313f transparent;
-}
-
-.module-head {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-  padding: 2px 8px 14px;
-}
-
-.module-head .ico { width: 17px; height: 17px; }
-
-.module-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 10px;
-  border-radius: var(--radius);
-  color: var(--text-dim);
-  font-size: 13px;
-  margin-bottom: 2px;
-  transition: background 0.14s ease, color 0.14s ease;
-}
-
-.module-link:hover { background: var(--sidebar-hover); color: var(--text); }
-.module-link.active { background: var(--sidebar-active); color: #fff; font-weight: 600; }
-.module-link .ico { width: 17px; height: 17px; }
-.module-link .ext-mark { margin-left: auto; color: var(--text-mute); }
-.module-link .ext-mark .ico { width: 12px; height: 12px; }
-
-.catalog {
-  flex: 1 1 auto;
-  overflow-y: auto;
-  padding: 18px 28px 40px;
-  scrollbar-width: thin;
-  scrollbar-color: #24313f transparent;
-}
-
-.catalog-head {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 14.5px;
-  font-weight: 600;
-  margin: 0 0 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border-soft);
-}
-
-.catalog-head .ico { width: 16px; height: 16px; color: var(--text-dim); }
-
-.catalog-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 4px 26px;
-  margin-bottom: 26px;
-}
-
-.catalog-link {
-  display: block;
-  padding: 7px 0;
-  color: var(--text-dim);
-  font-size: 13px;
-  transition: color 0.14s ease, padding-left 0.14s ease;
-}
-
-.catalog-link:hover { color: var(--accent); padding-left: 4px; }
 
 /* ---------- responsive ---------- */
 

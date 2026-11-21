@@ -9,21 +9,18 @@ use serde::Deserialize;
 use crate::mock::{self, LogRow, StaticIp, SummarySlide, TopUser, UrlCategory};
 use crate::nav::{self, NavGroup};
 
-const PRODUCT: &str = "Experience Center";
+const PRODUCT: &str = "Attack Surface Intelligence";
 
 pub struct NavItemView {
     pub label: &'static str,
     pub href: &'static str,
     pub icon: &'static str,
-    pub level: u8,
-    pub chevron: bool,
     pub active: bool,
 }
 
 pub struct NavGroupView {
     pub title: &'static str,
     pub icon: &'static str,
-    pub collapsible: bool,
     pub items: Vec<NavItemView>,
 }
 
@@ -32,59 +29,18 @@ pub struct Shell {
     pub section: &'static str,
     pub section_icon: &'static str,
     pub groups: Vec<NavGroupView>,
-    pub modules: Vec<ModuleEntry>,
-    pub catalog: Vec<CatalogSection>,
 }
 
-fn module_entries() -> Vec<ModuleEntry> {
-    nav::modules()
-        .into_iter()
-        .map(|m| ModuleEntry {
-            label: m.label,
-            icon: m.icon,
-            href: m.href,
-            external: m.external,
-            active: m.active,
-        })
-        .collect()
-}
+/// Builds the shared shell with the single application navigation.
+fn build_shell(active_path: &str) -> Shell {
+    let def = nav::main_nav();
 
-fn catalog_sections() -> Vec<CatalogSection> {
-    let section = |title, icon, links| CatalogSection { title, icon, links };
-    let link = |label, href| CatalogLink { label, href };
-
-    vec![
-        section("Internet & SaaS", "globe", vec![
-            link("Web Insights", "/data-explorer/web-insights"),
-            link("Tunnel Insights", "/data-explorer/tunnel-insights"),
-            link("Mobile Insights", "/data-explorer/mobile-insights"),
-            link("SaaS Security Insights", "/data-explorer/saas-security-insights"),
-            link("Firewall Insights", "/data-explorer/firewall-insights"),
-            link("Sandbox Verdict Insights", "/data-explorer/sandbox-verdict-insights"),
-            link("DNS Insights", "/data-explorer/dns-insights"),
-        ]),
-        section("Log Streaming", "file-text", vec![
-            link("Nanolag Streaming Service", "/data-explorer/log-streaming/nanolog"),
-            link("Authentication Service Log Streaming", "/data-explorer/log-streaming/auth-service"),
-        ]),
-        section("Audit Logs", "file-text", vec![
-            link("Experience Center", "/data-explorer/audit-logs/experience-center"),
-            link("Digital Experience", "/data-explorer/audit-logs/digital-experience"),
-            link("Authentication Service", "/data-explorer/audit-logs/authentication-service"),
-            link("Mobile Administration", "/data-explorer/audit-logs/mobile-administration"),
-            link("Internet & SaaS", "/data-explorer/audit-logs/internet-saas"),
-        ]),
-    ]
-}
-
-fn build_shell(def: nav::SidebarDef, active_path: &str) -> Shell {
     let groups = def
         .groups
         .iter()
         .map(|g: &NavGroup| NavGroupView {
             title: g.title,
             icon: g.icon,
-            collapsible: g.collapsible,
             items: g
                 .items
                 .iter()
@@ -92,8 +48,6 @@ fn build_shell(def: nav::SidebarDef, active_path: &str) -> Shell {
                     label: i.label,
                     href: i.href,
                     icon: i.icon,
-                    level: i.level,
-                    chevron: i.chevron,
                     active: i.href == active_path,
                 })
                 .collect(),
@@ -105,16 +59,14 @@ fn build_shell(def: nav::SidebarDef, active_path: &str) -> Shell {
         section: def.title,
         section_icon: def.icon,
         groups,
-        modules: module_entries(),
-        catalog: catalog_sections(),
     }
 }
 
 // ---------------------------------------------------------------- templates
 
 #[derive(Template)]
-#[template(path = "pages/web_browsing.html")]
-struct WebBrowsingPage {
+#[template(path = "pages/dashboard.html")]
+struct DashboardPage {
     shell: Shell,
     title: &'static str,
     trend_chart: mock::Chart,
@@ -133,8 +85,17 @@ pub struct LegendItem {
 }
 
 #[derive(Template)]
-#[template(path = "pages/web_insights.html")]
-struct WebInsightsPage {
+#[template(path = "pages/host_management.html")]
+struct HostManagementPage {
+    shell: Shell,
+    title: &'static str,
+    ips: Vec<StaticIp>,
+    gre_count: usize,
+}
+
+#[derive(Template)]
+#[template(path = "pages/log_center.html")]
+struct LogCenterPage {
     shell: Shell,
     title: &'static str,
     rows: Vec<LogRow>,
@@ -145,52 +106,15 @@ struct WebInsightsPage {
 }
 
 #[derive(Template)]
-#[template(path = "pages/static_ips.html")]
-struct StaticIpsPage {
-    shell: Shell,
-    title: &'static str,
-    ips: Vec<StaticIp>,
-    gre_count: usize,
-}
-
-#[derive(Template)]
 #[template(path = "pages/stub.html")]
 struct StubPage {
     shell: Shell,
-    title: String,
-    heading: &'static str,
-    breadcrumb: String,
+    title: &'static str,
+    breadcrumb: &'static str,
     icon: &'static str,
 }
 
-#[derive(Template)]
-#[template(path = "pages/menu.html")]
-struct MenuPage {
-    product: &'static str,
-    modules: Vec<ModuleEntry>,
-    catalog: Vec<CatalogSection>,
-}
-
-pub struct ModuleEntry {
-    pub label: &'static str,
-    pub icon: &'static str,
-    pub href: &'static str,
-    pub external: bool,
-    pub active: bool,
-}
-
-pub struct CatalogSection {
-    pub title: &'static str,
-    pub icon: &'static str,
-    pub links: Vec<CatalogLink>,
-}
-
-pub struct CatalogLink {
-    pub label: &'static str,
-    pub href: &'static str,
-}
-
-// ---------------------------------------------------------------- handlers
+// ---------------------------------------------------------------- shared pages
 
 fn legend(series: &[mock::Series]) -> Vec<LegendItem> {
     series
@@ -203,19 +127,14 @@ fn render<T: Template>(page: &T) -> Html<String> {
     Html(page.render().unwrap_or_else(|e| error_page(&e.to_string())))
 }
 
-pub async fn root() -> Redirect {
-    Redirect::permanent("/internet-access/dashboards/web-browsing")
-}
-
-pub async fn web_browsing() -> Html<String> {
+/// Every dashboard route renders this same dashboard, differing only in the
+/// page title and which nav entry is highlighted.
+fn dashboard_page(title: &'static str, path: &str) -> Html<String> {
     let trend = mock::trend_series();
     let protocols = mock::protocol_series();
-    let page = WebBrowsingPage {
-        shell: build_shell(
-            nav::internet_access(),
-            "/internet-access/dashboards/web-browsing",
-        ),
-        title: "Web Browsing",
+    let page = DashboardPage {
+        shell: build_shell(path),
+        title,
         trend_chart: mock::line_chart(&trend, &mock::TREND_LABELS, 2000.0, 500.0),
         protocol_chart: mock::line_chart(&protocols, &mock::TREND_LABELS, 2000.0, 500.0),
         trend_legend: legend(&trend),
@@ -228,12 +147,24 @@ pub async fn web_browsing() -> Html<String> {
     render(&page)
 }
 
-pub async fn web_insights() -> Html<String> {
+/// Every host-management route renders this same IP management page.
+fn host_management_page(title: &'static str, path: &str) -> Html<String> {
+    let page = HostManagementPage {
+        shell: build_shell(path),
+        title,
+        ips: mock::static_ips(),
+        gre_count: 0,
+    };
+    render(&page)
+}
+
+/// Every Log Center route renders this same log page.
+fn log_center_page(title: &'static str, path: &str) -> Html<String> {
     let total = 2550usize;
     let page_size = 100usize;
-    let page = WebInsightsPage {
-        shell: build_shell(nav::data_explorer(), "/data-explorer/web-insights"),
-        title: "Insights Logs",
+    let page = LogCenterPage {
+        shell: build_shell(path),
+        title,
         rows: mock::log_rows(page_size),
         total,
         page_size,
@@ -243,60 +174,64 @@ pub async fn web_insights() -> Html<String> {
     render(&page)
 }
 
-pub async fn static_ips() -> Html<String> {
-    let page = StaticIpsPage {
-        shell: build_shell(
-            nav::infrastructure(),
-            "/infrastructure/location-management/static-ips",
-        ),
-        title: "Static IPs & GRE Tunnels",
-        ips: mock::static_ips(),
-        gre_count: 0,
+fn stub_page(title: &'static str, path: &str, icon: &'static str, breadcrumb: &'static str) -> Html<String> {
+    let page = StubPage {
+        shell: build_shell(path),
+        title,
+        breadcrumb,
+        icon,
     };
     render(&page)
 }
 
-pub async fn menu() -> Html<String> {
-    let modules = module_entries();
-    let catalog = catalog_sections();
+// ---------------------------------------------------------------- routes
 
-    render(&MenuPage { product: PRODUCT, modules, catalog })
+pub async fn root() -> Redirect {
+    Redirect::permanent(nav::SCAN_SUMMARY)
 }
 
-pub async fn stub(uri: axum::http::Uri) -> Response {
-    let path = uri.path().to_string();
-    let (def, icon) = if path.starts_with("/data-explorer") {
-        (nav::data_explorer(), "database")
-    } else if path.starts_with("/infrastructure") {
-        (nav::infrastructure(), "server")
-    } else {
-        (nav::internet_access(), "globe")
-    };
-
-    let label = nav_label(&path).unwrap_or("Overview");
-    let page = StubPage {
-        shell: build_shell(def, &path),
-        title: label.to_string(),
-        heading: label,
-        breadcrumb: path.trim_start_matches('/').replace('/', " / ").to_uppercase(),
-        icon,
-    };
-    let mut response = render(&page).into_response();
-    *response.status_mut() = axum::http::StatusCode::NOT_FOUND;
-    response
+pub async fn scan_summary() -> Html<String> {
+    dashboard_page("Scan summary", nav::SCAN_SUMMARY)
 }
 
-fn nav_label(path: &str) -> Option<&'static str> {
-    for def in [nav::internet_access(), nav::data_explorer(), nav::infrastructure()] {
-        for group in def.groups {
-            for item in group.items {
-                if item.href == path {
-                    return Some(item.label);
-                }
-            }
-        }
-    }
-    None
+pub async fn technologies_used() -> Html<String> {
+    dashboard_page("Technologies used", nav::TECHNOLOGIES)
+}
+
+pub async fn versions_used() -> Html<String> {
+    dashboard_page("Versions used", nav::VERSIONS)
+}
+
+pub async fn vulnerable_versions() -> Html<String> {
+    dashboard_page("Vulnerable versions", nav::VULNERABLE)
+}
+
+pub async fn ip_ranges() -> Html<String> {
+    host_management_page("IP ranges", nav::IP_RANGES)
+}
+
+pub async fn host_groups() -> Html<String> {
+    host_management_page("Host groups", nav::HOST_GROUPS)
+}
+
+pub async fn scanning_policies() -> Html<String> {
+    stub_page("Scanning Policies", nav::SCANNING_POLICIES, "shield", "SCANNING POLICIES")
+}
+
+pub async fn scan_history() -> Html<String> {
+    log_center_page("Scan History", nav::SCAN_HISTORY)
+}
+
+pub async fn scan_compare() -> Html<String> {
+    log_center_page("Scan Compare", nav::SCAN_COMPARE)
+}
+
+pub async fn admin_management() -> Html<String> {
+    stub_page("Admin management", nav::ADMIN_MANAGEMENT, "user-cog", "ADMIN MANAGEMENT")
+}
+
+pub async fn settings() -> Html<String> {
+    stub_page("Settings", nav::SETTINGS, "settings", "SETTINGS")
 }
 
 fn error_page(msg: &str) -> String {
@@ -320,7 +255,7 @@ pub async fn logs_feed(Query(q): Query<LogQuery>) -> Response {
                 (header::CONTENT_TYPE, "text/csv; charset=utf-8"),
                 (
                     header::CONTENT_DISPOSITION,
-                    "attachment; filename=\"web-insights.csv\"",
+                    "attachment; filename=\"scan-history.csv\"",
                 ),
             ],
             mock::logs_csv(),
@@ -347,8 +282,8 @@ pub struct SearchHit {
     pub svg: &'static str,
 }
 
-/// Lower-cases text and folds separators (`_`, `-`, `/`, `&`) into spaces, so
-/// "SSL/TLS Inspection" indexes the same words a user would type.
+/// Lower-cases text and folds separators into spaces so "scan_history" and
+/// "scan-history" index the same words a user would type.
 fn normalize(text: &str) -> String {
     text.to_lowercase()
         .replace(['_', '-', '/', '&'], " ")
@@ -416,7 +351,7 @@ pub async fn static_ips_feed(Query(q): Query<IpQuery>) -> Response {
                 (header::CONTENT_TYPE, "text/csv; charset=utf-8"),
                 (
                     header::CONTENT_DISPOSITION,
-                    "attachment; filename=\"static-ips.csv\"",
+                    "attachment; filename=\"ip-ranges.csv\"",
                 ),
             ],
             mock::static_ips_csv(),
