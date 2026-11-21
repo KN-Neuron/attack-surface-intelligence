@@ -97,6 +97,15 @@
           </div>
         </div>
 
+        <div class="field">
+          <label class="field-label" for="policy-type">Scan type</label>
+          <select id="policy-type">
+            <option value="full">Full scan test (httpx)</option>
+            <option value="reachability">Reachability (masscan)</option>
+          </select>
+          <p class="field-hint" id="policy-type-hint"></p>
+        </div>
+
         <div class="criteria-panel target-picker">
           <div class="criteria-head">
             <span class="field-label">Targets</span>
@@ -177,14 +186,6 @@
         <div class="criteria-panel">
           <div class="criteria-head">
             <span class="field-label">Schedule</span>
-          </div>
-          <div class="field">
-            <label class="field-label" for="policy-type">Scan type</label>
-            <select id="policy-type">
-              <option value="full">Full scan test (httpx)</option>
-              <option value="reachability">Reachability (masscan)</option>
-            </select>
-            <p class="field-hint" id="policy-type-hint"></p>
           </div>
           <div class="schedule-grid">
             <div class="field">

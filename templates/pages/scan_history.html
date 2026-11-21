@@ -36,7 +36,7 @@
             <th class="right">Vulns</th>
             <th class="right">Alerts</th>
             <th>Status</th>
-            <th class="right w-actions">Details</th>
+            <th class="right w-actions"><span class="visually-hidden">Details</span></th>
           </tr>
         </thead>
         <tbody id="history-body">
@@ -50,7 +50,7 @@
             <td>{{ scan.started }}</td>
             <td>{{ scan.finished }}</td>
             <td>{{ scan.duration }}</td>
-            <td><span class="mono">{{ scan.target }}</span></td>
+            <td class="target-cell" title="{{ scan.target }}"><span class="mono">{{ scan.target }}</span></td>
             <td class="right">{{ scan.alive }}</td>
             <td class="right">{{ scan.down }}</td>
             <td class="right">{{ scan.services }}</td>
@@ -72,7 +72,7 @@
           </tr>
           {% endfor %}
           {% if scans.is_empty() %}
-          <tr><td colspan="14" class="empty-cell">No scans recorded yet. Start one from Scan Management.</td></tr>
+          <tr><td colspan="14" class="empty-cell">No scans yet.</td></tr>
           {% endif %}
         </tbody>
       </table>
