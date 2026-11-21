@@ -1,0 +1,138 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * "Nightshade" palette, shared with the main app (backend/static/app.css).
+ * Surfaces -> ink-violet scale, brand -> violet (top bar, primary buttons),
+ * accent -> light violet (interactive text on dark), charts -> violet-led set.
+ */
+@theme {
+    --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, monospace;
+
+    --color-zs-deep: #07060f;
+    --color-zs-bg: #0b0a12;
+    --color-zs-side: #0e0d17;
+    --color-zs-field: #0f0e1a;
+    --color-zs-surface: #131220;
+    --color-zs-raised: #181628;
+    --color-zs-hover: #1e1b32;
+    --color-zs-active: #2a2450;
+    --color-zs-border: #25223a;
+    --color-zs-border-strong: #343052;
+
+    --color-zs-text: #ece9f7;
+    --color-zs-muted: #a09bb8;
+    --color-zs-dim: #736e8d;
+
+    --color-zs-accent: #a78bfa;
+    --color-zs-accent-strong: #c4b5fd;
+    --color-zs-accent-ink: #140f2b;
+    --color-zs-link: #b7a3ff;
+
+    --color-zs-brand: #5b3fd9;
+    --color-zs-brand-hi: #6e52ea;
+
+    --color-zs-danger: #ff6b7d;
+    --color-zs-success: #5fd3a0;
+    --color-zs-warn: #f2c14e;
+
+    --color-zs-chart-1: #8b6cff;
+    --color-zs-chart-2: #2dd4bf;
+    --color-zs-chart-3: #f2c14e;
+    --color-zs-chart-4: #f472b6;
+    --color-zs-chart-5: #ff9a62;
+    --color-zs-bar: #a78bfa;
+
+    --shadow-zs-drawer: -12px 0 40px rgb(0 0 0 / 0.45);
+}
+
+:root {
+    color-scheme: dark;
+}
+
+html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+}
+
+body {
+    background: var(--color-zs-bg);
+    color: var(--color-zs-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+    background: rgb(167 139 250 / 0.35);
+}
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #312d4a transparent;
+}
+
+/* ---------- Prose for documentation pages ---------- */
+.prose-zs {
+    color: color-mix(in srgb, var(--color-zs-text) 88%, transparent);
+    font-size: 15.5px;
+    line-height: 1.75;
+}
+.prose-zs > * + * { margin-top: 1rem; }
+.prose-zs p { margin: 0; }
+.prose-zs a:not([class]) { color: var(--color-zs-link); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgb(183 163 255 / 0.4); }
+.prose-zs a:not([class]):hover { color: var(--color-zs-accent-strong); text-decoration-color: currentColor; }
+.prose-zs strong { color: var(--color-zs-text); font-weight: 600; }
+.prose-zs ul, .prose-zs ol { padding-left: 1.4rem; }
+.prose-zs ul { list-style: disc; }
+.prose-zs ol { list-style: decimal; }
+.prose-zs li { margin: 0.35rem 0; padding-left: 0.2rem; }
+.prose-zs li::marker { color: var(--color-zs-dim); }
+.prose-zs code:not(pre code) {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    padding: 0.15em 0.4em;
+    border-radius: 6px;
+    background: var(--color-zs-raised);
+    border: 1px solid var(--color-zs-border);
+    color: var(--color-zs-accent-strong);
+}
+.prose-zs kbd {
+    font-family: var(--font-mono);
+    font-size: 0.8em;
+    padding: 0.1em 0.45em;
+    border-radius: 5px;
+    border: 1px solid var(--color-zs-border-strong);
+    border-bottom-width: 2px;
+    background: var(--color-zs-surface);
+}
+.prose-zs h2 { margin-top: 3rem; }
+.prose-zs h3 { margin-top: 2rem; }
+
+/* ---------- Radix animations (accordion / drawer) ---------- */
+@keyframes zs-accordion-down { from { height: 0 } to { height: var(--radix-accordion-content-height) } }
+@keyframes zs-accordion-up { from { height: var(--radix-accordion-content-height) } to { height: 0 } }
+@keyframes zs-fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes zs-fade-out { from { opacity: 1 } to { opacity: 0 } }
+@keyframes zs-slide-in-right { from { transform: translateX(100%) } to { transform: translateX(0) } }
+@keyframes zs-slide-out-right { from { transform: translateX(0) } to { transform: translateX(100%) } }
+@keyframes zs-slide-in-left { from { transform: translateX(-100%) } to { transform: translateX(0) } }
+@keyframes zs-slide-out-left { from { transform: translateX(0) } to { transform: translateX(-100%) } }
+
+@theme {
+    --animate-zs-accordion-down: zs-accordion-down 0.2s ease-out;
+    --animate-zs-accordion-up: zs-accordion-up 0.2s ease-out;
+    --animate-zs-fade-in: zs-fade-in 0.15s ease-out;
+    --animate-zs-fade-out: zs-fade-out 0.15s ease-in;
+    --animate-zs-slide-in-right: zs-slide-in-right 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+    --animate-zs-slide-out-right: zs-slide-out-right 0.2s ease-in;
+    --animate-zs-slide-in-left: zs-slide-in-left 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+    --animate-zs-slide-out-left: zs-slide-out-left 0.2s ease-in;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
