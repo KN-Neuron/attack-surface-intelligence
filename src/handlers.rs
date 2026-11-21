@@ -12,7 +12,7 @@ use crate::auth::{self, CurrentAdmin, PERMISSION_PAGES, PermissionPage};
 use crate::db;
 use crate::mock::{
     DataEvent, DetectedVuln, PopularService, PopularTech, ScanRow, ServiceSlice, TechRow,
-    TimelinePoint, UpcomingScan, VulnDbRow,
+    TimelinePoint, UpcomingScan,
 };
 use crate::nav::{self, NavGroup};
 use crate::state::{
@@ -319,9 +319,11 @@ pub async fn technologies_used(
 struct VulnerablePage {
     shell: Shell,
     title: &'static str,
-    db_rows: Vec<VulnDbRow>,
     detected: Vec<DetectedVuln>,
-    total_hosts: usize,
+    unique_hosts: usize,
+    critical: usize,
+    high: usize,
+    medium: usize,
 }
 
 pub async fn vulnerable_versions(
@@ -329,13 +331,21 @@ pub async fn vulnerable_versions(
     Extension(admin): Extension<CurrentAdmin>,
 ) -> Html<String> {
     let detected: Vec<DetectedVuln> = db::get_data(&pool, "detected_vulns").await;
-    let total_hosts = detected.iter().map(|d| d.hosts.len()).sum();
+    let unique_hosts = detected
+        .iter()
+        .flat_map(|d| d.hosts.iter())
+        .collect::<std::collections::HashSet<_>>()
+        .len();
+    let count = |severity: &str| detected.iter().filter(|d| d.severity == severity).count();
+    let (critical, high, medium) = (count("Critical"), count("High"), count("Medium"));
     let page = VulnerablePage {
         shell: build_shell(nav::VULNERABLE, &admin),
         title: "Vulnerable versions",
-        db_rows: db::get_data(&pool, "vulnerabilities").await,
         detected,
-        total_hosts,
+        unique_hosts,
+        critical,
+        high,
+        medium,
     };
     render(&page)
 }

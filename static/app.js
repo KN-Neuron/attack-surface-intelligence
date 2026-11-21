@@ -316,13 +316,14 @@
       return;
     }
 
-    var state = { page: 1, size: sizeSel ? Number(sizeSel.value) || 10 : 10, filter: "" };
+    var state = { page: 1, size: sizeSel ? Number(sizeSel.value) || 10 : 10, filter: "", sev: "" };
 
     function matches(row) {
       if (rangeSel) {
         var days = Number(rangeSel.value);
         if (days && Number(row.getAttribute("data-days")) > days) return false;
       }
+      if (state.sev && row.getAttribute("data-sev") !== state.sev) return false;
       if (state.filter && row.textContent.toLowerCase().indexOf(state.filter) === -1) return false;
       return true;
     }
@@ -372,6 +373,23 @@
         render();
       });
     }
+    // Optional severity tiles: `[data-sev-filter]` buttons filter rows by `data-sev`.
+    var sevTiles = table.id === "vuln-table"
+      ? Array.prototype.slice.call(document.querySelectorAll("[data-sev-filter]"))
+      : [];
+    sevTiles.forEach(function (tile) {
+      tile.addEventListener("click", function () {
+        var value = tile.getAttribute("data-sev-filter");
+        state.sev = state.sev === value ? "" : value;
+        sevTiles.forEach(function (t) {
+          var on = t.getAttribute("data-sev-filter") === state.sev;
+          t.classList.toggle("is-on", on);
+          t.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+        state.page = 1;
+        render();
+      });
+    });
     if (firstBtn) firstBtn.addEventListener("click", function () { state.page = 1; render(); });
     if (prevBtn) prevBtn.addEventListener("click", function () { state.page -= 1; render(); });
     if (nextBtn) nextBtn.addEventListener("click", function () { state.page += 1; render(); });
