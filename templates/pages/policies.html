@@ -4,7 +4,7 @@
 <div class="page-head">
   <h1>{{ title }}</h1>
   <span class="spacer"></span>
-  <button class="btn primary" type="button" data-open-modal="policy-modal" data-policy-add>{{ crate::icons::icon("plus")|safe }} Add policy</button>
+  <button class="btn primary" type="button" data-open-modal="policy-modal" data-policy-add>{{ crate::icons::icon("plus")|safe }} Add scan</button>
 </div>
 
 <div class="page-body">
@@ -12,7 +12,7 @@
     <div class="card-head">
       <h2>Scan scheduling</h2>
       <span class="spacer"></span>
-      <span class="card-note">{{ policies.len() }} schedules</span>
+      <span class="card-note">{{ policies.len() }} scans</span>
     </div>
     <div class="tbl-wrap">
       <table class="tbl">
@@ -20,7 +20,8 @@
           <tr>
             <th class="w-narrow">Order</th>
             <th>Name</th>
-            <th>Criteria</th>
+            <th>Targets</th>
+            <th>Schedule</th>
             <th class="w-status">Status</th>
             <th class="right w-actions">Actions</th>
           </tr>
@@ -32,9 +33,18 @@
             <td class="strong-cell">{{ policy.name }}</td>
             <td>
               <div class="criteria-chips">
-                {% for c in policy.criteria %}
-                <span class="criteria-chip"><span class="criteria-kind">{{ c.kind }}</span>{{ c.value }}</span>
+                {% for c in policy.targets() %}
+                <span class="criteria-chip"><span class="criteria-kind">{{ c.display_kind() }}</span>{{ c.value }}</span>
                 {% endfor %}
+                {% if policy.targets().is_empty() %}<span class="muted">—</span>{% endif %}
+              </div>
+            </td>
+            <td>
+              <div class="criteria-chips">
+                {% for c in policy.schedule() %}
+                <span class="criteria-chip"><span class="criteria-kind">{{ c.display_kind() }}</span>{{ c.display_value() }}</span>
+                {% endfor %}
+                {% if policy.schedule().is_empty() %}<span class="muted">—</span>{% endif %}
               </div>
             </td>
             <td>
@@ -49,7 +59,7 @@
           </tr>
           {% endfor %}
           {% if policies.is_empty() %}
-          <tr><td colspan="5" class="empty-cell">No scan schedules yet. Add one to get started.</td></tr>
+          <tr><td colspan="6" class="empty-cell">No scans scheduled yet. Add one to get started.</td></tr>
           {% endif %}
         </tbody>
       </table>
@@ -61,9 +71,9 @@
 
 {% block modals %}
 <div class="modal-backdrop" id="policy-modal" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="policy-modal-title">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="policy-modal-title">
     <div class="modal-head">
-      <h2 id="policy-modal-title">Add scan schedule</h2>
+      <h2 id="policy-modal-title">New scan</h2>
       <button class="icon-btn subtle" type="button" data-close-modal aria-label="Close">{{ crate::icons::icon("close")|safe }}</button>
     </div>
     <form id="policy-form">
@@ -89,13 +99,111 @@
           </div>
         </div>
 
+        <div class="criteria-panel target-picker">
+          <div class="criteria-head">
+            <span class="field-label">Targets</span>
+            <span class="card-note" data-target-count>0 selected</span>
+          </div>
+          <p class="field-hint">Pick targets from host management. Groups scan everything they contain.</p>
+
+          <div class="target-group">
+            <span class="field-label">Host groups</span>
+            <div class="picker-search">
+              <input type="search" data-filter-input placeholder="Filter groups..." aria-label="Filter host groups">
+            </div>
+            <div class="check-list scroll" data-filter-list>
+              {% for group in groups %}
+              <label class="check-row" data-filter-item>
+                <input type="checkbox" name="targets" value="{{ group.name }}" data-picker-kind="host group">
+                <span class="check-box">{{ crate::icons::icon("check")|safe }}</span>
+                <span class="check-label">{{ group.name }}</span>
+                <span class="check-meta">{{ group.targets }} target(s)</span>
+              </label>
+              {% endfor %}
+            </div>
+            {% if groups.is_empty() %}<p class="field-hint">No host groups yet. Create one in Host management.</p>{% endif %}
+          </div>
+
+          <div class="target-group">
+            <span class="field-label">IP addresses</span>
+            <div class="picker-search">
+              <input type="search" data-filter-input placeholder="Filter IPs..." aria-label="Filter IP addresses">
+            </div>
+            <div class="check-list scroll" data-filter-list>
+              {% for ip in ips %}
+              <label class="check-row" data-filter-item>
+                <input type="checkbox" name="targets" value="{{ ip }}" data-picker-kind="ip address">
+                <span class="check-box">{{ crate::icons::icon("check")|safe }}</span>
+                <span class="check-label mono">{{ ip }}</span>
+              </label>
+              {% endfor %}
+            </div>
+            {% if ips.is_empty() %}<p class="field-hint">No IP addresses in the inventory yet.</p>{% endif %}
+          </div>
+
+          <div class="target-group">
+            <span class="field-label">IP ranges</span>
+            <div class="picker-search">
+              <input type="search" data-filter-input placeholder="Filter ranges..." aria-label="Filter IP ranges">
+            </div>
+            <div class="check-list scroll" data-filter-list>
+              {% for range in ranges %}
+              <label class="check-row" data-filter-item>
+                <input type="checkbox" name="targets" value="{{ range }}" data-picker-kind="ip range">
+                <span class="check-box">{{ crate::icons::icon("check")|safe }}</span>
+                <span class="check-label mono">{{ range }}</span>
+              </label>
+              {% endfor %}
+            </div>
+            {% if ranges.is_empty() %}<p class="field-hint">No IP ranges in the inventory yet.</p>{% endif %}
+          </div>
+
+          <div class="target-group">
+            <span class="field-label">FQDNs</span>
+            <div class="picker-search">
+              <input type="search" data-filter-input placeholder="Filter FQDNs..." aria-label="Filter FQDNs">
+            </div>
+            <div class="check-list scroll" data-filter-list>
+              {% for fqdn in fqdns %}
+              <label class="check-row" data-filter-item>
+                <input type="checkbox" name="targets" value="{{ fqdn }}" data-picker-kind="fqdn">
+                <span class="check-box">{{ crate::icons::icon("check")|safe }}</span>
+                <span class="check-label mono">{{ fqdn }}</span>
+              </label>
+              {% endfor %}
+            </div>
+            {% if fqdns.is_empty() %}<p class="field-hint">No FQDNs in the inventory yet.</p>{% endif %}
+          </div>
+        </div>
+
         <div class="criteria-panel">
           <div class="criteria-head">
-            <span class="field-label">Criteria</span>
-            <button class="add-criterion" type="button" data-add-criterion>{{ crate::icons::icon("plus")|safe }} Add criterion</button>
+            <span class="field-label">Schedule</span>
           </div>
-          <div id="criteria-list" class="criteria-list"></div>
-          <p class="field-hint" id="criteria-empty">No criteria yet. Add at least one to define what this schedule scans.</p>
+          <div class="schedule-grid">
+            <div class="field">
+              <label class="field-label" for="policy-frequency">Frequency</label>
+              <select id="policy-frequency">
+                <option value="Daily">Daily</option>
+                <option value="Weekly">Weekly</option>
+                <option value="Monthly">Monthly</option>
+                <option value="On demand">On demand</option>
+              </select>
+            </div>
+            <div class="field" id="policy-day-field">
+              <label class="field-label" for="policy-day">Day</label>
+              <select id="policy-day"></select>
+            </div>
+            <div class="field field-time" id="policy-hour-field">
+              <label class="field-label" for="policy-hour">Hour</label>
+              <select id="policy-hour"></select>
+            </div>
+            <div class="field field-time" id="policy-minute-field">
+              <label class="field-label" for="policy-minute">Minute</label>
+              <select id="policy-minute"></select>
+            </div>
+          </div>
+          <p class="field-hint" id="policy-schedule-hint"></p>
         </div>
       </div>
       <div class="modal-foot">
@@ -105,6 +213,5 @@
     </form>
   </div>
 </div>
-<script type="application/json" id="policy-options">{{ options_json|safe }}</script>
 <script type="application/json" id="policy-data">{{ policies_json|safe }}</script>
 {% endblock %}

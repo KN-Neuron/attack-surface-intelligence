@@ -165,7 +165,7 @@ async fn seed(pool: &PgPool) -> anyhow::Result<()> {
             1,
             vec![
                 Criterion { kind: "host group".into(), value: "Perimeter DMZ".into() },
-                Criterion { kind: "when".into(), value: "Every day at 01:00".into() },
+                Criterion { kind: "when".into(), value: "every 01:00".into() },
                 Criterion { kind: "frequency".into(), value: "Daily".into() },
             ],
             true,
@@ -176,8 +176,8 @@ async fn seed(pool: &PgPool) -> anyhow::Result<()> {
             "Weekly internal audit",
             2,
             vec![
-                Criterion { kind: "ip to scan".into(), value: "10.0.0.0/24".into() },
-                Criterion { kind: "when".into(), value: "Sundays at 22:00".into() },
+                Criterion { kind: "ip range".into(), value: "10.0.0.0/24".into() },
+                Criterion { kind: "when".into(), value: "sun 22:00".into() },
                 Criterion { kind: "frequency".into(), value: "Weekly".into() },
             ],
             true,
@@ -519,6 +519,43 @@ pub async fn create_group(
     .await
     .ok()?;
     Some(row_to_group(&row))
+}
+
+pub async fn update_group(
+    pool: &PgPool,
+    id: i64,
+    name: String,
+    ips: Vec<String>,
+    ranges: Vec<String>,
+    fqdns: Vec<String>,
+    tags: Vec<String>,
+) -> Option<HostGroup> {
+    let row = sqlx::query(
+        "UPDATE host_groups
+         SET name = $2, ips = $3, ranges = $4, fqdns = $5, tags = $6
+         WHERE id = $1
+         RETURNING id, name, ips, ranges, fqdns, tags",
+    )
+    .bind(id)
+    .bind(name)
+    .bind(serde_json::to_value(ips).unwrap_or(Value::Array(vec![])))
+    .bind(serde_json::to_value(ranges).unwrap_or(Value::Array(vec![])))
+    .bind(serde_json::to_value(fqdns).unwrap_or(Value::Array(vec![])))
+    .bind(serde_json::to_value(tags).unwrap_or(Value::Array(vec![])))
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()?;
+    Some(row_to_group(&row))
+}
+
+pub async fn delete_group(pool: &PgPool, id: i64) -> bool {
+    sqlx::query("DELETE FROM host_groups WHERE id = $1")
+        .bind(id)
+        .execute(pool)
+        .await
+        .map(|r| r.rows_affected() > 0)
+        .unwrap_or(false)
 }
 
 // ---------------------------------------------------------------- host inventory
@@ -905,14 +942,6 @@ pub async fn delete_host_range(pool: &PgPool, id: i64) -> bool {
 
 pub async fn delete_host_fqdn(pool: &PgPool, id: i64) -> bool {
     delete_host_entry(pool, "host_fqdns", "fqdn", "fqdns", id).await
-}
-
-/// CIDR blocks as scan-target strings, used to populate policy options.
-pub async fn range_cidrs(pool: &PgPool) -> Vec<String> {
-    sqlx::query_scalar("SELECT cidr FROM host_ranges ORDER BY id")
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default()
 }
 
 /// A coarse, display-oriented address count for a CIDR block.

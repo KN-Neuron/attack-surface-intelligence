@@ -16,7 +16,7 @@
     <button class="btn primary" type="button" data-tab-show="ips" data-open-modal="ip-add-modal">{{ crate::icons::icon("plus")|safe }} Add IPs</button>
     <button class="btn primary" type="button" data-tab-show="ranges" data-open-modal="range-add-modal" hidden>{{ crate::icons::icon("plus")|safe }} Add IP range</button>
     <button class="btn primary" type="button" data-tab-show="fqdns" data-open-modal="fqdn-add-modal" hidden>{{ crate::icons::icon("plus")|safe }} Add FQDN</button>
-    <button class="btn primary" type="button" data-tab-show="groups" data-open-modal="group-add-modal" hidden>{{ crate::icons::icon("plus")|safe }} New group</button>
+    <button class="btn primary" type="button" data-tab-show="groups" data-open-modal="group-modal" hidden>{{ crate::icons::icon("plus")|safe }} New group</button>
   </div>
 
   <div data-tab-panel="ips">
@@ -192,6 +192,7 @@
               <th>FQDNs</th>
               <th>Tags</th>
               <th class="right">Targets</th>
+              <th class="right w-actions">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -223,10 +224,16 @@
                 </div>
               </td>
               <td class="right mono">{{ group.ips.len() + group.ranges.len() + group.fqdns.len() }}</td>
+              <td class="right">
+                <div class="row-actions">
+                  <button class="link-btn" type="button" data-group-edit="{{ group.id }}">{{ crate::icons::icon("sliders")|safe }} Edit</button>
+                  <button class="link-btn danger-link" type="button" data-group-remove="{{ group.id }}" data-group-name="{{ group.name }}">{{ crate::icons::icon("trash")|safe }} Remove</button>
+                </div>
+              </td>
             </tr>
             {% endfor %}
             {% if groups.is_empty() %}
-            <tr><td colspan="6" class="empty-cell">No host groups yet. Create one to start grouping targets.</td></tr>
+            <tr><td colspan="7" class="empty-cell">No host groups yet. Create one to start grouping targets.</td></tr>
             {% endif %}
           </tbody>
         </table>
@@ -465,13 +472,14 @@
   </div>
 </div>
 
-<div class="modal-backdrop" id="group-add-modal" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="group-add-title">
+<div class="modal-backdrop" id="group-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="group-modal-title">
     <div class="modal-head">
-      <h2 id="group-add-title">New host group</h2>
+      <h2 id="group-modal-title">New host group</h2>
       <button class="icon-btn subtle" type="button" data-close-modal aria-label="Close">{{ crate::icons::icon("close")|safe }}</button>
     </div>
     <form data-group-form>
+      <input type="hidden" name="id" value="">
       <div class="modal-body">
         <div class="field">
           <label class="field-label" for="group-name">Group name</label>
@@ -548,4 +556,5 @@
     </form>
   </div>
 </div>
+<script type="application/json" id="group-data">{{ groups_json|safe }}</script>
 {% endblock %}

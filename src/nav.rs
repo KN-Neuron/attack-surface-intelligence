@@ -50,16 +50,16 @@ pub fn main_nav() -> SidebarDef {
         title: "Visibly",
         icon: "shield",
         groups: vec![
+            group("Dashboards", "bar-chart", vec![
+                item("Latest Scan summary", SCAN_SUMMARY, "bar-chart"),
+                item("Technologies used", TECHNOLOGIES, "grid"),
+                item("Vulnerable versions", VULNERABLE, "shield"),
+            ]),
             group("Scanning", "scan", vec![
                 item("Scan Management", SCANNING_MANAGEMENT, "activity"),
                 item("Scan Scheduling", SCANNING_POLICIES, "sliders"),
                 item("Scan Results", SCAN_HISTORY, "file-text"),
                 item("Compare Scans", SCAN_COMPARE, "git-compare"),
-            ]),
-            group("Dashboards", "bar-chart", vec![
-                item("Latest Scan summary", SCAN_SUMMARY, "bar-chart"),
-                item("Technologies used", TECHNOLOGIES, "grid"),
-                item("Vulnerable versions", VULNERABLE, "shield"),
             ]),
             plain(vec![
                 item("Host management", HOST_MANAGEMENT, "server"),

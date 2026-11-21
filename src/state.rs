@@ -8,6 +8,85 @@ pub struct Criterion {
     pub value: String,
 }
 
+impl Criterion {
+    /// Normalised selector name. Stored kinds are compared case-insensitively
+    /// so older rows such as `IP to scan` keep working.
+    fn kind_name(&self) -> String {
+        self.kind.trim().to_lowercase()
+    }
+
+    /// Human label for the selector this criterion belongs to.
+    pub fn display_kind(&self) -> &'static str {
+        match self.kind_name().as_str() {
+            "host group" => "Host group",
+            "ip address" => "IP address",
+            "ip range" => "IP range",
+            "ip to scan" => {
+                if self.value.contains('/') { "IP range" } else { "IP address" }
+            }
+            "fqdn" => "FQDN",
+            "frequency" => "Frequency",
+            "when" => "When",
+            _ => "Rule",
+        }
+    }
+
+    /// Criteria that pick what the scan touches, sourced from host management.
+    pub fn is_target(&self) -> bool {
+        matches!(
+            self.kind_name().as_str(),
+            "host group" | "ip address" | "ip range" | "ip to scan" | "fqdn"
+        )
+    }
+
+    /// Criteria that describe when the scan runs.
+    pub fn is_schedule(&self) -> bool {
+        matches!(self.kind_name().as_str(), "frequency" | "when")
+    }
+
+    /// The value as shown in the table. Time selects are stored as
+    /// `<day> <HH:MM>` (e.g. `mon 22:00`) and rendered as readable text;
+    /// legacy free-text values pass through unchanged.
+    pub fn display_value(&self) -> String {
+        if self.kind_name() != "when" {
+            return self.value.clone();
+        }
+        let value = self.value.trim();
+        let mut parts = value.split_whitespace();
+        let (Some(day), Some(time)) = (parts.next(), parts.next()) else {
+            return value.to_string();
+        };
+        if !is_clock_time(time) {
+            return value.to_string();
+        }
+        let day = match day.to_ascii_lowercase().as_str() {
+            "every" => "Every day".to_string(),
+            "mon" => "Mondays".to_string(),
+            "tue" => "Tuesdays".to_string(),
+            "wed" => "Wednesdays".to_string(),
+            "thu" => "Thursdays".to_string(),
+            "fri" => "Fridays".to_string(),
+            "sat" => "Saturdays".to_string(),
+            "sun" => "Sundays".to_string(),
+            other => match other.strip_prefix('d').and_then(|d| d.parse::<u8>().ok()) {
+                Some(day_of_month) => format!("Day {day_of_month}"),
+                None => return value.to_string(),
+            },
+        };
+        format!("{day} at {time}")
+    }
+}
+
+fn is_clock_time(value: &str) -> bool {
+    let Some((hour, minute)) = value.split_once(':') else {
+        return false;
+    };
+    hour.len() == 2
+        && minute.len() == 2
+        && hour.bytes().all(|b| b.is_ascii_digit())
+        && minute.bytes().all(|b| b.is_ascii_digit())
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Policy {
     pub id: i64,
@@ -15,6 +94,18 @@ pub struct Policy {
     pub order: i64,
     pub criteria: Vec<Criterion>,
     pub enabled: bool,
+}
+
+impl Policy {
+    /// Criteria that select targets from host management.
+    pub fn targets(&self) -> Vec<&Criterion> {
+        self.criteria.iter().filter(|c| c.is_target()).collect()
+    }
+
+    /// Criteria that describe the run time.
+    pub fn schedule(&self) -> Vec<&Criterion> {
+        self.criteria.iter().filter(|c| c.is_schedule()).collect()
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
