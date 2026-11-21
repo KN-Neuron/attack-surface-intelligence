@@ -2800,8 +2800,8 @@ body.modal-open { overflow: hidden; }
 [data-theme="light"] .sev-d-Medium { --sev: #b8920f; }
 
 .vuln-card { overflow: hidden; }
-.vuln-card .card-head { gap: 12px; }
-.vuln-card .search-box { margin-left: 0; }
+.vuln-card .vuln-tabs { gap: 4px 12px; }
+.vuln-card .search-box { margin-left: auto; align-self: center; padding: 6px 0; }
 .vuln-card .search-box input { height: 34px; width: 260px; border-radius: var(--radius-ctl); background: var(--input-bg); border-color: var(--border-soft); }
 .vuln-tbl .strong-cell { font-weight: 600; }
 .vuln-tbl .ver { color: var(--text-dim); }
@@ -2818,7 +2818,7 @@ body.modal-open { overflow: hidden; }
 @media (max-width: 640px) {
   .screen-redesign .metric + .metric { border-left: 0; border-top: 1px solid var(--border-soft); }
   .vuln-card .search-box, .vuln-card .search-box input { width: 100%; }
-  .vuln-card .card-head { flex-wrap: wrap; }
+  .vuln-tabs { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) { .vuln-tabs button::after { transition: none; } }
 
