@@ -21,19 +21,47 @@ pub struct Policy {
 pub struct HostGroup {
     pub id: i64,
     pub name: String,
+    #[serde(default)]
+    pub ips: Vec<String>,
+    #[serde(default)]
     pub ranges: Vec<String>,
-    pub hosts: Vec<String>,
+    #[serde(default)]
+    pub fqdns: Vec<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
+/// A single IP address in the host inventory.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct IpRange {
+pub struct HostIp {
     pub id: i64,
     pub address: String,
-    pub city: String,
-    pub managed_by: String,
-    pub last_modified: String,
-    pub last_modified_by: String,
-    pub description: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    pub added: String,
+}
+
+/// A CIDR block in the host inventory.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct HostRange {
+    pub id: i64,
+    pub cidr: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    pub added: String,
+    /// Human-readable address count for this block, computed on read.
+    #[serde(default)]
+    pub size: String,
+}
+
+/// A fully-qualified domain name in the host inventory.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct HostFqdn {
+    pub id: i64,
+    pub fqdn: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    pub added: String,
 }
 
 /// One cell of the per-page RBAC matrix.
@@ -42,6 +70,16 @@ pub struct Permission {
     pub page: String,
     pub can_read: bool,
     pub can_write: bool,
+}
+
+/// A named RBAC role. Administrators inherit the permissions of their role.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Role {
+    pub id: i64,
+    pub name: String,
+    pub permissions: Vec<Permission>,
+    #[serde(default)]
+    pub account_count: i64,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -114,9 +152,13 @@ fn default_true() -> bool {
 pub struct NewGroup {
     pub name: String,
     #[serde(default)]
+    pub ips: Vec<String>,
+    #[serde(default)]
     pub ranges: Vec<String>,
     #[serde(default)]
-    pub hosts: Vec<String>,
+    pub fqdns: Vec<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -129,8 +171,6 @@ pub struct NewAdmin {
     pub status: String,
     #[serde(default)]
     pub password: String,
-    #[serde(default)]
-    pub permissions: Vec<Permission>,
 }
 
 #[derive(Deserialize)]
@@ -143,6 +183,11 @@ pub struct UpdateAdmin {
     pub status: String,
     #[serde(default)]
     pub password: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct RolePayload {
+    pub name: String,
     #[serde(default)]
     pub permissions: Vec<Permission>,
 }
@@ -151,17 +196,49 @@ fn active_status() -> String {
     "Active".into()
 }
 
+/// Bulk payload for adding inventory entries. The same shape serves IPs,
+/// ranges and FQDNs; an empty tag list means "untagged".
 #[derive(Deserialize)]
-pub struct NewIpRange {
-    pub address: String,
+pub struct NewHostEntries {
     #[serde(default)]
-    pub city: String,
+    pub values: Vec<String>,
     #[serde(default)]
-    pub description: String,
+    pub tags: Vec<String>,
 }
 
+/// Single-entry edit payload for an inventory row.
 #[derive(Deserialize)]
-pub struct ImportIpRanges {
+pub struct EditHostEntry {
+    pub value: String,
     #[serde(default)]
-    pub ranges: Vec<String>,
+    pub tags: Vec<String>,
+}
+
+/// A mixed list of host entries to import. Each entry is classified as an IP,
+/// a CIDR range or an FQDN by the server.
+#[derive(Deserialize)]
+pub struct ImportHosts {
+    #[serde(default)]
+    pub entries: Vec<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+/// Per-type counts returned after a host import.
+#[derive(Serialize)]
+pub struct ImportSummary {
+    pub ips: usize,
+    pub ranges: usize,
+    pub fqdns: usize,
+    pub duplicates: usize,
+    pub skipped: usize,
+}
+
+/// Counts of what a host import *would* add, computed without writing.
+#[derive(Serialize)]
+pub struct ImportPreview {
+    pub ips: usize,
+    pub ranges: usize,
+    pub fqdns: usize,
+    pub skipped: usize,
 }

@@ -28,6 +28,63 @@
     });
   }
 
+  // ---- reusable tag chip input ------------------------------------------------
+  // Wires an entry field, an "Add" button and a chip container inside `scope`.
+  // Returns the current tag list plus a reset helper.
+  function initTagInput(scope) {
+    var entry = scope.querySelector("[data-tag-entry]");
+    var addBtn = scope.querySelector("[data-tag-add]");
+    var chips = scope.querySelector("[data-tag-chips]");
+    var values = [];
+
+    function render() {
+      if (!chips) return;
+      chips.innerHTML = "";
+      values.forEach(function (tag, i) {
+        var chip = document.createElement("span");
+        chip.className = "host-chip";
+        chip.appendChild(document.createTextNode(tag));
+        var x = document.createElement("button");
+        x.type = "button";
+        x.className = "chip-x";
+        x.setAttribute("aria-label", "Remove " + tag);
+        x.innerHTML = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2"/></svg>';
+        x.addEventListener("click", function () {
+          values.splice(i, 1);
+          render();
+        });
+        chip.appendChild(x);
+        chips.appendChild(chip);
+      });
+    }
+
+    function add() {
+      var value = (entry && entry.value || "").trim();
+      if (!value) return;
+      if (values.indexOf(value) === -1) values.push(value);
+      if (entry) { entry.value = ""; entry.focus(); }
+      render();
+    }
+
+    if (addBtn) addBtn.addEventListener("click", add);
+    if (entry) entry.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); add(); }
+    });
+
+    render();
+
+    return {
+      values: function () { return values.slice(); },
+      add: function (tag) {
+        tag = String(tag == null ? "" : tag).trim();
+        if (!tag || values.indexOf(tag) !== -1) return;
+        values.push(tag);
+        render();
+      },
+      reset: function () { values = []; if (entry) entry.value = ""; render(); }
+    };
+  }
+
   // Wrap the matched part of the title so the typed fragment stands out.
   function highlight(text, needle) {
     var safe = escapeHtml(text);
@@ -265,6 +322,43 @@
     });
   });
 
+  // ---- page tabs (switch in-place panels and tab-scoped actions) -------------
+  // A `[data-tabs]` bar holds `[data-tab]` buttons; the matching
+  // `[data-tab-panel]` containers are shown one at a time. Elements carrying
+  // `data-tab-show="<name>"` are only visible while that tab is active.
+  document.querySelectorAll("[data-tabs]").forEach(function (bar) {
+    var buttons = Array.prototype.slice.call(bar.querySelectorAll("[data-tab]"));
+    var panels = bar.parentElement.querySelectorAll("[data-tab-panel]");
+    var scoped = document.querySelectorAll("[data-tab-show]");
+
+    function activate(name) {
+      buttons.forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-tab") === name);
+      });
+      panels.forEach(function (panel) {
+        panel.hidden = panel.getAttribute("data-tab-panel") !== name;
+      });
+      scoped.forEach(function (el) {
+        el.hidden = el.getAttribute("data-tab-show") !== name;
+      });
+      try {
+        var key = "asi.tab." + (bar.getAttribute("data-tabs") || "");
+        window.sessionStorage.setItem(key, name);
+      } catch (_) {}
+    }
+
+    buttons.forEach(function (btn) {
+      btn.addEventListener("click", function () { activate(btn.getAttribute("data-tab")); });
+    });
+
+    var stored = null;
+    try {
+      stored = window.sessionStorage.getItem("asi.tab." + (bar.getAttribute("data-tabs") || ""));
+    } catch (_) {}
+    var names = buttons.map(function (b) { return b.getAttribute("data-tab"); });
+    activate(names.indexOf(stored) !== -1 ? stored : (names[0] || ""));
+  });
+
   // ---- generic client-side table filter --------------------------------------
   document.querySelectorAll("[data-table-filter]").forEach(function (input) {
     var table = document.getElementById(input.getAttribute("data-table-filter"));
@@ -484,14 +578,14 @@
       closeModal(closer.closest(".modal-backdrop"));
       return;
     }
-    if (event.target.classList.contains("modal-backdrop")) {
+    if (event.target.classList.contains("modal-backdrop") && !event.target.hasAttribute("data-static-modal")) {
       closeModal(event.target);
     }
   });
 
   document.addEventListener("keydown", function (event) {
     if (event.key !== "Escape") return;
-    var open = document.querySelector(".modal-backdrop:not([hidden])");
+    var open = document.querySelector(".modal-backdrop:not([hidden]):not([data-static-modal])");
     if (open) closeModal(open);
   });
 
@@ -800,57 +894,26 @@
   }
 
   // ==========================================================================
-  // Host groups — tag input + submit
+  // Host groups — selection, tags and submit
   // ==========================================================================
-  var groupForm = document.getElementById("group-form");
+  var groupForm = document.querySelector("[data-group-form]");
   if (groupForm) {
-    var hostInput = document.getElementById("group-host-input");
-    var hostAdd = document.getElementById("group-host-add");
-    var hostChips = document.getElementById("group-host-chips");
-    var groupHosts = [];
-
-    function renderHostChips() {
-      hostChips.innerHTML = "";
-      groupHosts.forEach(function (h, i) {
-        var chip = document.createElement("span");
-        chip.className = "host-chip";
-        chip.appendChild(document.createTextNode(h));
-        var x = document.createElement("button");
-        x.type = "button";
-        x.className = "chip-x";
-        x.setAttribute("aria-label", "Remove " + h);
-        x.innerHTML = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2"/></svg>';
-        x.addEventListener("click", function () {
-          groupHosts.splice(i, 1);
-          renderHostChips();
-        });
-        chip.appendChild(x);
-        hostChips.appendChild(chip);
-      });
-    }
-
-    function addHost() {
-      var value = (hostInput.value || "").trim();
-      if (!value) return;
-      if (groupHosts.indexOf(value) === -1) groupHosts.push(value);
-      hostInput.value = "";
-      hostInput.focus();
-      renderHostChips();
-    }
-
-    if (hostAdd) hostAdd.addEventListener("click", addHost);
-    if (hostInput) hostInput.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") { e.preventDefault(); addHost(); }
-    });
-
+    groupForm._tagHandle = initTagInput(groupForm);
     groupForm.addEventListener("submit", function (event) {
       event.preventDefault();
-      var ranges = [];
-      groupForm.querySelectorAll("input[name=ranges]:checked").forEach(function (c) { ranges.push(c.value); });
+
+      function checked(name) {
+        var out = [];
+        groupForm.querySelectorAll("input[name=" + name + "]:checked").forEach(function (c) { out.push(c.value); });
+        return out;
+      }
+
       var payload = {
         name: groupForm.querySelector("[name=name]").value,
-        ranges: ranges,
-        hosts: groupHosts
+        ips: checked("ips"),
+        ranges: checked("ranges"),
+        fqdns: checked("fqdns"),
+        tags: groupForm._tagHandle.values()
       };
       fetch("/api/host-groups", {
         method: "POST",
@@ -863,8 +926,21 @@
     });
   }
 
+  // Filterable checkbox lists inside the group modal.
+  document.querySelectorAll("[data-filter-input]").forEach(function (input) {
+    var field = input.closest(".field");
+    var list = field ? field.querySelector("[data-filter-list]") : null;
+    if (!list) return;
+    input.addEventListener("input", function () {
+      var needle = input.value.trim().toLowerCase();
+      list.querySelectorAll("[data-filter-item]").forEach(function (row) {
+        row.hidden = needle.length > 0 && row.textContent.toLowerCase().indexOf(needle) === -1;
+      });
+    });
+  });
+
   // ==========================================================================
-  // Admin management — submit
+  // Admin management — accounts (role-based) + roles
   // ==========================================================================
   var adminForm = document.getElementById("admin-form");
   if (adminForm) {
@@ -875,55 +951,9 @@
     var adminIdInput = document.getElementById("admin-id");
     var adminTitle = document.getElementById("admin-modal-title");
     var adminStatus = document.getElementById("admin-status");
+    var adminRole = document.getElementById("admin-role");
     var adminPassword = document.getElementById("admin-password");
     var editingAdminId = null;
-
-    function permRows() {
-      return adminForm.querySelectorAll("[data-perm]");
-    }
-
-    function syncPermRow(row) {
-      var read = row.querySelector("[data-perm-read]");
-      var write = row.querySelector("[data-perm-write]");
-      if (!read || !write) return;
-      if (!read.checked) {
-        write.checked = false;
-        write.disabled = true;
-      } else {
-        write.disabled = false;
-      }
-    }
-
-    permRows().forEach(function (row) {
-      var read = row.querySelector("[data-perm-read]");
-      if (read) read.addEventListener("change", function () { syncPermRow(row); });
-    });
-
-    function clearPermissions() {
-      permRows().forEach(function (row) {
-        var read = row.querySelector("[data-perm-read]");
-        var write = row.querySelector("[data-perm-write]");
-        if (read) read.checked = false;
-        if (write) { write.checked = false; write.disabled = true; }
-      });
-    }
-
-    function collectPermissions() {
-      var out = [];
-      permRows().forEach(function (row) {
-        var key = row.getAttribute("data-perm");
-        var read = row.querySelector("[data-perm-read]");
-        var write = row.querySelector("[data-perm-write]");
-        if (read && (read.checked || (write && write.checked))) {
-          out.push({
-            page: key,
-            can_read: read.checked,
-            can_write: !!(write && write.checked)
-          });
-        }
-      });
-      return out;
-    }
 
     function resetAdminForm() {
       editingAdminId = null;
@@ -932,7 +962,6 @@
       if (adminStatus) adminStatus.value = "Active";
       if (adminTitle) adminTitle.textContent = "Add administrator";
       if (adminPassword) { adminPassword.required = true; adminPassword.value = ""; }
-      clearPermissions();
     }
 
     function openAdminEditor(admin) {
@@ -940,22 +969,10 @@
       if (adminIdInput) adminIdInput.value = String(admin.id);
       adminForm.querySelector("[name=name]").value = admin.name;
       adminForm.querySelector("[name=email]").value = admin.email;
-      adminForm.querySelector("[name=role]").value = admin.role;
+      if (adminRole) adminRole.value = admin.role;
       if (adminStatus) adminStatus.value = admin.status;
       if (adminTitle) adminTitle.textContent = "Edit administrator";
       if (adminPassword) { adminPassword.required = false; adminPassword.value = ""; }
-      clearPermissions();
-      (admin.permissions || []).forEach(function (perm) {
-        var row = adminForm.querySelector('[data-perm="' + perm.page + '"]');
-        if (!row) return;
-        var read = row.querySelector("[data-perm-read]");
-        var write = row.querySelector("[data-perm-write]");
-        if (read) read.checked = !!perm.can_read;
-        if (write) {
-          write.checked = !!perm.can_write;
-          write.disabled = !perm.can_read;
-        }
-      });
       openModal("admin-modal");
     }
 
@@ -985,10 +1002,9 @@
       var payload = {
         name: adminForm.querySelector("[name=name]").value,
         email: adminForm.querySelector("[name=email]").value,
-        role: adminForm.querySelector("[name=role]").value,
+        role: adminRole ? adminRole.value : "",
         status: adminStatus ? adminStatus.value : "Active",
-        password: adminPassword ? adminPassword.value : "",
-        permissions: collectPermissions()
+        password: adminPassword ? adminPassword.value : ""
       };
       var url = editingAdminId ? "/api/admins/" + editingAdminId : "/api/admins";
       var method = editingAdminId ? "PUT" : "POST";
@@ -1004,112 +1020,347 @@
   }
 
   // ==========================================================================
-  // IP ranges — add single range or import CSV
+  // Admin management — roles
   // ==========================================================================
-  var ipForm = document.getElementById("ip-form");
-  if (ipForm) {
-    var ipMode = "single";
-    var ipSingle = document.getElementById("ip-single");
-    var ipImport = document.getElementById("ip-import");
-    var ipAddress = document.getElementById("ip-address");
-    var ipCity = document.getElementById("ip-city");
-    var ipDescription = document.getElementById("ip-description");
-    var ipFile = document.getElementById("ip-file");
-    var ipFileStatus = document.getElementById("ip-file-status");
-    var ipFileRanges = [];
+  var roleForm = document.getElementById("role-form");
+  if (roleForm) {
+    var roleDataEl = document.getElementById("role-data");
+    var roleData = [];
+    try { roleData = JSON.parse(roleDataEl.textContent || "[]"); } catch (_) {}
 
-    function parseIpRanges(text) {
-      var pattern = /^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?$/;
+    var roleIdInput = document.getElementById("role-id");
+    var roleTitle = document.getElementById("role-modal-title");
+    var editingRoleId = null;
+
+    function rolePermRows() {
+      return roleForm.querySelectorAll("[data-perm]");
+    }
+
+    function syncPermRow(row) {
+      var read = row.querySelector("[data-perm-read]");
+      var write = row.querySelector("[data-perm-write]");
+      if (!read || !write) return;
+      if (!read.checked) {
+        write.checked = false;
+        write.disabled = true;
+      } else {
+        write.disabled = false;
+      }
+    }
+
+    rolePermRows().forEach(function (row) {
+      var read = row.querySelector("[data-perm-read]");
+      if (read) read.addEventListener("change", function () { syncPermRow(row); });
+    });
+
+    function clearPermissions() {
+      rolePermRows().forEach(function (row) {
+        var read = row.querySelector("[data-perm-read]");
+        var write = row.querySelector("[data-perm-write]");
+        if (read) read.checked = false;
+        if (write) { write.checked = false; write.disabled = true; }
+      });
+    }
+
+    function collectPermissions() {
+      var out = [];
+      rolePermRows().forEach(function (row) {
+        var key = row.getAttribute("data-perm");
+        var read = row.querySelector("[data-perm-read]");
+        var write = row.querySelector("[data-perm-write]");
+        if (read && (read.checked || (write && write.checked))) {
+          out.push({
+            page: key,
+            can_read: read.checked,
+            can_write: !!(write && write.checked)
+          });
+        }
+      });
+      return out;
+    }
+
+    function resetRoleForm() {
+      editingRoleId = null;
+      roleForm.reset();
+      if (roleIdInput) roleIdInput.value = "";
+      if (roleTitle) roleTitle.textContent = "Add role";
+      clearPermissions();
+    }
+
+    function openRoleEditor(role) {
+      editingRoleId = role.id;
+      if (roleIdInput) roleIdInput.value = String(role.id);
+      roleForm.querySelector("[name=name]").value = role.name;
+      if (roleTitle) roleTitle.textContent = "Edit role";
+      clearPermissions();
+      (role.permissions || []).forEach(function (perm) {
+        var row = roleForm.querySelector('[data-perm="' + perm.page + '"]');
+        if (!row) return;
+        var read = row.querySelector("[data-perm-read]");
+        var write = row.querySelector("[data-perm-write]");
+        if (read) read.checked = !!perm.can_read;
+        if (write) {
+          write.checked = !!perm.can_write;
+          write.disabled = !perm.can_read;
+        }
+      });
+      openModal("role-modal");
+    }
+
+    var addRoleBtn = document.querySelector("[data-role-add]");
+    if (addRoleBtn) addRoleBtn.addEventListener("click", resetRoleForm);
+
+    document.querySelectorAll("[data-role-edit]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = Number(btn.getAttribute("data-role-edit"));
+        var role = roleData.filter(function (r) { return r.id === id; })[0];
+        if (role) openRoleEditor(role);
+      });
+    });
+
+    document.querySelectorAll("[data-role-remove]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (btn.disabled) return;
+        var id = btn.getAttribute("data-role-remove");
+        if (!window.confirm("Remove this role? This cannot be undone.")) return;
+        fetch("/api/roles/" + id, { method: "DELETE" })
+          .then(function (r) { if (!r.ok) throw new Error(); })
+          .then(function () { window.location.reload(); })
+          .catch(function () { window.alert("Could not remove the role. Reassign its accounts first."); });
+      });
+    });
+
+    roleForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var payload = {
+        name: roleForm.querySelector("[name=name]").value,
+        permissions: collectPermissions()
+      };
+      var url = editingRoleId ? "/api/roles/" + editingRoleId : "/api/roles";
+      var method = editingRoleId ? "PUT" : "POST";
+      fetch(url, {
+        method: method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+        .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+        .then(function () { window.location.reload(); })
+        .catch(function () { window.alert("Could not save the role. Please try again."); });
+    });
+  }
+
+  // ==========================================================================
+  // Host inventory — add IPs, ranges or FQDNs with optional tags
+  // ==========================================================================
+  document.querySelectorAll("form[data-host-add]").forEach(function (form) {
+    form._tagHandle = initTagInput(form);
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var field = form.querySelector("textarea[name=values]");
+      var values = String((field && field.value) || "")
+        .split(/[\n,;]+/)
+        .map(function (s) { return s.trim(); })
+        .filter(function (s) { return s.length > 0; });
+      if (!values.length) {
+        if (field) field.focus();
+        return;
+      }
+      fetch(form.getAttribute("data-endpoint"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ values: values, tags: form._tagHandle.values() })
+      })
+        .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+        .then(function () { window.location.reload(); })
+        .catch(function () { window.alert("Could not save these entries. Please try again."); });
+    });
+  });
+
+  // Reset an add/group form whenever its modal is opened.
+  document.querySelectorAll("[data-open-modal]").forEach(function (btn) {
+    var modal = document.getElementById(btn.getAttribute("data-open-modal"));
+    if (!modal) return;
+    var form = modal.querySelector("form[data-host-add], form[data-host-import], form[data-group-form]");
+    if (!form) return;
+    btn.addEventListener("click", function () {
+      form.reset();
+      if (form._tagHandle) form._tagHandle.reset();
+    });
+  });
+
+  // ==========================================================================
+  // Host inventory — edit and remove rows
+  // ==========================================================================
+  var HOST_ENDPOINTS = {
+    ip: "/api/host-ips",
+    range: "/api/host-ranges",
+    fqdn: "/api/host-fqdns"
+  };
+
+  document.querySelectorAll("form[data-host-edit]").forEach(function (form) {
+    form._tagHandle = initTagInput(form);
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var id = form.querySelector("[name=id]").value;
+      var valueField = form.querySelector("[name=value]");
+      var value = (valueField.value || "").trim();
+      if (!value) {
+        valueField.focus();
+        return;
+      }
+      fetch(form.getAttribute("data-endpoint") + "/" + id, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: value, tags: form._tagHandle.values() })
+      })
+        .then(function (r) { if (!r.ok) throw new Error(); })
+        .then(function () { window.location.reload(); })
+        .catch(function () { window.alert("Could not save this entry. Please try again."); });
+    });
+  });
+
+  document.querySelectorAll("[data-edit]").forEach(function (btn) {
+    var kind = btn.getAttribute("data-edit");
+    var modal = document.getElementById(kind + "-edit-modal");
+    if (!modal) return;
+    btn.addEventListener("click", function () {
+      var form = modal.querySelector("form[data-host-edit]");
+      if (!form) return;
+      form.reset();
+      form.querySelector("[name=id]").value = btn.getAttribute("data-id");
+      form.querySelector("[name=value]").value = btn.getAttribute("data-value");
+      if (form._tagHandle) form._tagHandle.reset();
+      var row = btn.closest("tr");
+      if (row && form._tagHandle) {
+        row.querySelectorAll("[data-tag]").forEach(function (chip) {
+          form._tagHandle.add(chip.getAttribute("data-tag"));
+        });
+      }
+      openModal(kind + "-edit-modal");
+    });
+  });
+
+  document.querySelectorAll("[data-delete]").forEach(function (btn) {
+    var kind = btn.getAttribute("data-delete");
+    btn.addEventListener("click", function () {
+      if (!window.confirm("Remove this entry from the inventory?")) return;
+      fetch(HOST_ENDPOINTS[kind] + "/" + btn.getAttribute("data-id"), { method: "DELETE" })
+        .then(function (r) { if (!r.ok) throw new Error(); })
+        .then(function () { window.location.reload(); })
+        .catch(function () { window.alert("Could not remove this entry. Please try again."); });
+    });
+  });
+
+  // ==========================================================================
+  // Host inventory — CSV import (preview, then commit only on Confirm)
+  // ==========================================================================
+  var pendingImport = null;
+
+  function showImportPreview(preview) {
+    var modal = document.getElementById("import-result-modal");
+    if (!modal) return;
+    modal.querySelector("[data-result-ips]").textContent = preview.ips;
+    modal.querySelector("[data-result-ranges]").textContent = preview.ranges;
+    modal.querySelector("[data-result-fqdns]").textContent = preview.fqdns;
+    var extra = modal.querySelector("[data-result-extra]");
+    if (extra) {
+      extra.textContent = preview.skipped
+        ? preview.skipped + " unmatchable entry(ies) will be skipped."
+        : "";
+    }
+    closeModal(document.getElementById("import-modal"));
+    openModal("import-result-modal");
+  }
+
+  var importForm = document.querySelector("form[data-host-import]");
+  if (importForm) {
+    importForm._tagHandle = initTagInput(importForm);
+    var importFile = importForm.querySelector("input[type=file]");
+    var importStatus = importForm.querySelector("[data-import-status]");
+    var importEntries = [];
+
+    function parseImportEntries(text) {
       return String(text || "")
         .split(/[\n,;]+/)
         .map(function (s) { return s.trim().replace(/^"|"$/g, ""); })
-        .filter(function (s) { return pattern.test(s); });
+        .filter(function (s) { return s.length > 0; });
     }
 
-    if (ipFile) {
-      ipFile.addEventListener("change", function () {
-        ipFileRanges = [];
-        var file = ipFile.files && ipFile.files[0];
-        if (ipFileStatus) ipFileStatus.textContent = "";
+    if (importFile) {
+      importFile.addEventListener("change", function () {
+        importEntries = [];
+        if (importStatus) importStatus.textContent = "";
+        var file = importFile.files && importFile.files[0];
         if (!file) return;
         var reader = new FileReader();
         reader.onload = function () {
-          ipFileRanges = parseIpRanges(reader.result);
-          if (ipFileStatus) {
-            ipFileStatus.textContent = ipFileRanges.length
-              ? ipFileRanges.length + " valid range(s) found in " + file.name
-              : "No valid IP or CIDR entries found in " + file.name + ".";
+          importEntries = parseImportEntries(reader.result);
+          if (importStatus) {
+            importStatus.textContent = importEntries.length
+              ? importEntries.length + " entries found in " + file.name
+              : "No entries found in " + file.name + ".";
           }
         };
         reader.onerror = function () {
-          if (ipFileStatus) ipFileStatus.textContent = "Could not read " + file.name + ".";
+          if (importStatus) importStatus.textContent = "Could not read " + file.name + ".";
         };
         reader.readAsText(file);
       });
     }
 
-    function setIpMode(mode) {
-      ipMode = mode;
-      document.querySelectorAll("[data-ip-mode]").forEach(function (b) {
-        b.classList.toggle("active", b.getAttribute("data-ip-mode") === mode);
-      });
-      if (ipSingle) ipSingle.hidden = mode !== "single";
-      if (ipImport) ipImport.hidden = mode !== "import";
-    }
-
-    document.querySelectorAll("[data-ip-mode]").forEach(function (btn) {
-      btn.addEventListener("click", function () { setIpMode(btn.getAttribute("data-ip-mode")); });
-    });
-
-    var ipOpenBtn = document.querySelector('[data-open-modal="ip-modal"]');
-    if (ipOpenBtn) ipOpenBtn.addEventListener("click", function () {
-      ipForm.reset();
-      ipFileRanges = [];
-      if (ipFileStatus) ipFileStatus.textContent = "";
-      setIpMode("single");
-    });
-
-    ipForm.addEventListener("submit", function (event) {
+    importForm.addEventListener("submit", function (event) {
       event.preventDefault();
-      if (ipMode === "import") {
-        if (!ipFileRanges.length) {
-          if (ipFile && !ipFile.files.length) {
-            ipFile.focus();
-          } else if (ipFileStatus) {
-            ipFileStatus.textContent = "Choose a file with at least one valid IP or CIDR range.";
-          }
-          return;
-        }
-        fetch("/api/ip-ranges/import", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ranges: ipFileRanges })
-        })
-          .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
-          .then(function () { window.location.reload(); })
-          .catch(function () { window.alert("Could not import the IP list. Please try again."); });
+      if (!importEntries.length) {
+        if (importFile) importFile.focus();
         return;
       }
-
-      var address = (ipAddress.value || "").trim();
-      if (!address) {
-        if (ipAddress) ipAddress.focus();
-        return;
-      }
-      fetch("/api/ip-ranges", {
+      var endpoint = importForm.getAttribute("data-endpoint");
+      fetch(endpoint + "/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          address: address,
-          city: (ipCity.value || "").trim(),
-          description: (ipDescription.value || "").trim()
-        })
+        body: JSON.stringify({ entries: importEntries })
       })
         .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
-        .then(function () { window.location.reload(); })
-        .catch(function () { window.alert("Could not add the IP range. Please try again."); });
+        .then(function (preview) {
+          pendingImport = {
+            entries: importEntries.slice(),
+            tags: importForm._tagHandle.values(),
+            endpoint: endpoint
+          };
+          showImportPreview(preview);
+        })
+        .catch(function () { window.alert("Could not read the entries. Please try again."); });
+    });
+
+    var importOpen = document.querySelector('[data-open-modal="import-modal"]');
+    if (importOpen) importOpen.addEventListener("click", function () {
+      importEntries = [];
+      pendingImport = null;
+      if (importStatus) importStatus.textContent = "";
     });
   }
+
+  var importConfirm = document.querySelector("[data-import-confirm]");
+  if (importConfirm) importConfirm.addEventListener("click", function () {
+    if (!pendingImport) {
+      closeModal(document.getElementById("import-result-modal"));
+      return;
+    }
+    fetch(pendingImport.endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entries: pendingImport.entries, tags: pendingImport.tags })
+    })
+      .then(function (r) { if (!r.ok) throw new Error(); })
+      .then(function () { window.location.reload(); })
+      .catch(function () { window.alert("Could not import the file. Please try again."); });
+  });
+
+  var importUndo = document.querySelector("[data-import-undo]");
+  if (importUndo) importUndo.addEventListener("click", function () {
+    pendingImport = null;
+    closeModal(document.getElementById("import-result-modal"));
+  });
 
   // ==========================================================================
   // Data Explorer — run query
@@ -1266,6 +1517,9 @@
     try { scans = JSON.parse(scanDataEl.textContent || "[]"); } catch (_) {}
     var selected = { a: scans[0] || null, b: scans[1] || null };
     var pickTarget = null;
+    var ICON_UP = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5V3.9M4.5 7.4L8 3.9l3.5 3.5"/></svg>';
+    var ICON_DOWN = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5v8.6M4.5 8.6L8 12.1l3.5-3.5"/></svg>';
+    var ICON_SAME = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3.6 8h8.8"/></svg>';
 
     var slotName = function (slot) { return document.getElementById("slot-" + slot + "-name"); };
     var slotDate = function (slot) { return document.getElementById("slot-" + slot + "-date"); };
@@ -1307,13 +1561,19 @@
         var av = a[m.key] || 0;
         var bv = b[m.key] || 0;
         var delta = bv - av;
-        var good = m.invert ? delta <= 0 : delta >= 0;
-        var cls = delta === 0 ? "" : (good ? "delta-up" : "delta-down");
-        var text = delta === 0 ? "No change" : (delta > 0 ? "+" + delta : String(delta));
-        return "<tr><td class='strong-cell'>" + m.label + "</td>" +
-          "<td class='right'>" + av + "</td>" +
-          "<td class='right'>" + bv + "</td>" +
-          "<td class='right " + cls + "'>" + text + "</td></tr>";
+        var state = delta === 0 ? "same" : ((m.invert ? delta < 0 : delta > 0) ? "better" : "worse");
+        var icon = delta === 0 ? ICON_SAME : (delta > 0 ? ICON_UP : ICON_DOWN);
+        var sign = delta > 0 ? "+" : "";
+        var pct = av > 0 && delta !== 0
+          ? "(" + (delta > 0 ? "+" : "") + (delta / av * 100).toFixed(1) + "%)"
+          : "";
+        return "<tr class='compare-row row-" + state + "'>" +
+          "<td class='strong-cell'>" + m.label + "</td>" +
+          "<td class='right mono'>" + av + "</td>" +
+          "<td class='right mono'>" + bv + "</td>" +
+          "<td class='right'><div class='compare-change'>" +
+            "<span class='delta-pill delta-" + state + "'>" + icon + sign + delta + "</span>" +
+            "<span class='delta-pct'>" + pct + "</span></div></td></tr>";
       }).join("");
       if (note) note.textContent = a.label + " vs " + b.label;
     };

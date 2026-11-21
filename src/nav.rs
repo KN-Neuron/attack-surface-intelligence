@@ -38,8 +38,8 @@ pub const SCAN_COMPARE: &str = "/scanning/compare-scans";
 pub const SCAN_SUMMARY: &str = "/dashboards/scan-summary";
 pub const TECHNOLOGIES: &str = "/dashboards/technologies-used";
 pub const VULNERABLE: &str = "/dashboards/vulnerable-versions";
-pub const IP_RANGES: &str = "/host-management/ip-ranges";
-pub const HOST_GROUPS: &str = "/host-management/host-groups";
+pub const HOST_MANAGEMENT: &str = "/host-management";
+pub const HOST_GROUPS: &str = "/host-management/groups";
 pub const DATA_EXPLORER: &str = "/log-center/data-explorer";
 pub const SCAN_HISTORY: &str = "/log-center/scan-history";
 pub const ADMIN_MANAGEMENT: &str = "/admin-management";
@@ -48,7 +48,7 @@ pub const SETTINGS: &str = "/settings";
 /// The single application navigation used by every page.
 pub fn main_nav() -> SidebarDef {
     SidebarDef {
-        title: "Attack Surface Intelligence",
+        title: "Visibly",
         icon: "shield",
         groups: vec![
             group("Dashboards", "bar-chart", vec![
@@ -58,16 +58,16 @@ pub fn main_nav() -> SidebarDef {
             ]),
             group("Scanning", "scan", vec![
                 item("Scan Management", SCANNING_MANAGEMENT, "activity"),
-                item("Scan Policies", SCANNING_POLICIES, "sliders"),
+                item("Scan Scheduling", SCANNING_POLICIES, "sliders"),
                 item("Compare Scans", SCAN_COMPARE, "git-compare"),
-            ]),
-            group("Host management", "server", vec![
-                item("IP ranges", IP_RANGES, "globe"),
-                item("Host groups", HOST_GROUPS, "users"),
             ]),
             group("Log Center", "file-text", vec![
                 item("Data Explorer", DATA_EXPLORER, "activity"),
                 item("Scan History", SCAN_HISTORY, "file-text"),
+            ]),
+            group("Host management", "server", vec![
+                item("Host inventory", HOST_MANAGEMENT, "server"),
+                item("Host groups", HOST_GROUPS, "layers"),
             ]),
             plain(vec![
                 item("Admin management", ADMIN_MANAGEMENT, "user-cog"),

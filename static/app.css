@@ -441,7 +441,7 @@ html.nav-collapsed .sidebar .nav-item:not(.root) { display: none; }
   height: 52px;
   padding: 0 14px;
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: 700;
   color: #fff;
   border-bottom: 1px solid var(--border-soft);
   flex: 0 0 auto;
@@ -745,6 +745,8 @@ html.nav-collapsed .sidebar .nav-item:not(.root) { display: none; }
 }
 
 .page-head .spacer { flex: 1 1 auto; }
+.page-head .import-link { font-size: 13px; }
+.import-result-text { margin: 0 0 6px; font-size: 13.5px; color: var(--text); }
 
 .page-body { padding: 14px 20px 26px; }
 
@@ -1547,6 +1549,18 @@ html.nav-collapsed .sidebar .nav-item:not(.root) { display: none; }
   margin-bottom: 14px;
 }
 
+.tab-spacer { flex: 1 1 auto; }
+.tabs-bar > .btn {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  height: 30px;
+  padding: 0 14px;
+  margin-bottom: 7px;
+  white-space: nowrap;
+}
+.tabs-bar > .btn .ico { width: 14px; height: 14px; }
+
 .tab-link {
   padding: 8px 2px 11px;
   margin-right: 22px;
@@ -2082,6 +2096,7 @@ body.modal-open { overflow: hidden; }
 .criteria-row .icon-btn:hover { color: var(--bad); background: rgba(255, 107, 125, 0.1); }
 
 .check-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 4px; }
+.check-list.scroll { max-height: 220px; overflow: auto; padding-right: 4px; }
 .check-row {
   display: flex;
   align-items: center;
@@ -2114,7 +2129,6 @@ body.modal-open { overflow: hidden; }
 .tag-input { display: flex; gap: 8px; margin-top: 8px; }
 .tag-input input { flex: 1 1 auto; }
 .tag-input .btn { flex: 0 0 auto; height: 34px; padding: 0 12px; }
-#group-host-chips:empty { display: none; }
 
 /* ================================================================
    Scan history
@@ -2154,8 +2168,48 @@ body.modal-open { overflow: hidden; }
 .compare-vs .ico { width: 20px; height: 20px; }
 .compare-result .tbl-wrap { max-height: none; }
 .compare-table td { font-variant-numeric: tabular-nums; }
-.delta-up { color: var(--good); }
-.delta-down { color: var(--bad); }
+
+/* Colour-coded comparison change pills. */
+.compare-table .compare-row td:first-child { box-shadow: inset 2px 0 0 transparent; }
+.compare-table .row-better td:first-child { box-shadow: inset 2px 0 0 var(--good); }
+.compare-table .row-worse td:first-child { box-shadow: inset 2px 0 0 var(--bad); }
+
+.compare-change { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.compare-change .delta-pill { width: 78px; justify-content: center; }
+.delta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.delta-pill .ico { width: 13px; height: 13px; }
+.delta-better {
+  color: var(--good);
+  background: rgba(111, 207, 143, 0.12);
+  border-color: rgba(111, 207, 143, 0.28);
+}
+.delta-worse {
+  color: var(--bad);
+  background: rgba(255, 107, 107, 0.12);
+  border-color: rgba(255, 107, 107, 0.28);
+}
+.delta-same {
+  color: var(--text-mute);
+  background: var(--card-alt);
+  border-color: var(--border-soft);
+}
+.delta-pct {
+  width: 60px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-mute);
+  font-variant-numeric: tabular-nums;
+}
 
 .picker-search { margin-bottom: 12px; max-width: none; }
 .picker-search input { width: 100%; }

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------- static IPs
 
+#[allow(dead_code)]
 pub struct StaticIp {
     pub address: &'static str,
     pub city: &'static str,

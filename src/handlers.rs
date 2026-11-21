@@ -16,11 +16,12 @@ use crate::mock::{
 };
 use crate::nav::{self, NavGroup};
 use crate::state::{
-    Admin, HostGroup, ImportIpRanges, IpRange, NewAdmin, NewGroup, NewIpRange, NewPolicy, Policy,
+    Admin, EditHostEntry, HostFqdn, HostGroup, HostIp, HostRange, ImportHosts, ImportPreview,
+    ImportSummary, NewAdmin, NewGroup, NewHostEntries, NewPolicy, Policy, Role, RolePayload,
     ScanStatus, UpdateAdmin,
 };
 
-const PRODUCT: &str = "Attack Surface Intelligence";
+const PRODUCT: &str = "Visibly";
 
 pub struct NavItemView {
     pub label: &'static str,
@@ -193,7 +194,7 @@ pub async fn scanning_policies(
     let policies = db::list_policies(&pool).await;
     let groups = db::list_groups(&pool).await;
     let host_groups: Vec<String> = groups.into_iter().map(|g| g.name).collect();
-    let ip_ranges = db::ip_addresses(&pool).await;
+    let ip_ranges = db::range_cidrs(&pool).await;
 
     let options_json = serde_json::json!({
         "groups": &host_groups,
@@ -204,7 +205,7 @@ pub async fn scanning_policies(
 
     let page = PoliciesPage {
         shell: build_shell(nav::SCANNING_POLICIES, &admin),
-        title: "Scan policies",
+        title: "Scan scheduling",
         policies,
         options_json,
         policies_json,
@@ -360,50 +361,27 @@ pub async fn vulnerable_versions(
 // ---------------------------------------------------------------- host management
 
 #[derive(Template)]
-#[template(path = "pages/host_management.html")]
-struct HostManagementPage {
+#[template(path = "pages/host_inventory.html")]
+struct HostInventoryPage {
     shell: Shell,
     title: &'static str,
-    ips: Vec<IpRange>,
+    ips: Vec<HostIp>,
+    ranges: Vec<HostRange>,
+    fqdns: Vec<HostFqdn>,
 }
 
-pub async fn ip_ranges(
+pub async fn host_inventory(
     State(pool): State<PgPool>,
     Extension(admin): Extension<CurrentAdmin>,
 ) -> Html<String> {
-    let page = HostManagementPage {
-        shell: build_shell(nav::IP_RANGES, &admin),
-        title: "IP ranges",
-        ips: db::list_ip_ranges(&pool).await,
+    let page = HostInventoryPage {
+        shell: build_shell(nav::HOST_MANAGEMENT, &admin),
+        title: "Host inventory",
+        ips: db::list_host_ips(&pool).await,
+        ranges: db::list_host_ranges(&pool).await,
+        fqdns: db::list_host_fqdns(&pool).await,
     };
     render(&page)
-}
-
-pub async fn create_ip_range(
-    State(pool): State<PgPool>,
-    Json(payload): Json<NewIpRange>,
-) -> Result<Json<IpRange>, StatusCode> {
-    let now = chrono::Local::now()
-        .format("%B %-d, %Y %-I:%M %p")
-        .to_string();
-    db::add_ip_range(
-        &pool,
-        payload.address,
-        if payload.city.is_empty() { "—".into() } else { payload.city },
-        if payload.description.is_empty() { "—".into() } else { payload.description },
-        now,
-        "Admin".into(),
-    )
-    .await
-    .map(Json)
-    .ok_or(StatusCode::INTERNAL_SERVER_ERROR)
-}
-
-pub async fn import_ip_ranges(
-    State(pool): State<PgPool>,
-    Json(payload): Json<ImportIpRanges>,
-) -> Json<usize> {
-    Json(db::import_ip_ranges(&pool, payload.ranges).await)
 }
 
 #[derive(Template)]
@@ -412,7 +390,9 @@ struct HostGroupsPage {
     shell: Shell,
     title: &'static str,
     groups: Vec<HostGroup>,
-    ip_ranges: Vec<String>,
+    ips: Vec<HostIp>,
+    ranges: Vec<HostRange>,
+    fqdns: Vec<HostFqdn>,
 }
 
 pub async fn host_groups(
@@ -423,19 +403,123 @@ pub async fn host_groups(
         shell: build_shell(nav::HOST_GROUPS, &admin),
         title: "Host groups",
         groups: db::list_groups(&pool).await,
-        ip_ranges: db::ip_addresses(&pool).await,
+        ips: db::list_host_ips(&pool).await,
+        ranges: db::list_host_ranges(&pool).await,
+        fqdns: db::list_host_fqdns(&pool).await,
     };
     render(&page)
+}
+
+pub async fn create_host_ips(
+    State(pool): State<PgPool>,
+    Json(payload): Json<NewHostEntries>,
+) -> Json<usize> {
+    Json(db::add_host_ips(&pool, payload.values, payload.tags).await)
+}
+
+pub async fn create_host_ranges(
+    State(pool): State<PgPool>,
+    Json(payload): Json<NewHostEntries>,
+) -> Json<usize> {
+    Json(db::add_host_ranges(&pool, payload.values, payload.tags).await)
+}
+
+pub async fn create_host_fqdns(
+    State(pool): State<PgPool>,
+    Json(payload): Json<NewHostEntries>,
+) -> Json<usize> {
+    Json(db::add_host_fqdns(&pool, payload.values, payload.tags).await)
+}
+
+pub async fn import_hosts(
+    State(pool): State<PgPool>,
+    Json(payload): Json<ImportHosts>,
+) -> Json<ImportSummary> {
+    Json(db::import_hosts(&pool, payload.entries, payload.tags).await)
+}
+
+pub async fn preview_host_import(
+    State(pool): State<PgPool>,
+    Json(payload): Json<ImportHosts>,
+) -> Json<ImportPreview> {
+    Json(db::preview_import(&pool, payload.entries).await)
+}
+
+pub async fn update_host_ips(
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
+    Json(payload): Json<EditHostEntry>,
+) -> StatusCode {
+    if db::update_host_ip(&pool, id, payload.value, payload.tags).await {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
+pub async fn delete_host_ips(State(pool): State<PgPool>, Path(id): Path<i64>) -> StatusCode {
+    if db::delete_host_ip(&pool, id).await {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
+pub async fn update_host_ranges(
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
+    Json(payload): Json<EditHostEntry>,
+) -> StatusCode {
+    if db::update_host_range(&pool, id, payload.value, payload.tags).await {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
+pub async fn delete_host_ranges(State(pool): State<PgPool>, Path(id): Path<i64>) -> StatusCode {
+    if db::delete_host_range(&pool, id).await {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
+pub async fn update_host_fqdns(
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
+    Json(payload): Json<EditHostEntry>,
+) -> StatusCode {
+    if db::update_host_fqdn(&pool, id, payload.value, payload.tags).await {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
+pub async fn delete_host_fqdns(State(pool): State<PgPool>, Path(id): Path<i64>) -> StatusCode {
+    if db::delete_host_fqdn(&pool, id).await {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
 }
 
 pub async fn create_group(
     State(pool): State<PgPool>,
     Json(payload): Json<NewGroup>,
 ) -> Result<Json<HostGroup>, StatusCode> {
-    db::create_group(&pool, payload.name, payload.ranges, payload.hosts)
-        .await
-        .map(Json)
-        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)
+    db::create_group(
+        &pool,
+        payload.name,
+        payload.ips,
+        payload.ranges,
+        payload.fqdns,
+        payload.tags,
+    )
+    .await
+    .map(Json)
+    .ok_or(StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 // ---------------------------------------------------------------- log center
@@ -508,6 +592,41 @@ pub async fn scan_compare(
 
 // ---------------------------------------------------------------- admin
 
+pub struct RolePermView {
+    pub label: &'static str,
+    pub can_write: bool,
+}
+
+pub struct RoleView {
+    pub id: i64,
+    pub name: String,
+    pub account_count: i64,
+    pub perms: Vec<RolePermView>,
+}
+
+impl From<&Role> for RoleView {
+    fn from(role: &Role) -> Self {
+        let perms = PERMISSION_PAGES
+            .iter()
+            .filter_map(|page| {
+                role.permissions
+                    .iter()
+                    .find(|p| p.page == page.key && p.can_read)
+                    .map(|p| RolePermView {
+                        label: page.label,
+                        can_write: p.can_write,
+                    })
+            })
+            .collect();
+        RoleView {
+            id: role.id,
+            name: role.name.clone(),
+            account_count: role.account_count,
+            perms,
+        }
+    }
+}
+
 #[derive(Template)]
 #[template(path = "pages/admin_management.html")]
 struct AdminPage {
@@ -515,6 +634,8 @@ struct AdminPage {
     title: &'static str,
     admins: Vec<Admin>,
     admins_json: String,
+    roles: Vec<RoleView>,
+    roles_json: String,
     permission_pages: Vec<PermissionPage>,
 }
 
@@ -524,14 +645,22 @@ pub async fn admin_management(
 ) -> Html<String> {
     let admins = db::list_admins(&pool).await;
     let admins_json = serde_json::to_string(&admins).unwrap_or_else(|_| "[]".into());
+    let roles = db::list_roles(&pool).await;
+    let roles_json = serde_json::to_string(&roles).unwrap_or_else(|_| "[]".into());
     let page = AdminPage {
         shell: build_shell(nav::ADMIN_MANAGEMENT, &admin),
         title: "Admin management",
         admins,
         admins_json,
+        roles: roles.iter().map(RoleView::from).collect(),
+        roles_json,
         permission_pages: PERMISSION_PAGES.to_vec(),
     };
     render(&page)
+}
+
+async fn valid_role(pool: &PgPool, role: &str) -> bool {
+    db::list_roles(pool).await.iter().any(|r| r.name == role)
 }
 
 pub async fn create_admin(
@@ -541,17 +670,18 @@ pub async fn create_admin(
     if payload.password.trim().len() < 8 {
         return Err(StatusCode::BAD_REQUEST);
     }
+    if !valid_role(&pool, &payload.role).await {
+        return Err(StatusCode::BAD_REQUEST);
+    }
     let hash = bcrypt::hash(payload.password.trim(), bcrypt::DEFAULT_COST)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let role = if payload.role.is_empty() { "Analyst".to_string() } else { payload.role };
     db::create_admin(
         &pool,
         payload.name,
         payload.email.trim().to_lowercase(),
-        role,
+        payload.role,
         payload.status,
         hash,
-        payload.permissions,
     )
     .await
     .map(Json)
@@ -566,6 +696,9 @@ pub async fn update_admin(
     if db::is_default_admin(&pool, id).await {
         return Err(StatusCode::FORBIDDEN);
     }
+    if !valid_role(&pool, &payload.role).await {
+        return Err(StatusCode::BAD_REQUEST);
+    }
     let password_hash = match payload.password {
         Some(password) if !password.trim().is_empty() => Some(
             bcrypt::hash(password.trim(), bcrypt::DEFAULT_COST)
@@ -573,20 +706,56 @@ pub async fn update_admin(
         ),
         _ => None,
     };
-    let role = if payload.role.is_empty() { "Analyst".to_string() } else { payload.role };
     db::update_admin(
         &pool,
         id,
         payload.name,
         payload.email.trim().to_lowercase(),
-        role,
+        payload.role,
         payload.status,
         password_hash,
-        payload.permissions,
     )
     .await
     .map(Json)
     .ok_or(StatusCode::NOT_FOUND)
+}
+
+pub async fn create_role(
+    State(pool): State<PgPool>,
+    Json(payload): Json<RolePayload>,
+) -> Result<Json<Role>, StatusCode> {
+    if payload.name.trim().is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    db::create_role(&pool, payload.name.trim().to_string(), payload.permissions)
+        .await
+        .map(Json)
+        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+pub async fn update_role(
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
+    Json(payload): Json<RolePayload>,
+) -> Result<Json<Role>, StatusCode> {
+    if payload.name.trim().is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    db::update_role(&pool, id, payload.name.trim().to_string(), payload.permissions)
+        .await
+        .map(Json)
+        .ok_or(StatusCode::NOT_FOUND)
+}
+
+pub async fn delete_role(
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
+) -> StatusCode {
+    if db::delete_role(&pool, id).await {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::CONFLICT
+    }
 }
 
 pub async fn toggle_admin(
