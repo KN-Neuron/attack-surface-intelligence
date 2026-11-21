@@ -27,8 +27,14 @@ impl Criterion {
             "fqdn" => "FQDN",
             "frequency" => "Frequency",
             "when" => "When",
+            "type" => "Scan type",
             _ => "Rule",
         }
+    }
+
+    /// Criteria that pick how deeply the scan probes each target.
+    pub fn is_scan_type(&self) -> bool {
+        self.kind_name() == "type"
     }
 
     /// Criteria that pick what the scan touches, sourced from host management.
@@ -48,6 +54,9 @@ impl Criterion {
     /// `<day> <HH:MM>` (e.g. `mon 22:00`) and rendered as readable text;
     /// legacy free-text values pass through unchanged.
     pub fn display_value(&self) -> String {
+        if self.kind_name() == "type" {
+            return ScanType::parse(&self.value).label().to_string();
+        }
         if self.kind_name() != "when" {
             return self.value.clone();
         }
@@ -105,6 +114,62 @@ impl Policy {
     /// Criteria that describe the run time.
     pub fn schedule(&self) -> Vec<&Criterion> {
         self.criteria.iter().filter(|c| c.is_schedule()).collect()
+    }
+
+    /// How deeply this policy probes each target. Older policies predate the
+    /// selector and default to a full scan.
+    pub fn scan_type(&self) -> ScanType {
+        self.criteria
+            .iter()
+            .find(|c| c.is_scan_type())
+            .map(|c| ScanType::parse(&c.value))
+            .unwrap_or(ScanType::Full)
+    }
+
+    /// The `(frequency, when)` pair describing the run time, if timed.
+    pub fn schedule_spec(&self) -> Option<(String, String)> {
+        let mut frequency = None;
+        let mut when = None;
+        for criterion in self.schedule() {
+            match criterion.kind_name().as_str() {
+                "frequency" => frequency = Some(criterion.value.clone()),
+                "when" => when = Some(criterion.value.clone()),
+                _ => {}
+            }
+        }
+        Some((frequency?, when?))
+    }
+}
+
+/// The two scan depths offered in the UI.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ScanType {
+    /// Reachability probe only: updates host up/down, leaves the rest alone.
+    Reachability,
+    /// Full httpx test: captures HTTP, TLS and technology data.
+    Full,
+}
+
+impl ScanType {
+    pub fn parse(value: &str) -> Self {
+        match value.trim().to_lowercase().as_str() {
+            "reachability" | "reachability (masscan)" => ScanType::Reachability,
+            _ => ScanType::Full,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ScanType::Reachability => "reachability",
+            ScanType::Full => "full",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            ScanType::Reachability => "Reachability",
+            ScanType::Full => "Full scan test",
+        }
     }
 }
 
@@ -188,20 +253,7 @@ pub struct Admin {
     pub permissions: Vec<Permission>,
 }
 
-pub const SCAN_TARGETS: [&str; 12] = [
-    "10.0.0.0/24",
-    "10.0.1.0/24",
-    "10.0.2.0/24",
-    "10.0.3.0/24",
-    "10.0.4.0/24",
-    "10.0.5.0/24",
-    "10.0.6.0/24",
-    "10.0.7.0/24",
-    "10.0.8.0/24",
-    "10.0.9.0/24",
-    "10.0.10.0/24",
-    "10.0.11.0/24",
-];
+pub const REACHABILITY_PORTS: [u16; 6] = [80, 443, 22, 445, 3389, 8443];
 
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub struct ScanStatus {
@@ -214,6 +266,116 @@ pub struct ScanStatus {
     pub current_target: String,
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
+    #[serde(default)]
+    pub scan_id: Option<i64>,
+    #[serde(default)]
+    pub scan_type: String,
+    #[serde(default)]
+    pub engine: String,
+    #[serde(default)]
+    pub alerts_found: i32,
+}
+
+/// One row of the Scan Results table. Real scans come from the `scans` table;
+/// seeded demo rows are marked so the page is never empty on a fresh install.
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct ScanRowView {
+    pub id: i64,
+    pub label: String,
+    pub scan_type: String,
+    pub scan_type_label: String,
+    pub engine: String,
+    pub trigger: String,
+    pub started: String,
+    pub finished: String,
+    pub duration: String,
+    pub target: String,
+    pub hosts_total: u32,
+    pub alive: u32,
+    pub down: u32,
+    pub services: u32,
+    pub technologies: u32,
+    pub vulns: u32,
+    pub alerts: u32,
+    pub days_ago: u32,
+    pub status: String,
+    pub demo: bool,
+}
+
+/// The body of the maximized scan-details view. Deliberately a summary: it
+/// carries counts and top-N lists, never the full per-host capture table.
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct ScanDetail {
+    pub id: i64,
+    pub label: String,
+    pub demo: bool,
+    pub scan_type: String,
+    pub scan_type_label: String,
+    pub engine: String,
+    pub trigger: String,
+    pub status: String,
+    pub started: String,
+    pub finished: String,
+    pub duration: String,
+    pub targets: Vec<String>,
+    pub hosts_total: u32,
+    pub alive: u32,
+    pub down: u32,
+    pub services: u32,
+    pub technologies: u32,
+    pub vulns: u32,
+    pub alerts: u32,
+    pub alerts_new_host: u32,
+    pub alerts_host_down: u32,
+    pub alerts_new_cve: u32,
+    pub alerts_open: u32,
+    pub top_technologies: Vec<ScanTechCount>,
+    pub top_services: Vec<ScanServiceCount>,
+    pub error: String,
+}
+
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct ScanTechCount {
+    pub name: String,
+    pub hosts: u32,
+}
+
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct ScanServiceCount {
+    pub label: String,
+    pub hosts: u32,
+}
+
+/// A captured host as shown in the Data Explorer.
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct AssetRow {
+    pub address: String,
+    pub up: bool,
+    pub scheme: String,
+    pub port: String,
+    pub status_code: String,
+    pub title: String,
+    pub webserver: String,
+    pub technologies: Vec<String>,
+    pub last_checked: String,
+    pub last_scan: String,
+}
+
+/// One row of the Alerts page.
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct AlertRow {
+    pub id: i64,
+    pub kind: String,
+    pub kind_label: String,
+    pub severity: String,
+    pub host: String,
+    pub message: String,
+    pub detail: String,
+    pub acknowledged: bool,
+    pub acknowledged_by: String,
+    pub detected: String,
+    pub days_ago: u32,
+    pub scan_label: String,
 }
 
 pub fn now_label() -> String {
@@ -334,4 +496,18 @@ pub struct ImportPreview {
     /// Entries listed twice in the file or already in the inventory.
     pub duplicates: usize,
     pub skipped: usize,
+}
+
+/// Body of `POST /api/scan/run`. An omitted type falls back to a full scan.
+#[derive(Deserialize, Default)]
+pub struct RunScan {
+    #[serde(default)]
+    pub scan_type: Option<String>,
+}
+
+/// Body of the bulk acknowledge endpoint.
+#[derive(Deserialize)]
+pub struct AckPayload {
+    #[serde(default)]
+    pub ids: Vec<i64>,
 }

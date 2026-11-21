@@ -11,14 +11,16 @@ use sqlx::PgPool;
 use crate::auth::{self, CurrentAdmin, PERMISSION_PAGES, PermissionPage};
 use crate::db;
 use crate::mock::{
-    DataEvent, DetectedVuln, PopularService, PopularTech, ScanRow, ServiceSlice, TechRow,
-    TimelinePoint, UpcomingScan,
+    DetectedVuln, PopularService, PopularTech, ScanRow, ServiceSlice, TechRow, TimelinePoint,
+    UpcomingScan,
 };
 use crate::nav::{self, NavGroup};
+use crate::scan;
 use crate::state::{
-    Admin, EditHostEntry, HostFqdn, HostGroup, HostIp, HostRange, ImportHosts, ImportPreview,
-    ImportSummary, NewAdmin, NewGroup, NewHostEntries, NewPolicy, Policy, Role, RolePayload,
-    ScanStatus, UpdateAdmin,
+    AckPayload, Admin, AlertRow, AssetRow, Criterion, EditHostEntry, HostFqdn, HostGroup, HostIp,
+    HostRange, ImportHosts, ImportPreview, ImportSummary, NewAdmin, NewGroup, NewHostEntries,
+    NewPolicy, Policy, Role, RolePayload, RunScan, ScanDetail, ScanRowView, ScanStatus, ScanType,
+    UpdateAdmin,
 };
 
 const PRODUCT: &str = "Visibly";
@@ -119,6 +121,9 @@ pub struct ScanView {
     pub current_target: String,
     pub started_at: String,
     pub completed_at: String,
+    pub scan_type: String,
+    pub engine: String,
+    pub alerts_found: i32,
 }
 
 impl From<&ScanStatus> for ScanView {
@@ -134,6 +139,15 @@ impl From<&ScanStatus> for ScanView {
             current_target: scan.current_target.clone(),
             started_at: scan.started_at.clone().unwrap_or_default(),
             completed_at: scan.completed_at.clone().unwrap_or_default(),
+            scan_type: ScanType::parse(&scan.scan_type).label().to_string(),
+            engine: match scan.engine.as_str() {
+                "" => "—".to_string(),
+                "httpx" => "httpx".to_string(),
+                "masscan" => "masscan".to_string(),
+                "tcp" => "TCP probe".to_string(),
+                other => other.to_string(),
+            },
+            alerts_found: scan.alerts_found,
         }
     }
 }
@@ -152,10 +166,42 @@ pub async fn scanning_management(
     Extension(admin): Extension<CurrentAdmin>,
 ) -> Html<String> {
     let scan = db::get_scan_state(&pool).await;
+
+    // The Upcoming card reports the policy that fires first, not a fixed blob.
+    let mut upcoming = db::get_data::<UpcomingScan>(&pool, "upcoming_scan").await;
+    let schedule = db::policy_schedule(&pool).await;
+    if let Some((policy_id, _, next)) = schedule.first() {
+        if let Some(policy) = db::policy_by_id(&pool, *policy_id).await {
+            upcoming.name = policy.name.clone();
+            if let Some((frequency, when)) = policy.schedule_spec() {
+                let readable = Criterion { kind: "when".into(), value: when }.display_value();
+                upcoming.schedule = format!("{frequency} · {readable}");
+            }
+            let targets: Vec<String> = policy
+                .targets()
+                .iter()
+                .map(|c| c.value.clone())
+                .collect();
+            upcoming.target = if targets.is_empty() {
+                "Whole inventory".to_string()
+            } else {
+                targets.join(" · ")
+            };
+            upcoming.hosts = scan::resolve_targets(&pool, &policy.criteria).await.addresses.len()
+                as u32;
+        }
+        if let Some(next) = next {
+            upcoming.next_run = next
+                .with_timezone(&chrono::Local)
+                .format("%B %-d, %Y %-I:%M %p")
+                .to_string();
+        }
+    }
+
     let page = ScanningManagementPage {
         shell: build_shell(nav::SCANNING_MANAGEMENT, &admin),
         title: "Scan management",
-        upcoming: db::get_data(&pool, "upcoming_scan").await,
+        upcoming,
         scan: ScanView::from(&scan),
     };
     render(&page)
@@ -173,8 +219,60 @@ pub async fn scan_cancel(State(pool): State<PgPool>) -> Json<ScanStatus> {
     Json(db::cancel_scan(&pool).await)
 }
 
-pub async fn scan_start(State(pool): State<PgPool>) -> Json<ScanStatus> {
-    Json(db::start_scan(&pool).await)
+/// Starts a scan over the whole host inventory.
+pub async fn scan_start(
+    State(pool): State<PgPool>,
+) -> Result<Json<ScanStatus>, (StatusCode, String)> {
+    launch(&pool, ScanType::Full, None, "Manual scan", "manual").await
+}
+
+/// Starts a scan of the requested type over the whole host inventory.
+pub async fn scan_run(
+    State(pool): State<PgPool>,
+    Json(payload): Json<RunScan>,
+) -> Result<Json<ScanStatus>, (StatusCode, String)> {
+    let scan_type = ScanType::parse(payload.scan_type.as_deref().unwrap_or("full"));
+    launch(&pool, scan_type, None, "Manual scan", "manual").await
+}
+
+async fn launch(
+    pool: &PgPool,
+    scan_type: ScanType,
+    policy_id: Option<i64>,
+    label: &str,
+    trigger: &str,
+) -> Result<Json<ScanStatus>, (StatusCode, String)> {
+    scan::start_scan(pool, scan_type, policy_id, label, trigger, &[])
+        .await
+        .map(Json)
+        .ok_or((
+            StatusCode::CONFLICT,
+            "A scan is already running, or the host inventory has no targets.".to_string(),
+        ))
+}
+
+/// Runs a policy immediately, whether or not it has a schedule.
+pub async fn run_policy(
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
+) -> Result<Json<ScanStatus>, (StatusCode, String)> {
+    let Some(policy) = db::policy_by_id(&pool, id).await else {
+        return Err((StatusCode::NOT_FOUND, "Unknown scan.".to_string()));
+    };
+    scan::start_scan(
+        &pool,
+        policy.scan_type(),
+        Some(policy.id),
+        &policy.name,
+        "policy",
+        &policy.criteria,
+    )
+    .await
+    .map(Json)
+    .ok_or((
+        StatusCode::CONFLICT,
+        "A scan is already running, or this scan has no resolved targets.".to_string(),
+    ))
 }
 
 // ---------------------------------------------------------------- policies
@@ -293,6 +391,8 @@ struct ScanSummaryPage {
     service_family_total: u64,
     popular: Vec<PopularService>,
     tech_popular: Vec<PopularTech>,
+    open_alerts: i64,
+    can_read_alerts: bool,
 }
 
 pub async fn scan_summary(
@@ -308,19 +408,28 @@ pub async fn scan_summary(
     let services: Vec<ServiceSlice> = db::get_data(&pool, "service_slices").await;
     let service_family_total = services.iter().map(|slice| u64::from(slice.count)).sum();
 
+    // Prefer the newest real scan over the seeded placeholder label.
+    let latest_scan = db::list_scans(&pool)
+        .await
+        .first()
+        .map(|scan| scan.started.clone())
+        .unwrap_or_default();
+
     let page = ScanSummaryPage {
         shell: build_shell(nav::SCAN_SUMMARY, &admin),
         title: "Latest Scan summary",
         timeline_json,
         ranges: points,
         selected_range,
-        latest_scan: db::get_data(&pool, "latest_scan").await,
+        latest_scan,
         initial,
         can_read_history: admin.can_read("scan_history"),
         services,
         service_family_total,
         popular: db::get_data(&pool, "popular_services").await,
         tech_popular: db::get_data(&pool, "popular_technologies").await,
+        open_alerts: db::count_open_alerts(&pool).await,
+        can_read_alerts: admin.can_read("alerts"),
     };
     render(&page)
 }
@@ -567,7 +676,10 @@ pub async fn delete_group(State(pool): State<PgPool>, Path(id): Path<i64>) -> St
 struct DataExplorerPage {
     shell: Shell,
     title: &'static str,
-    rows: Vec<DataEvent>,
+    rows: Vec<AssetRow>,
+    total: usize,
+    up: usize,
+    down: usize,
     range_label: &'static str,
 }
 
@@ -575,11 +687,16 @@ pub async fn data_explorer(
     State(pool): State<PgPool>,
     Extension(admin): Extension<CurrentAdmin>,
 ) -> Html<String> {
+    let rows = db::list_assets(&pool).await;
+    let up = rows.iter().filter(|row| row.up).count();
     let page = DataExplorerPage {
         shell: build_shell(nav::DATA_EXPLORER, &admin),
         title: "Data Explorer",
-        rows: db::get_data(&pool, "data_events").await,
-        range_label: "Nov 21, 2026 09:14 AM - now",
+        total: rows.len(),
+        up,
+        down: rows.len() - up,
+        rows,
+        range_label: "Captured host data",
     };
     render(&page)
 }
@@ -589,21 +706,144 @@ pub async fn data_explorer(
 struct ScanHistoryPage {
     shell: Shell,
     title: &'static str,
-    scans: Vec<ScanRow>,
-    range_label: &'static str,
+    scans: Vec<ScanRowView>,
+    scans_json: String,
+}
+
+/// Real scans first, then the seeded demo history so a fresh install still has
+/// something to browse. Demo ids are negated to keep them out of the API space.
+fn merge_history(real: Vec<ScanRowView>, demo: Vec<ScanRow>) -> Vec<ScanRowView> {
+    let mut merged: Vec<ScanRowView> = real;
+    merged.extend(demo.into_iter().map(|row| ScanRowView {
+        id: -(row.id as i64),
+        label: row.label,
+        scan_type: "full".into(),
+        scan_type_label: "Full scan test".into(),
+        engine: "httpx".into(),
+        trigger: "scheduled".into(),
+        started: row.started,
+        finished: row.finished,
+        duration: row.duration,
+        target: row.target,
+        hosts_total: row.alive + row.down,
+        alive: row.alive,
+        down: row.down,
+        services: row.services,
+        technologies: row.technologies,
+        vulns: row.vulns,
+        alerts: (row.vulns + row.down / 3) % 7,
+        days_ago: row.days_ago,
+        status: row.status,
+        demo: true,
+    }));
+    merged
 }
 
 pub async fn scan_history(
     State(pool): State<PgPool>,
     Extension(admin): Extension<CurrentAdmin>,
 ) -> Html<String> {
+    let demo: Vec<ScanRow> = db::get_data(&pool, "scan_history").await;
+    let scans = merge_history(db::list_scans(&pool).await, demo);
+    let scans_json =
+        serde_json::to_string(&scans).unwrap_or_else(|_| "[]".into()).replace('<', "\\u003c");
     let page = ScanHistoryPage {
         shell: build_shell(nav::SCAN_HISTORY, &admin),
         title: "Scan Results",
-        scans: db::get_data(&pool, "scan_history").await,
-        range_label: "Nov 1, 2026 - Nov 21, 2026",
+        scans,
+        scans_json,
     };
     render(&page)
+}
+
+/// Detail summary for the maximized view. Demo rows are synthesised from the
+/// seeded history so the button works on every row.
+pub async fn scan_detail(
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
+) -> Result<Json<ScanDetail>, StatusCode> {
+    if id < 0 {
+        let demo: Vec<ScanRow> = db::get_data(&pool, "scan_history").await;
+        let Some(row) = demo.into_iter().find(|row| row.id == (-id) as u32) else {
+            return Err(StatusCode::NOT_FOUND);
+        };
+        let alerts = (row.vulns + row.down / 3) % 7;
+        return Ok(Json(ScanDetail {
+            id,
+            label: row.label,
+            demo: true,
+            scan_type: "full".into(),
+            scan_type_label: "Full scan test".into(),
+            engine: "httpx".into(),
+            trigger: "scheduled".into(),
+            status: row.status,
+            started: row.started,
+            finished: row.finished,
+            duration: row.duration,
+            targets: vec![row.target],
+            hosts_total: row.alive + row.down,
+            alive: row.alive,
+            down: row.down,
+            services: row.services,
+            technologies: row.technologies,
+            vulns: row.vulns,
+            alerts,
+            alerts_new_host: alerts / 3,
+            alerts_host_down: alerts / 4,
+            alerts_new_cve: row.vulns,
+            alerts_open: alerts,
+            ..ScanDetail::default()
+        }));
+    }
+
+    db::scan_detail(&pool, id)
+        .await
+        .map(Json)
+        .ok_or(StatusCode::NOT_FOUND)
+}
+
+#[derive(Template)]
+#[template(path = "pages/alerts.html")]
+struct AlertsPage {
+    shell: Shell,
+    title: &'static str,
+    rows: Vec<AlertRow>,
+    open: usize,
+    acknowledged: usize,
+    can_ack: bool,
+}
+
+pub async fn alerts_page(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+) -> Html<String> {
+    let rows = db::list_alerts(&pool).await;
+    let open = rows.iter().filter(|row| !row.acknowledged).count();
+    let page = AlertsPage {
+        shell: build_shell(nav::ALERTS, &admin),
+        title: "Alerts",
+        acknowledged: rows.len() - open,
+        open,
+        rows,
+        can_ack: admin.can_write("alerts"),
+    };
+    render(&page)
+}
+
+pub async fn ack_alerts(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+    Json(payload): Json<AckPayload>,
+) -> Json<u64> {
+    Json(db::acknowledge_alerts(&pool, &payload.ids, &admin.name).await)
+}
+
+pub async fn ack_alert(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+    Path(id): Path<i64>,
+) -> Json<u64> {
+    Json(db::acknowledge_alerts(&pool, &[id], &admin.name).await)
 }
 
 #[derive(Template)]

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block bodyclass %}screen-redesign{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ title }}</h1>
+  <span class="page-sub">{{ open }} new · {{ acknowledged }} acknowledged</span>
+  <span class="spacer"></span>
+  <div class="search-box alerts-search">
+    <input type="search" placeholder="Host, message, severity..." aria-label="Search alerts" data-table-filter="alerts-table" id="alerts-filter">
+    {{ crate::icons::icon("search")|safe }}
+  </div>
+  <div class="select-wrap">
+    <select id="alerts-status" aria-label="Alert status">
+      <option value="">All alerts</option>
+      <option value="new" selected>New</option>
+      <option value="ack">Acknowledged</option>
+    </select>
+  </div>
+  {% if can_ack %}
+  <button class="btn primary" type="button" id="alerts-ack-selected" disabled>Acknowledge selected</button>
+  {% endif %}
+</div>
+
+<div class="page-body">
+  <section class="card">
+    <div class="tbl-wrap">
+      <table class="tbl" id="alerts-table" data-attr-filter="data-ack" data-attr-select="alerts-status">
+        <thead>
+          <tr>
+            {% if can_ack %}<th class="pick-col"><span class="visually-hidden">Select</span></th>{% endif %}
+            <th>Severity</th>
+            <th>Type</th>
+            <th>Host</th>
+            <th>Finding</th>
+            <th>Scan</th>
+            <th>Detected</th>
+            <th>Status</th>
+            {% if can_ack %}<th class="right w-actions">Action</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr class="alert-row{% if !row.acknowledged %} is-new{% endif %}"
+              data-ack="{% if row.acknowledged %}ack{% else %}new{% endif %}"
+              data-days="{{ row.days_ago }}">
+            {% if can_ack %}
+            <td class="pick-col">
+              <label class="pick-box">
+                <input type="checkbox" data-alert-pick="{{ row.id }}" aria-label="Select alert for {{ row.host }}">
+                <span>{{ crate::icons::icon("check")|safe }}</span>
+              </label>
+            </td>
+            {% endif %}
+            <td><span class="severity sev-{{ row.severity }}">{{ row.severity }}</span></td>
+            <td>{{ row.kind_label }}</td>
+            <td><span class="mono">{{ row.host }}</span></td>
+            <td class="wrap-cell">
+              {{ row.message }}
+              {% if !row.detail.is_empty() %}<span class="alert-cve mono">{{ row.detail }}</span>{% endif %}
+            </td>
+            <td>{{ row.scan_label }}</td>
+            <td>{{ row.detected }}</td>
+            <td>
+              {% if row.acknowledged %}
+              <span class="badge muted-badge" title="Acknowledged by {{ row.acknowledged_by }}">Acknowledged</span>
+              {% else %}
+              <span class="badge warn">New</span>
+              {% endif %}
+            </td>
+            {% if can_ack %}
+            <td class="right">
+              {% if !row.acknowledged %}
+              <button class="link-btn" type="button" data-alert-ack="{{ row.id }}">{{ crate::icons::icon("check")|safe }} Acknowledge</button>
+              {% else %}
+              <span class="muted">—</span>
+              {% endif %}
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+          {% if rows.is_empty() %}
+          <tr><td colspan="{% if can_ack %}9{% else %}7{% endif %}" class="empty-cell">No alerts yet. They appear as scans discover changes.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    {% include "partials/pager.html" %}
+  </section>
+</div>
+{% endblock %}

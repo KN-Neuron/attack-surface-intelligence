@@ -26,6 +26,7 @@
           <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ scan.progress }}" id="scan-progress" style="--p: {{ scan.progress }}%">
             <div class="progress-fill" id="scan-progress-fill"></div>
           </div>
+          <div class="scan-engine" id="scan-engine">{{ scan.scan_type }} · {{ scan.engine }}</div>
         </div>
 
         <div class="metric-grid">
@@ -40,6 +41,10 @@
           <div class="metric">
             <div class="metric-value" id="scan-started">{{ scan.started_at }}</div>
             <div class="metric-label">Started</div>
+          </div>
+          <div class="metric">
+            <div class="metric-value" id="scan-alerts">{{ scan.alerts_found }}</div>
+            <div class="metric-label">Alerts raised</div>
           </div>
         </div>
 
@@ -59,7 +64,15 @@
             <p id="scan-last">{% if !scan.completed_at.is_empty() %}Last scan finished {{ scan.completed_at }}.{% else %}Start a scan to discover hosts, services and technologies.{% endif %}</p>
           </div>
         </div>
-        <button class="btn primary" type="button" id="scan-start">{{ crate::icons::icon("play")|safe }} Start scan now</button>
+        <div class="scan-start-row">
+          <div class="select-wrap">
+            <select id="scan-type" aria-label="Scan type">
+              <option value="full">Full scan test (httpx)</option>
+              <option value="reachability">Reachability (masscan)</option>
+            </select>
+          </div>
+          <button class="btn primary" type="button" id="scan-start">{{ crate::icons::icon("play")|safe }} Start scan now</button>
+        </div>
       </div>
     </section>
 

@@ -4,10 +4,21 @@
 <div class="explorer">
   <section class="filter-panel">
     <div class="field">
-      <div class="field-label">Search events</div>
+      <div class="field-label">Search hosts</div>
       <div class="search-box explorer-search">
-        <input type="search" placeholder="Host, event, severity..." aria-label="Search events" data-table-filter="explorer-table" id="explorer-filter">
+        <input type="search" placeholder="Host, title, server, technology..." aria-label="Search captured hosts" data-table-filter="assets-table" id="explorer-filter">
         {{ crate::icons::icon("search")|safe }}
+      </div>
+    </div>
+
+    <div class="explorer-stats">
+      <div class="explorer-stat">
+        <span class="explorer-stat-value">{{ up }}</span>
+        <span class="explorer-stat-label">Reachable</span>
+      </div>
+      <div class="explorer-stat">
+        <span class="explorer-stat-value down">{{ down }}</span>
+        <span class="explorer-stat-label">Unreachable</span>
       </div>
     </div>
 
@@ -19,33 +30,50 @@
       <h1>{{ title }}</h1>
       <div class="log-meta">
         <div class="log-range">{{ range_label }}</div>
-        <div class="log-count"><span class="count-dot"></span>{{ rows.len() }} Events Found</div>
+        <div class="log-count"><span class="count-dot"></span>{{ total }} Hosts Captured</div>
       </div>
     </div>
 
     <div class="log-table-wrap">
-      <table class="tbl log-tbl" id="explorer-table">
+      <table class="tbl log-tbl" id="assets-table">
         <thead>
           <tr>
-            <th>No.</th>
-            <th>Event Time</th>
             <th>Host</th>
-            <th>Category</th>
-            <th>Event</th>
-            <th>Severity</th>
+            <th>Status</th>
+            <th>Scheme</th>
+            <th class="right">Port</th>
+            <th class="right">HTTP</th>
+            <th>Title</th>
+            <th>Server</th>
+            <th>Technologies</th>
+            <th>Last checked</th>
+            <th>Last scan</th>
           </tr>
         </thead>
         <tbody>
           {% for row in rows %}
           <tr>
-            <td>{{ row.no }}</td>
-            <td>{{ row.event_time }}</td>
-            <td><span class="mono">{{ row.host }}</span></td>
-            <td>{{ row.category }}</td>
-            <td class="wrap-cell">{{ row.event }}</td>
-            <td><span class="severity sev-{{ row.severity }}">{{ row.severity }}</span></td>
+            <td><span class="mono strong-cell">{{ row.address }}</span></td>
+            <td>
+              {% if row.up %}<span class="badge">Up</span>{% else %}<span class="badge blocked">Down</span>{% endif %}
+            </td>
+            <td>{{ row.scheme }}</td>
+            <td class="right mono">{{ row.port }}</td>
+            <td class="right mono">{{ row.status_code }}</td>
+            <td class="wrap-cell">{{ row.title }}</td>
+            <td>{{ row.webserver }}</td>
+            <td class="asset-tech">
+              {% for tech in row.technologies %}
+              <span class="host-chip">{{ tech }}</span>
+              {% endfor %}
+            </td>
+            <td>{{ row.last_checked }}</td>
+            <td class="mono">{{ row.last_scan }}</td>
           </tr>
           {% endfor %}
+          {% if rows.is_empty() %}
+          <tr><td colspan="10" class="empty-cell">No hosts captured yet. Run a scan to populate this view.</td></tr>
+          {% endif %}
         </tbody>
       </table>
     </div>

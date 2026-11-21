@@ -4,6 +4,7 @@ mod handlers;
 mod icons;
 mod mock;
 mod nav;
+mod scan;
 mod state;
 
 use std::time::Duration;
@@ -22,12 +23,12 @@ async fn main() -> anyhow::Result<()> {
     let pool = db::connect().await?;
     db::init(&pool).await?;
 
-    // Advance the simulated scan once a second while it is running.
-    let ticker = pool.clone();
+    // Launches scheduled policies and keeps their next-run times current.
+    let scheduler = pool.clone();
     tokio::spawn(async move {
         loop {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            db::tick_scan(&ticker).await;
+            scan::tick_scheduler(&scheduler).await;
+            tokio::time::sleep(Duration::from_secs(30)).await;
         }
     });
 
@@ -65,6 +66,7 @@ async fn main() -> anyhow::Result<()> {
         // Log Center.
         .route("/log-center/data-explorer", get(handlers::data_explorer))
         .route("/log-center/scan-history", get(handlers::scan_history))
+        .route("/log-center/alerts", get(handlers::alerts_page))
         // Single destinations.
         .route("/admin-management", get(handlers::admin_management))
         .route("/settings", get(handlers::settings))
@@ -75,8 +77,16 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/scan/pause", post(handlers::scan_pause))
         .route("/api/scan/cancel", post(handlers::scan_cancel))
         .route("/api/scan/start", post(handlers::scan_start))
+        .route("/api/scan/run", post(handlers::scan_run))
+        .route("/api/scans/{id}", get(handlers::scan_detail))
+        .route("/api/alerts/acknowledge", post(handlers::ack_alerts))
+        .route("/api/alerts/{id}/acknowledge", post(handlers::ack_alert))
         .route("/api/policies", post(handlers::create_policy))
-        .route("/api/policies/{id}", put(handlers::update_policy).delete(handlers::delete_policy))
+        .route(
+            "/api/policies/{id}",
+            put(handlers::update_policy).delete(handlers::delete_policy),
+        )
+        .route("/api/policies/{id}/run", post(handlers::run_policy))
         .route("/api/host-groups", post(handlers::create_group))
         .route(
             "/api/host-groups/{id}",
@@ -112,8 +122,9 @@ async fn main() -> anyhow::Result<()> {
         .layer(CompressionLayer::new())
         .with_state(pool);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
-    println!("attack-surface-intelligence listening on http://localhost:8080");
+    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
+    println!("attack-surface-intelligence listening on http://localhost:{port}");
     axum::serve(listener, app).await?;
     Ok(())
 }

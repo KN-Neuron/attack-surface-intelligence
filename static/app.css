@@ -2541,7 +2541,7 @@ body.modal-open { overflow: hidden; }
 
 .overview .tile h2 { margin: 0; font-size: 13px; font-weight: 600; color: var(--text-dim); }
 
-.kpi { grid-column: span 4; gap: 14px; }
+.kpi { grid-column: span 3; gap: 14px; }
 .kpi strong {
   font-size: 32px;
   font-weight: 600;
@@ -2620,7 +2620,8 @@ body.modal-open { overflow: hidden; }
 :is(.overview-screen) :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 @media (max-width: 1180px) {
-  .kpi { grid-column: span 4; }
+  /* Four KPI tiles no longer fit side by side, so they pair up 2x2. */
+  .kpi { grid-column: span 6; }
   .overview-chart, .families { grid-column: span 12; }
   .overview-inventory { grid-template-columns: minmax(0, 1fr); }
 }
@@ -2976,3 +2977,138 @@ body.modal-open { overflow: hidden; }
 .screen-redesign #scan-state[data-state="idle"] { display: none; }
 /* The drop zone dialog has no footer, so it keeps the bottom padding itself. */
 .screen-redesign .modal-body[data-host-import] { padding-bottom: 24px; }
+
+/* ------------------------------------------------------------------ scans */
+
+/* The maximized scan-details view: a near-fullscreen panel instead of a dialog. */
+.screen-redesign .modal.modal-full {
+  width: min(1180px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+}
+.modal.modal-full .modal-body { padding: 18px 24px 24px; }
+
+.detail-banner {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(242, 193, 78, 0.32);
+  background: rgba(242, 193, 78, 0.1);
+  color: #f2c14e;
+  font-size: 12.5px;
+}
+
+.detail-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px 20px;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.detail-meta-row { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.detail-meta-key { font-size: 11px; font-weight: 600; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.04em; }
+.detail-meta-value { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.detail-tile {
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border-soft);
+  background: var(--input-bg);
+}
+.detail-value { font-size: 26px; font-weight: 600; line-height: 1.15; letter-spacing: -0.4px; }
+.detail-value.up { color: #2dd4bf; }
+.detail-value.down { color: #ff8f8f; }
+.detail-label { margin-top: 4px; font-size: 11.5px; color: var(--text-mute); }
+
+.detail-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px 28px;
+}
+.detail-section h3 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+}
+.detail-alerts { display: flex; flex-direction: column; gap: 2px; }
+.detail-alert-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 12.5px;
+}
+.detail-alert-row.total { border-bottom: 0; border-top: 1px solid var(--border); margin-top: 4px; font-weight: 600; }
+.detail-alert-count { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+.detail-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.detail-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 12.5px;
+}
+.detail-list li:last-child { border-bottom: 0; }
+.detail-list-count { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--text-dim); }
+.detail-empty { color: var(--text-mute); font-size: 12px; border-bottom: 0 !important; }
+
+.demo-badge { margin-left: 8px; font-size: 10px; padding: 1px 6px; opacity: 0.7; }
+.muted-badge { opacity: 0.65; }
+.muted { color: var(--text-mute); }
+
+.scan-engine { margin-top: 8px; font-size: 11.5px; color: var(--text-mute); letter-spacing: 0.02em; }
+.scan-start-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.scan-start-row .select-wrap { min-width: 200px; }
+
+/* ---------------------------------------------------------------- alerts */
+
+.alerts-search { min-width: 240px; }
+.alerts-search input { height: 34px; }
+
+.alert-row td { vertical-align: middle; }
+.alert-row.is-new td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+.alert-row.is-new { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.alert-row .alert-cve { margin-left: 8px; font-size: 11px; color: var(--accent); }
+
+.pick-col { width: 34px; text-align: center; }
+.pick-box { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.pick-box input { position: absolute; opacity: 0; width: 0; height: 0; }
+.pick-box span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: transparent;
+}
+.pick-box input:checked + span { background: var(--accent); border-color: var(--accent); color: #120c22; }
+.pick-box input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pick-box svg { width: 11px; height: 11px; }
+
+/* ----------------------------------------------------- data explorer */
+
+.explorer-stats { display: flex; gap: 20px; padding: 4px 0 14px; }
+.explorer-stat { display: flex; flex-direction: column; gap: 2px; }
+.explorer-stat-value { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
+.explorer-stat-value.down { color: #ff8f8f; }
+.explorer-stat-label { font-size: 11px; color: var(--text-mute); }
+.asset-tech { max-width: 260px; white-space: normal; }
+.asset-tech .host-chip { display: inline-block; margin: 1px 3px 1px 0; font-size: 10.5px; }

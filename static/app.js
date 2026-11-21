@@ -400,6 +400,11 @@
       : null;
     var rangeId = table.getAttribute("data-page-range");
     var rangeSel = rangeId ? document.getElementById(rangeId) : null;
+    // Optional attribute filter: `data-attr-filter="data-ack"` names the row
+    // attribute and `data-attr-select="<select id>"` the control that drives it.
+    var attrName = table.getAttribute("data-attr-filter");
+    var attrId = table.getAttribute("data-attr-select");
+    var attrSel = attrId ? document.getElementById(attrId) : null;
 
     if (!allRows.length) {
       if (rangeOut) rangeOut.textContent = "No entries";
@@ -410,7 +415,7 @@
       return;
     }
 
-    var state = { page: 1, size: sizeSel ? Number(sizeSel.value) || 10 : 10, filter: "", sev: "" };
+    var state = { page: 1, size: sizeSel ? Number(sizeSel.value) || 10 : 10, filter: "", sev: "", attr: "" };
 
     function matches(row) {
       if (rangeSel) {
@@ -418,6 +423,7 @@
         if (days && Number(row.getAttribute("data-days")) > days) return false;
       }
       if (state.sev && row.getAttribute("data-sev") !== state.sev) return false;
+      if (state.attr && row.getAttribute(attrName) !== state.attr) return false;
       if (state.filter && row.textContent.toLowerCase().indexOf(state.filter) === -1) return false;
       return true;
     }
@@ -463,6 +469,14 @@
     }
     if (rangeSel) {
       rangeSel.addEventListener("change", function () {
+        state.page = 1;
+        render();
+      });
+    }
+    if (attrSel && attrName) {
+      state.attr = attrSel.value || "";
+      attrSel.addEventListener("change", function () {
+        state.attr = attrSel.value || "";
         state.page = 1;
         render();
       });
@@ -627,9 +641,14 @@
     var scanStarted = document.getElementById("scan-started");
     var scanCurrent = document.getElementById("scan-current");
     var scanLast = document.getElementById("scan-last");
+    var scanEngine = document.getElementById("scan-engine");
     var pauseBtn = document.getElementById("scan-pause");
     var pauseIcon = document.getElementById("scan-pause-icon");
     var pauseText = document.getElementById("scan-pause-text");
+    var scanTypeSel = document.getElementById("scan-type");
+
+    var SCAN_TYPE_LABELS = { full: "Full scan test", reachability: "Reachability" };
+    var ENGINE_LABELS = { httpx: "httpx", masscan: "masscan", tcp: "TCP probe" };
 
     var PAUSE_SVG = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M5.7 3.4v9.2M10.3 3.4v9.2"/></svg>';
     var PLAY_SVG = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M4.6 2.9l8 5.1-8 5.1z"/></svg>';
@@ -650,6 +669,8 @@
       if (scanHosts) scanHosts.textContent = s.hosts_found;
       if (scanStarted && s.started_at) scanStarted.textContent = s.started_at;
       if (scanCurrent) scanCurrent.textContent = s.current_target;
+      var scanAlerts = document.getElementById("scan-alerts");
+      if (scanAlerts) scanAlerts.textContent = s.alerts_found;
 
       if (pauseBtn) pauseBtn.setAttribute("data-paused", s.paused ? "true" : "false");
       if (pauseIcon) pauseIcon.innerHTML = s.paused ? PLAY_SVG : PAUSE_SVG;
@@ -657,6 +678,11 @@
 
       if (scanLast && !s.running && s.completed_at) {
         scanLast.textContent = "Last scan finished " + s.completed_at + ".";
+      }
+      if (scanEngine) {
+        var typeLabel = SCAN_TYPE_LABELS[s.scan_type] || s.scan_type || "";
+        var engineLabel = ENGINE_LABELS[s.engine] || s.engine || "";
+        scanEngine.textContent = typeLabel + (engineLabel ? " · " + engineLabel : "");
       }
     };
 
@@ -667,11 +693,20 @@
         .catch(function () {});
     };
 
-    var scanAction = function (path) {
-      return fetch(path, { method: "POST" })
-        .then(function (r) { return r.json(); })
+    var scanAction = function (path, body) {
+      return fetch(path, {
+        method: "POST",
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined
+      })
+        .then(function (r) {
+          if (!r.ok) throw new Error();
+          return r.json();
+        })
         .then(renderScan)
-        .catch(function () {});
+        .catch(function () {
+          window.alert("Could not start the scan. Another scan may already be running.");
+        });
     };
 
     if (pauseBtn) pauseBtn.addEventListener("click", function () { scanAction("/api/scan/pause"); });
@@ -679,7 +714,11 @@
     if (cancelBtn) cancelBtn.addEventListener("click", function () { scanAction("/api/scan/cancel"); });
     ["scan-start", "scan-start-upcoming"].forEach(function (id) {
       var btn = document.getElementById(id);
-      if (btn) btn.addEventListener("click", function () { scanAction("/api/scan/start"); });
+      if (!btn) return;
+      btn.addEventListener("click", function () {
+        var type = scanTypeSel ? scanTypeSel.value : "full";
+        scanAction("/api/scan/run", { scan_type: type });
+      });
     });
 
     window.setInterval(pollScan, 1500);
@@ -703,6 +742,17 @@
     var minuteEl = document.getElementById("policy-minute");
     var minuteField = document.getElementById("policy-minute-field");
     var scheduleHint = document.getElementById("policy-schedule-hint");
+    var typeEl = document.getElementById("policy-type");
+    var typeHint = document.getElementById("policy-type-hint");
+
+    var TYPE_HINTS = {
+      full: "Runs httpx against every target: host status, HTTP responses, TLS and technologies. Updates all captured data.",
+      reachability: "Runs masscan (falling back to a TCP probe) to check which hosts are up. Leaves captured HTTP and technology data untouched."
+    };
+
+    function syncTypeHint() {
+      if (typeEl && typeHint) typeHint.textContent = TYPE_HINTS[typeEl.value] || "";
+    }
 
     var DAY_NAMES = {
       mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday",
@@ -803,6 +853,7 @@
     [dayEl, hourEl, minuteEl].forEach(function (el) {
       el.addEventListener("change", syncScheduleFields);
     });
+    if (typeEl) typeEl.addEventListener("change", syncTypeHint);
 
     var policyIdInput = document.getElementById("policy-id");
     var policyTitle = document.getElementById("policy-modal-title");
@@ -829,6 +880,8 @@
       if (policyEnabled) policyEnabled.checked = true;
       syncPolicyEnabled();
       if (policyTitle) policyTitle.textContent = "New scan";
+      if (typeEl) typeEl.value = "full";
+      syncTypeHint();
       clearTargets();
       frequencyEl.value = "Daily";
       hourEl.value = "01";
@@ -874,17 +927,23 @@
       clearTargets();
       var frequency = "Daily";
       var when = null;
+      var scanType = "full";
       (policy.criteria || []).forEach(function (c) {
         if (c.kind === "frequency") {
           frequency = c.value;
         } else if (c.kind === "when") {
           when = parseWhen(c.value);
+        } else if (c.kind === "type") {
+          scanType = c.value === "reachability" ? "reachability" : "full";
         } else {
           policyForm.querySelectorAll("input[name=targets]").forEach(function (box) {
             if (box.value === c.value) box.checked = true;
           });
         }
       });
+
+      if (typeEl) typeEl.value = scanType;
+      syncTypeHint();
 
       frequencyEl.value = frequency;
       if (frequencyEl.value !== frequency) frequencyEl.value = "Daily";
@@ -925,6 +984,23 @@
       });
     });
 
+    document.querySelectorAll("[data-policy-run]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-policy-run");
+        btn.disabled = true;
+        fetch("/api/policies/" + id + "/run", { method: "POST" })
+          .then(function (r) {
+            if (!r.ok) throw new Error();
+            return r.json();
+          })
+          .then(function () { window.location.assign("/scanning/management"); })
+          .catch(function () {
+            btn.disabled = false;
+            window.alert("Could not start this scan. Another scan may already be running.");
+          });
+      });
+    });
+
     policyForm.addEventListener("submit", function (event) {
       event.preventDefault();
 
@@ -939,6 +1015,7 @@
 
       var frequency = frequencyEl.value;
       criteria.push({ kind: "frequency", value: frequency });
+      criteria.push({ kind: "type", value: typeEl ? typeEl.value : "full" });
 
       if (frequency !== "On demand") {
         var day = frequency === "Daily" ? "every" : dayEl.value;
@@ -1574,6 +1651,176 @@
   if (explorerRun && explorerFilter) {
     explorerRun.addEventListener("click", function () {
       explorerFilter.dispatchEvent(new Event("input"));
+    });
+  }
+
+  // ==========================================================================
+  // Scan Results — maximized detail view
+  // ==========================================================================
+  var scanDetailModal = document.getElementById("scan-detail-modal");
+  if (scanDetailModal) {
+    var detailSeq = 0;
+
+    var setText = function (id, value) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = value;
+    };
+
+    var renderList = function (id, items, emptyText) {
+      var list = document.getElementById(id);
+      if (!list) return;
+      list.innerHTML = "";
+      if (!items || !items.length) {
+        var none = document.createElement("li");
+        none.className = "detail-empty";
+        none.textContent = emptyText;
+        list.appendChild(none);
+        return;
+      }
+      items.forEach(function (item) {
+        var li = document.createElement("li");
+        var name = document.createElement("span");
+        name.textContent = item.name || item.label || "";
+        var count = document.createElement("span");
+        count.className = "detail-list-count";
+        count.textContent = item.hosts;
+        li.appendChild(name);
+        li.appendChild(count);
+        list.appendChild(li);
+      });
+    };
+
+    var renderDetail = function (scan) {
+      var title = document.getElementById("scan-detail-title");
+      if (title) title.textContent = scan.label;
+      setText("scan-detail-sub", [scan.started, scan.scan_type_label, scan.engine, scan.status]
+        .filter(function (part) { return part; }).join(" · "));
+
+      var meta = document.getElementById("scan-detail-meta");
+      if (meta) {
+        meta.innerHTML = "";
+        [
+          ["Type", scan.scan_type_label],
+          ["Engine", scan.engine],
+          ["Trigger", scan.trigger],
+          ["Started", scan.started],
+          ["Finished", scan.finished],
+          ["Duration", scan.duration]
+        ].forEach(function (pair) {
+          var row = document.createElement("div");
+          row.className = "detail-meta-row";
+          var key = document.createElement("span");
+          key.className = "detail-meta-key";
+          key.textContent = pair[0];
+          var value = document.createElement("span");
+          value.className = "detail-meta-value";
+          value.textContent = pair[1];
+          row.appendChild(key);
+          row.appendChild(value);
+          meta.appendChild(row);
+        });
+      }
+
+      setText("scan-detail-hosts", scan.hosts_total);
+      setText("scan-detail-alive", scan.alive);
+      setText("scan-detail-down", scan.down);
+      setText("scan-detail-services", scan.services);
+      setText("scan-detail-tech", scan.technologies);
+      setText("scan-detail-vulns", scan.vulns);
+      setText("scan-detail-alert-host", scan.alerts_new_host);
+      setText("scan-detail-alert-down", scan.alerts_host_down);
+      setText("scan-detail-alert-cve", scan.alerts_new_cve);
+      setText("scan-detail-alert-open", scan.alerts_open);
+
+      var targets = document.getElementById("scan-detail-targets");
+      if (targets) {
+        targets.innerHTML = "";
+        (scan.targets || []).forEach(function (target) {
+          var chip = document.createElement("span");
+          chip.className = "criteria-chip mono";
+          chip.textContent = target;
+          targets.appendChild(chip);
+        });
+        if (!scan.targets || !scan.targets.length) {
+          targets.innerHTML = "<span class='muted'>No targets recorded.</span>";
+        }
+      }
+
+      renderList("scan-detail-top-tech", scan.top_technologies, "No technologies captured.");
+      renderList("scan-detail-top-services", scan.top_services, "No services captured.");
+
+      var banner = document.getElementById("scan-detail-error");
+      if (banner) {
+        banner.textContent = scan.error || "";
+        banner.hidden = !scan.error;
+      }
+    };
+
+    document.querySelectorAll("[data-scan-details]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-scan-details");
+        var seq = ++detailSeq;
+        fetch("/api/scans/" + id)
+          .then(function (r) {
+            if (!r.ok) throw new Error();
+            return r.json();
+          })
+          .then(function (scan) {
+            if (seq !== detailSeq) return;
+            renderDetail(scan);
+            openModal("scan-detail-modal");
+          })
+          .catch(function () {
+            window.alert("Could not load this scan's details.");
+          });
+      });
+    });
+  }
+
+  // ==========================================================================
+  // Alerts — acknowledge one or many
+  // ==========================================================================
+  var alertsTable = document.getElementById("alerts-table");
+  if (alertsTable) {
+    var picks = Array.prototype.slice.call(alertsTable.querySelectorAll("[data-alert-pick]"));
+    var ackSelected = document.getElementById("alerts-ack-selected");
+
+    var selectedIds = function () {
+      return picks
+        .filter(function (box) { return box.checked; })
+        .map(function (box) { return Number(box.getAttribute("data-alert-pick")); });
+    };
+
+    var syncAckButton = function () {
+      if (ackSelected) ackSelected.disabled = selectedIds().length === 0;
+    };
+
+    picks.forEach(function (box) { box.addEventListener("change", syncAckButton); });
+    syncAckButton();
+
+    var acknowledge = function (ids) {
+      if (!ids.length) return;
+      fetch("/api/alerts/acknowledge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: ids })
+      })
+        .then(function (r) {
+          if (!r.ok) throw new Error();
+          return r.json();
+        })
+        .then(function () { window.location.reload(); })
+        .catch(function () { window.alert("Could not acknowledge these alerts."); });
+    };
+
+    if (ackSelected) {
+      ackSelected.addEventListener("click", function () { acknowledge(selectedIds()); });
+    }
+
+    document.querySelectorAll("[data-alert-ack]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        acknowledge([Number(btn.getAttribute("data-alert-ack"))]);
+      });
     });
   }
 
