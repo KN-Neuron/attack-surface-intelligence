@@ -100,6 +100,21 @@ pub async fn connect() -> anyhow::Result<PgPool> {
 
 pub async fn init(pool: &PgPool) -> anyhow::Result<()> {
     sqlx::raw_sql(SCHEMA).execute(pool).await?;
+
+    // Policy enabled state is a first-class column; drop the legacy criterion
+    // that used to duplicate it.
+    sqlx::query(
+        "UPDATE policies
+         SET criteria = COALESCE(
+             (SELECT jsonb_agg(elem)
+              FROM jsonb_array_elements(criteria) AS elem
+              WHERE elem->>'kind' <> 'enabled'),
+             '[]'::jsonb)
+         WHERE criteria @> '[{\"kind\":\"enabled\"}]'::jsonb",
+    )
+    .execute(pool)
+    .await?;
+
     seed(pool).await?;
     Ok(())
 }
@@ -147,7 +162,6 @@ async fn seed(pool: &PgPool) -> anyhow::Result<()> {
                 Criterion { kind: "host group".into(), value: "Perimeter DMZ".into() },
                 Criterion { kind: "when".into(), value: "Every day at 01:00".into() },
                 Criterion { kind: "frequency".into(), value: "Daily".into() },
-                Criterion { kind: "enabled".into(), value: "Enabled".into() },
             ],
             true,
         )
@@ -160,7 +174,6 @@ async fn seed(pool: &PgPool) -> anyhow::Result<()> {
                 Criterion { kind: "ip to scan".into(), value: "10.0.0.0/24".into() },
                 Criterion { kind: "when".into(), value: "Sundays at 22:00".into() },
                 Criterion { kind: "frequency".into(), value: "Weekly".into() },
-                Criterion { kind: "enabled".into(), value: "Enabled".into() },
             ],
             true,
         )

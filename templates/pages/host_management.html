@@ -84,9 +84,10 @@
 
         <div id="ip-import" hidden>
           <div class="field">
-            <label class="field-label" for="ip-csv">IP list</label>
-            <textarea id="ip-csv" rows="7" placeholder="10.0.12.0/24&#10;10.0.13.0/24&#10;192.168.40.0/24"></textarea>
-            <p class="field-hint">Paste one IP or CIDR range per line. Duplicate addresses are skipped.</p>
+            <label class="field-label" for="ip-file">CSV file</label>
+            <input id="ip-file" name="file" type="file" accept=".csv,.txt,text/csv,text/plain">
+            <p class="field-hint">Upload a CSV or text file with one IP or CIDR range per line. Duplicate addresses are skipped.</p>
+            <p class="field-hint" id="ip-file-status"></p>
           </div>
         </div>
       </div>

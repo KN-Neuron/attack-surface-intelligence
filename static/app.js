@@ -583,7 +583,7 @@
     var criteriaList = document.getElementById("criteria-list");
     var criteriaEmpty = document.getElementById("criteria-empty");
 
-    var KINDS = ["host group", "IP to scan", "when", "frequency", "enabled"];
+    var KINDS = ["host group", "IP to scan", "when", "frequency"];
 
     function valueControl(kind, current) {
       var el;
@@ -604,13 +604,6 @@
       } else if (kind === "frequency") {
         el = document.createElement("select");
         ["Daily", "Weekly", "Monthly", "On demand"].forEach(function (f) {
-          var o = document.createElement("option");
-          o.value = f; o.textContent = f;
-          el.appendChild(o);
-        });
-      } else if (kind === "enabled") {
-        el = document.createElement("select");
-        ["Enabled", "Disabled"].forEach(function (f) {
           var o = document.createElement("option");
           o.value = f; o.textContent = f;
           el.appendChild(o);
@@ -1002,7 +995,39 @@
     var ipAddress = document.getElementById("ip-address");
     var ipCity = document.getElementById("ip-city");
     var ipDescription = document.getElementById("ip-description");
-    var ipCsv = document.getElementById("ip-csv");
+    var ipFile = document.getElementById("ip-file");
+    var ipFileStatus = document.getElementById("ip-file-status");
+    var ipFileRanges = [];
+
+    function parseIpRanges(text) {
+      var pattern = /^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?$/;
+      return String(text || "")
+        .split(/[\n,;]+/)
+        .map(function (s) { return s.trim().replace(/^"|"$/g, ""); })
+        .filter(function (s) { return pattern.test(s); });
+    }
+
+    if (ipFile) {
+      ipFile.addEventListener("change", function () {
+        ipFileRanges = [];
+        var file = ipFile.files && ipFile.files[0];
+        if (ipFileStatus) ipFileStatus.textContent = "";
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+          ipFileRanges = parseIpRanges(reader.result);
+          if (ipFileStatus) {
+            ipFileStatus.textContent = ipFileRanges.length
+              ? ipFileRanges.length + " valid range(s) found in " + file.name
+              : "No valid IP or CIDR entries found in " + file.name + ".";
+          }
+        };
+        reader.onerror = function () {
+          if (ipFileStatus) ipFileStatus.textContent = "Could not read " + file.name + ".";
+        };
+        reader.readAsText(file);
+      });
+    }
 
     function setIpMode(mode) {
       ipMode = mode;
@@ -1020,21 +1045,26 @@
     var ipOpenBtn = document.querySelector('[data-open-modal="ip-modal"]');
     if (ipOpenBtn) ipOpenBtn.addEventListener("click", function () {
       ipForm.reset();
+      ipFileRanges = [];
+      if (ipFileStatus) ipFileStatus.textContent = "";
       setIpMode("single");
     });
 
     ipForm.addEventListener("submit", function (event) {
       event.preventDefault();
       if (ipMode === "import") {
-        var ranges = (ipCsv.value || "").split(/[\n,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
-        if (!ranges.length) {
-          if (ipCsv) ipCsv.focus();
+        if (!ipFileRanges.length) {
+          if (ipFile && !ipFile.files.length) {
+            ipFile.focus();
+          } else if (ipFileStatus) {
+            ipFileStatus.textContent = "Choose a file with at least one valid IP or CIDR range.";
+          }
           return;
         }
         fetch("/api/ip-ranges/import", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ranges: ranges })
+          body: JSON.stringify({ ranges: ipFileRanges })
         })
           .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
           .then(function () { window.location.reload(); })
