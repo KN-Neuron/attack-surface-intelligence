@@ -61,8 +61,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/dashboards/technologies-used", get(handlers::technologies_used))
         .route("/dashboards/vulnerable-versions", get(handlers::vulnerable_versions))
         // Host management.
-        .route("/host-management", get(handlers::host_inventory))
-        .route("/host-management/groups", get(handlers::host_groups))
+        .route("/host-management", get(handlers::host_management))
         // Log Center.
         .route("/log-center/data-explorer", get(handlers::data_explorer))
         .route("/log-center/scan-history", get(handlers::scan_history))

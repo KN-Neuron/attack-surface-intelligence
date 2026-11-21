@@ -279,7 +279,7 @@ pub async fn scan_summary(
 
     let page = ScanSummaryPage {
         shell: build_shell(nav::SCAN_SUMMARY, &admin),
-        title: "Scan summary",
+        title: "Latest Scan summary",
         timeline_json,
         ranges: points,
         selected_range,
@@ -362,50 +362,26 @@ pub async fn vulnerable_versions(
 
 #[derive(Template)]
 #[template(path = "pages/host_inventory.html")]
-struct HostInventoryPage {
+struct HostManagementPage {
     shell: Shell,
     title: &'static str,
     ips: Vec<HostIp>,
     ranges: Vec<HostRange>,
     fqdns: Vec<HostFqdn>,
-}
-
-pub async fn host_inventory(
-    State(pool): State<PgPool>,
-    Extension(admin): Extension<CurrentAdmin>,
-) -> Html<String> {
-    let page = HostInventoryPage {
-        shell: build_shell(nav::HOST_MANAGEMENT, &admin),
-        title: "Host inventory",
-        ips: db::list_host_ips(&pool).await,
-        ranges: db::list_host_ranges(&pool).await,
-        fqdns: db::list_host_fqdns(&pool).await,
-    };
-    render(&page)
-}
-
-#[derive(Template)]
-#[template(path = "pages/host_groups.html")]
-struct HostGroupsPage {
-    shell: Shell,
-    title: &'static str,
     groups: Vec<HostGroup>,
-    ips: Vec<HostIp>,
-    ranges: Vec<HostRange>,
-    fqdns: Vec<HostFqdn>,
 }
 
-pub async fn host_groups(
+pub async fn host_management(
     State(pool): State<PgPool>,
     Extension(admin): Extension<CurrentAdmin>,
 ) -> Html<String> {
-    let page = HostGroupsPage {
-        shell: build_shell(nav::HOST_GROUPS, &admin),
-        title: "Host groups",
-        groups: db::list_groups(&pool).await,
+    let page = HostManagementPage {
+        shell: build_shell(nav::HOST_MANAGEMENT, &admin),
+        title: "Host management",
         ips: db::list_host_ips(&pool).await,
         ranges: db::list_host_ranges(&pool).await,
         fqdns: db::list_host_fqdns(&pool).await,
+        groups: db::list_groups(&pool).await,
     };
     render(&page)
 }
@@ -561,7 +537,7 @@ pub async fn scan_history(
 ) -> Html<String> {
     let page = ScanHistoryPage {
         shell: build_shell(nav::SCAN_HISTORY, &admin),
-        title: "Scan History",
+        title: "Scan Results",
         scans: db::get_data(&pool, "scan_history").await,
         range_label: "Nov 1, 2026 - Nov 21, 2026",
     };
