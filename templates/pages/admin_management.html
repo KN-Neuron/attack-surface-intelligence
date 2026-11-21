@@ -2,15 +2,15 @@
 {% block content %}
 <div class="page-head">
   <h1>{{ title }}</h1>
-  <span class="spacer"></span>
-  <button class="btn primary" type="button" data-open-modal="admin-modal" data-admin-add data-tab-show="accounts">{{ crate::icons::icon("plus")|safe }} Add Admin</button>
-  <button class="btn primary" type="button" data-open-modal="role-modal" data-role-add data-tab-show="roles" hidden>{{ crate::icons::icon("plus")|safe }} Add Role</button>
 </div>
 
 <div class="page-body">
   <div class="tabs-bar" data-tabs="admin">
     <button class="tab-link active" type="button" data-tab="accounts">Accounts</button>
     <button class="tab-link" type="button" data-tab="roles">Roles</button>
+    <span class="tab-spacer"></span>
+    <button class="btn primary" type="button" data-open-modal="admin-modal" data-admin-add data-tab-show="accounts">{{ crate::icons::icon("plus")|safe }} Add Admin</button>
+    <button class="btn primary" type="button" data-open-modal="role-modal" data-role-add data-tab-show="roles" hidden>{{ crate::icons::icon("plus")|safe }} Add Role</button>
   </div>
 
   <div data-tab-panel="accounts">

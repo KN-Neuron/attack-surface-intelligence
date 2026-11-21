@@ -7,8 +7,8 @@ use sqlx::{PgPool, Row};
 use crate::auth::PERMISSION_PAGES;
 use crate::mock;
 use crate::state::{
-    Admin, Criterion, HostGroup, IpRange, Permission, Policy, Role, ScanStatus, SCAN_TARGETS,
-    now_label,
+    Admin, Criterion, HostFqdn, HostGroup, HostIp, HostRange, Permission, Policy, Role, ScanStatus,
+    SCAN_TARGETS, now_label,
 };
 
 /// Hardcoded Railway Postgres connection (per project requirement).
@@ -59,14 +59,29 @@ CREATE TABLE IF NOT EXISTS host_groups (
     hosts JSONB NOT NULL DEFAULT '[]'::jsonb
 );
 
-CREATE TABLE IF NOT EXISTS ip_ranges (
+ALTER TABLE host_groups ADD COLUMN IF NOT EXISTS ips JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE host_groups ADD COLUMN IF NOT EXISTS fqdns JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE host_groups ADD COLUMN IF NOT EXISTS tags JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+CREATE TABLE IF NOT EXISTS host_ips (
     id BIGSERIAL PRIMARY KEY,
-    address TEXT NOT NULL,
-    city TEXT NOT NULL DEFAULT '—',
-    managed_by TEXT NOT NULL DEFAULT 'Self',
-    last_modified TEXT NOT NULL,
-    last_modified_by TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '—'
+    address TEXT NOT NULL UNIQUE,
+    tags JSONB NOT NULL DEFAULT '[]'::jsonb,
+    added TEXT NOT NULL DEFAULT '—'
+);
+
+CREATE TABLE IF NOT EXISTS host_ranges (
+    id BIGSERIAL PRIMARY KEY,
+    cidr TEXT NOT NULL UNIQUE,
+    tags JSONB NOT NULL DEFAULT '[]'::jsonb,
+    added TEXT NOT NULL DEFAULT '—'
+);
+
+CREATE TABLE IF NOT EXISTS host_fqdns (
+    id BIGSERIAL PRIMARY KEY,
+    fqdn TEXT NOT NULL UNIQUE,
+    tags JSONB NOT NULL DEFAULT '[]'::jsonb,
+    added TEXT NOT NULL DEFAULT '—'
 );
 
 CREATE TABLE IF NOT EXISTS scan_state (
@@ -174,31 +189,45 @@ async fn seed(pool: &PgPool) -> anyhow::Result<()> {
         .fetch_one(pool)
         .await?;
     if groups == 0 {
-        create_group(pool, "Perimeter DMZ".into(), vec!["10.0.0.0/24".into()], vec!["35.159.0.131".into()]).await;
+        create_group(
+            pool,
+            "Perimeter DMZ".into(),
+            vec!["35.159.0.131".into()],
+            vec!["10.0.0.0/24".into()],
+            vec![],
+            vec!["perimeter".into(), "dmz".into()],
+        )
+        .await;
         create_group(
             pool,
             "Core services".into(),
+            vec![],
             vec!["10.0.4.0/24".into(), "10.0.5.0/24".into()],
             vec![],
+            vec!["core".into(), "internal".into()],
         )
         .await;
     }
 
-    let ips: i64 = sqlx::query_scalar("SELECT count(*) FROM ip_ranges")
-        .fetch_one(pool)
-        .await?;
-    if ips == 0 {
-        for ip in mock::static_ips() {
-            add_ip_range(
-                pool,
-                ip.address.into(),
-                ip.city.into(),
-                ip.description.into(),
-                ip.last_modified.into(),
-                ip.last_modified_by.into(),
-            )
-            .await;
+    let inventory: i64 = sqlx::query_scalar(
+        "SELECT (SELECT count(*) FROM host_ips)
+              + (SELECT count(*) FROM host_ranges)
+              + (SELECT count(*) FROM host_fqdns)",
+    )
+    .fetch_one(pool)
+    .await?;
+    if inventory == 0 {
+        let mut ips = Vec::new();
+        let mut ranges = Vec::new();
+        for entry in mock::static_ips() {
+            if entry.address.contains('/') {
+                ranges.push(entry.address.to_string());
+            } else {
+                ips.push(entry.address.to_string());
+            }
         }
+        add_host_ips(pool, ips, vec![]).await;
+        add_host_ranges(pool, ranges, vec![]).await;
     }
 
     sqlx::query(
@@ -408,13 +437,15 @@ fn row_to_group(row: &PgRow) -> HostGroup {
     HostGroup {
         id: row.get("id"),
         name: row.get("name"),
+        ips: serde_json::from_value(row.get::<Value, _>("ips")).unwrap_or_default(),
         ranges: serde_json::from_value(row.get::<Value, _>("ranges")).unwrap_or_default(),
-        hosts: serde_json::from_value(row.get::<Value, _>("hosts")).unwrap_or_default(),
+        fqdns: serde_json::from_value(row.get::<Value, _>("fqdns")).unwrap_or_default(),
+        tags: serde_json::from_value(row.get::<Value, _>("tags")).unwrap_or_default(),
     }
 }
 
 pub async fn list_groups(pool: &PgPool) -> Vec<HostGroup> {
-    sqlx::query("SELECT id, name, ranges, hosts FROM host_groups ORDER BY id")
+    sqlx::query("SELECT id, name, ips, ranges, fqdns, tags FROM host_groups ORDER BY id")
         .fetch_all(pool)
         .await
         .unwrap_or_default()
@@ -426,99 +457,120 @@ pub async fn list_groups(pool: &PgPool) -> Vec<HostGroup> {
 pub async fn create_group(
     pool: &PgPool,
     name: String,
+    ips: Vec<String>,
     ranges: Vec<String>,
-    hosts: Vec<String>,
+    fqdns: Vec<String>,
+    tags: Vec<String>,
 ) -> Option<HostGroup> {
     let row = sqlx::query(
-        "INSERT INTO host_groups (name, ranges, hosts) VALUES ($1, $2, $3)
-         RETURNING id, name, ranges, hosts",
+        "INSERT INTO host_groups (name, ips, ranges, fqdns, tags) VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, name, ips, ranges, fqdns, tags",
     )
     .bind(name)
+    .bind(serde_json::to_value(ips).unwrap_or(Value::Array(vec![])))
     .bind(serde_json::to_value(ranges).unwrap_or(Value::Array(vec![])))
-    .bind(serde_json::to_value(hosts).unwrap_or(Value::Array(vec![])))
+    .bind(serde_json::to_value(fqdns).unwrap_or(Value::Array(vec![])))
+    .bind(serde_json::to_value(tags).unwrap_or(Value::Array(vec![])))
     .fetch_one(pool)
     .await
     .ok()?;
     Some(row_to_group(&row))
 }
 
-// ---------------------------------------------------------------- IP ranges
+// ---------------------------------------------------------------- host inventory
 
-fn row_to_ip(row: &PgRow) -> IpRange {
-    IpRange {
+fn tags_of(row: &PgRow) -> Vec<String> {
+    serde_json::from_value(row.get::<Value, _>("tags")).unwrap_or_default()
+}
+
+fn row_to_host_ip(row: &PgRow) -> HostIp {
+    HostIp {
         id: row.get("id"),
         address: row.get("address"),
-        city: row.get("city"),
-        managed_by: row.get("managed_by"),
-        last_modified: row.get("last_modified"),
-        last_modified_by: row.get("last_modified_by"),
-        description: row.get("description"),
+        tags: tags_of(row),
+        added: row.get("added"),
     }
 }
 
-pub async fn list_ip_ranges(pool: &PgPool) -> Vec<IpRange> {
-    sqlx::query(
-        "SELECT id, address, city, managed_by, last_modified, last_modified_by, description
-         FROM ip_ranges ORDER BY id",
-    )
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default()
-    .iter()
-    .map(row_to_ip)
-    .collect()
+fn row_to_host_range(row: &PgRow) -> HostRange {
+    let cidr: String = row.get("cidr");
+    HostRange {
+        size: range_size_label(&cidr),
+        id: row.get("id"),
+        cidr,
+        tags: tags_of(row),
+        added: row.get("added"),
+    }
 }
 
-pub async fn add_ip_range(
-    pool: &PgPool,
-    address: String,
-    city: String,
-    description: String,
-    last_modified: String,
-    last_modified_by: String,
-) -> Option<IpRange> {
-    let row = sqlx::query(
-        "INSERT INTO ip_ranges (address, city, managed_by, last_modified, last_modified_by, description)
-         VALUES ($1, $2, 'Self', $3, $4, $5)
-         RETURNING id, address, city, managed_by, last_modified, last_modified_by, description",
-    )
-    .bind(address)
-    .bind(city)
-    .bind(last_modified)
-    .bind(last_modified_by)
-    .bind(description)
-    .fetch_one(pool)
-    .await
-    .ok()?;
-    Some(row_to_ip(&row))
+fn row_to_host_fqdn(row: &PgRow) -> HostFqdn {
+    HostFqdn {
+        id: row.get("id"),
+        fqdn: row.get("fqdn"),
+        tags: tags_of(row),
+        added: row.get("added"),
+    }
 }
 
-pub async fn import_ip_ranges(pool: &PgPool, addresses: Vec<String>) -> usize {
-    let now = now_label();
-    let mut added = 0;
-    for address in addresses {
-        let address = address.trim().to_string();
-        if address.is_empty() {
-            continue;
-        }
-        let exists: i64 = sqlx::query_scalar("SELECT count(*) FROM ip_ranges WHERE address = $1")
-            .bind(&address)
-            .fetch_one(pool)
-            .await
-            .unwrap_or(0);
-        if exists > 0 {
-            continue;
-        }
-        if add_ip_range(
-            pool,
-            address,
-            "—".into(),
-            "Imported from CSV".into(),
-            now.clone(),
-            "Admin".into(),
-        )
+pub async fn list_host_ips(pool: &PgPool) -> Vec<HostIp> {
+    sqlx::query("SELECT id, address, tags, added FROM host_ips ORDER BY id")
+        .fetch_all(pool)
         .await
-        .is_some()
+        .unwrap_or_default()
+        .iter()
+        .map(row_to_host_ip)
+        .collect()
+}
+
+pub async fn list_host_ranges(pool: &PgPool) -> Vec<HostRange> {
+    sqlx::query("SELECT id, cidr, tags, added FROM host_ranges ORDER BY id")
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default()
+        .iter()
+        .map(row_to_host_range)
+        .collect()
+}
+
+pub async fn list_host_fqdns(pool: &PgPool) -> Vec<HostFqdn> {
+    sqlx::query("SELECT id, fqdn, tags, added FROM host_fqdns ORDER BY id")
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default()
+        .iter()
+        .map(row_to_host_fqdn)
+        .collect()
+}
+
+/// Inserts inventory entries, skipping blanks and duplicates. `table` and
+/// `column` are internal constants, never user input.
+async fn insert_host_entries(
+    pool: &PgPool,
+    table: &str,
+    column: &str,
+    values: Vec<String>,
+    tags: Vec<String>,
+) -> usize {
+    let added_label = now_label();
+    let tags = serde_json::to_value(tags).unwrap_or(Value::Array(vec![]));
+    let sql = format!(
+        "INSERT INTO {table} ({column}, tags, added) VALUES ($1, $2, $3)
+         ON CONFLICT ({column}) DO NOTHING"
+    );
+    let mut added = 0;
+    for value in values {
+        let value = value.trim();
+        if value.is_empty() {
+            continue;
+        }
+        if sqlx::query(&sql)
+            .bind(value)
+            .bind(&tags)
+            .bind(&added_label)
+            .execute(pool)
+            .await
+            .map(|r| r.rows_affected() > 0)
+            .unwrap_or(false)
         {
             added += 1;
         }
@@ -526,11 +578,183 @@ pub async fn import_ip_ranges(pool: &PgPool, addresses: Vec<String>) -> usize {
     added
 }
 
-pub async fn ip_addresses(pool: &PgPool) -> Vec<String> {
-    sqlx::query_scalar("SELECT address FROM ip_ranges ORDER BY id")
+pub async fn add_host_ips(pool: &PgPool, values: Vec<String>, tags: Vec<String>) -> usize {
+    insert_host_entries(pool, "host_ips", "address", values, tags).await
+}
+
+pub async fn add_host_ranges(pool: &PgPool, values: Vec<String>, tags: Vec<String>) -> usize {
+    insert_host_entries(pool, "host_ranges", "cidr", values, tags).await
+}
+
+pub async fn add_host_fqdns(pool: &PgPool, values: Vec<String>, tags: Vec<String>) -> usize {
+    let values = values
+        .into_iter()
+        .map(|v| v.trim().to_lowercase())
+        .collect();
+    insert_host_entries(pool, "host_fqdns", "fqdn", values, tags).await
+}
+
+/// Rewrites a value wherever it appears in a group's membership array, so a
+/// rename keeps existing groups pointing at the same target.
+async fn replace_group_member(pool: &PgPool, column: &str, old: &str, new: &str) {
+    let sql = format!(
+        "UPDATE host_groups SET {column} = COALESCE((
+             SELECT jsonb_agg(
+                 CASE WHEN elem = to_jsonb($1::text) THEN to_jsonb($2::text) ELSE elem END
+             ) FROM jsonb_array_elements({column}) AS elem
+         ), '[]'::jsonb)
+         WHERE {column} @> to_jsonb($1::text)"
+    );
+    let _ = sqlx::query(&sql).bind(old).bind(new).execute(pool).await;
+}
+
+/// Drops a value from every group's membership array when its inventory row
+/// is removed, so groups never keep dangling targets.
+async fn remove_group_member(pool: &PgPool, column: &str, value: &str) {
+    let sql = format!(
+        "UPDATE host_groups SET {column} = COALESCE((
+             SELECT jsonb_agg(elem) FROM jsonb_array_elements({column}) AS elem
+             WHERE elem <> to_jsonb($1::text)
+         ), '[]'::jsonb)
+         WHERE {column} @> to_jsonb($1::text)"
+    );
+    let _ = sqlx::query(&sql).bind(value).execute(pool).await;
+}
+
+async fn update_host_entry(
+    pool: &PgPool,
+    table: &str,
+    column: &str,
+    group_column: &str,
+    id: i64,
+    value: String,
+    tags: Vec<String>,
+) -> bool {
+    let old: Option<String> =
+        sqlx::query_scalar(&format!("SELECT {column} FROM {table} WHERE id = $1"))
+            .bind(id)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
+    let Some(old) = old else {
+        return false;
+    };
+    let tags = serde_json::to_value(tags).unwrap_or(Value::Array(vec![]));
+    let updated = sqlx::query(&format!(
+        "UPDATE {table} SET {column} = $2, tags = $3 WHERE id = $1"
+    ))
+    .bind(id)
+    .bind(&value)
+    .bind(&tags)
+    .execute(pool)
+    .await
+    .map(|r| r.rows_affected() > 0)
+    .unwrap_or(false);
+    if updated && old != value {
+        replace_group_member(pool, group_column, &old, &value).await;
+    }
+    updated
+}
+
+async fn delete_host_entry(
+    pool: &PgPool,
+    table: &str,
+    column: &str,
+    group_column: &str,
+    id: i64,
+) -> bool {
+    let old: Option<String> =
+        sqlx::query_scalar(&format!("SELECT {column} FROM {table} WHERE id = $1"))
+            .bind(id)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
+    let Some(old) = old else {
+        return false;
+    };
+    let deleted = sqlx::query(&format!("DELETE FROM {table} WHERE id = $1"))
+        .bind(id)
+        .execute(pool)
+        .await
+        .map(|r| r.rows_affected() > 0)
+        .unwrap_or(false);
+    if deleted {
+        remove_group_member(pool, group_column, &old).await;
+    }
+    deleted
+}
+
+pub async fn update_host_ip(
+    pool: &PgPool,
+    id: i64,
+    value: String,
+    tags: Vec<String>,
+) -> bool {
+    update_host_entry(pool, "host_ips", "address", "ips", id, value, tags).await
+}
+
+pub async fn update_host_range(
+    pool: &PgPool,
+    id: i64,
+    value: String,
+    tags: Vec<String>,
+) -> bool {
+    update_host_entry(pool, "host_ranges", "cidr", "ranges", id, value, tags).await
+}
+
+pub async fn update_host_fqdn(
+    pool: &PgPool,
+    id: i64,
+    value: String,
+    tags: Vec<String>,
+) -> bool {
+    let value = value.trim().to_lowercase();
+    update_host_entry(pool, "host_fqdns", "fqdn", "fqdns", id, value, tags).await
+}
+
+pub async fn delete_host_ip(pool: &PgPool, id: i64) -> bool {
+    delete_host_entry(pool, "host_ips", "address", "ips", id).await
+}
+
+pub async fn delete_host_range(pool: &PgPool, id: i64) -> bool {
+    delete_host_entry(pool, "host_ranges", "cidr", "ranges", id).await
+}
+
+pub async fn delete_host_fqdn(pool: &PgPool, id: i64) -> bool {
+    delete_host_entry(pool, "host_fqdns", "fqdn", "fqdns", id).await
+}
+
+/// CIDR blocks as scan-target strings, used to populate policy options.
+pub async fn range_cidrs(pool: &PgPool) -> Vec<String> {
+    sqlx::query_scalar("SELECT cidr FROM host_ranges ORDER BY id")
         .fetch_all(pool)
         .await
         .unwrap_or_default()
+}
+
+/// A coarse, display-oriented address count for a CIDR block.
+fn range_size_label(cidr: &str) -> String {
+    let Some((_, prefix)) = cidr.split_once('/') else {
+        return "1".into();
+    };
+    let Ok(prefix) = prefix.parse::<u32>() else {
+        return "—".into();
+    };
+    if prefix > 32 {
+        return "—".into();
+    }
+    let count: u64 = 1u64 << (32 - prefix);
+    let digits = count.to_string();
+    let mut out = String::new();
+    for (i, ch) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i) % 3 == 0 {
+            out.push(',');
+        }
+        out.push(ch);
+    }
+    out
 }
 
 // ---------------------------------------------------------------- roles

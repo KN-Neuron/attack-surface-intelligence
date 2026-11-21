@@ -21,19 +21,47 @@ pub struct Policy {
 pub struct HostGroup {
     pub id: i64,
     pub name: String,
+    #[serde(default)]
+    pub ips: Vec<String>,
+    #[serde(default)]
     pub ranges: Vec<String>,
-    pub hosts: Vec<String>,
+    #[serde(default)]
+    pub fqdns: Vec<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
+/// A single IP address in the host inventory.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct IpRange {
+pub struct HostIp {
     pub id: i64,
     pub address: String,
-    pub city: String,
-    pub managed_by: String,
-    pub last_modified: String,
-    pub last_modified_by: String,
-    pub description: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    pub added: String,
+}
+
+/// A CIDR block in the host inventory.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct HostRange {
+    pub id: i64,
+    pub cidr: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    pub added: String,
+    /// Human-readable address count for this block, computed on read.
+    #[serde(default)]
+    pub size: String,
+}
+
+/// A fully-qualified domain name in the host inventory.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct HostFqdn {
+    pub id: i64,
+    pub fqdn: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    pub added: String,
 }
 
 /// One cell of the per-page RBAC matrix.
@@ -124,9 +152,13 @@ fn default_true() -> bool {
 pub struct NewGroup {
     pub name: String,
     #[serde(default)]
+    pub ips: Vec<String>,
+    #[serde(default)]
     pub ranges: Vec<String>,
     #[serde(default)]
-    pub hosts: Vec<String>,
+    pub fqdns: Vec<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -164,17 +196,20 @@ fn active_status() -> String {
     "Active".into()
 }
 
+/// Bulk payload for adding inventory entries. The same shape serves IPs,
+/// ranges and FQDNs; an empty tag list means "untagged".
 #[derive(Deserialize)]
-pub struct NewIpRange {
-    pub address: String,
+pub struct NewHostEntries {
     #[serde(default)]
-    pub city: String,
+    pub values: Vec<String>,
     #[serde(default)]
-    pub description: String,
+    pub tags: Vec<String>,
 }
 
+/// Single-entry edit payload for an inventory row.
 #[derive(Deserialize)]
-pub struct ImportIpRanges {
+pub struct EditHostEntry {
+    pub value: String,
     #[serde(default)]
-    pub ranges: Vec<String>,
+    pub tags: Vec<String>,
 }

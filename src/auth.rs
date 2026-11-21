@@ -104,10 +104,7 @@ pub fn page_for_path(path: &str) -> Option<&'static str> {
         Some("policies")
     } else if path.starts_with("/scanning/compare-scans") {
         Some("compare")
-    } else if path.starts_with("/host-management")
-        || path.starts_with("/api/ip-ranges")
-        || path.starts_with("/api/host-groups")
-    {
+    } else if path.starts_with("/host-management") || path.starts_with("/api/host-") {
         Some("host_management")
     } else if path.starts_with("/log-center/data-explorer") {
         Some("data_explorer")

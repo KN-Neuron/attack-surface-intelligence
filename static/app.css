@@ -1547,6 +1547,18 @@ html.nav-collapsed .sidebar .nav-item:not(.root) { display: none; }
   margin-bottom: 14px;
 }
 
+.tab-spacer { flex: 1 1 auto; }
+.tabs-bar > .btn {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  height: 30px;
+  padding: 0 14px;
+  margin-bottom: 7px;
+  white-space: nowrap;
+}
+.tabs-bar > .btn .ico { width: 14px; height: 14px; }
+
 .tab-link {
   padding: 8px 2px 11px;
   margin-right: 22px;
@@ -2162,6 +2174,7 @@ body.modal-open { overflow: hidden; }
 .criteria-row .icon-btn:hover { color: var(--bad); background: rgba(255, 107, 107, 0.1); }
 
 .check-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 4px; }
+.check-list.scroll { max-height: 220px; overflow: auto; padding-right: 4px; }
 .check-row {
   display: flex;
   align-items: center;
@@ -2194,7 +2207,6 @@ body.modal-open { overflow: hidden; }
 .tag-input { display: flex; gap: 8px; margin-top: 8px; }
 .tag-input input { flex: 1 1 auto; }
 .tag-input .btn { flex: 0 0 auto; height: 34px; padding: 0 12px; }
-#group-host-chips:empty { display: none; }
 
 /* ================================================================
    Scan history

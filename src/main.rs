@@ -48,7 +48,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/dashboards/technologies-used", get(handlers::technologies_used))
         .route("/dashboards/vulnerable-versions", get(handlers::vulnerable_versions))
         // Host management.
-        .route("/host-management", get(handlers::host_management))
+        .route("/host-management", get(handlers::host_inventory))
+        .route("/host-management/groups", get(handlers::host_groups))
         // Log Center.
         .route("/log-center/data-explorer", get(handlers::data_explorer))
         .route("/log-center/scan-history", get(handlers::scan_history))
@@ -65,8 +66,21 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/policies", post(handlers::create_policy))
         .route("/api/policies/{id}", put(handlers::update_policy).delete(handlers::delete_policy))
         .route("/api/host-groups", post(handlers::create_group))
-        .route("/api/ip-ranges", post(handlers::create_ip_range))
-        .route("/api/ip-ranges/import", post(handlers::import_ip_ranges))
+        .route("/api/host-ips", post(handlers::create_host_ips))
+        .route(
+            "/api/host-ips/{id}",
+            put(handlers::update_host_ips).delete(handlers::delete_host_ips),
+        )
+        .route("/api/host-ranges", post(handlers::create_host_ranges))
+        .route(
+            "/api/host-ranges/{id}",
+            put(handlers::update_host_ranges).delete(handlers::delete_host_ranges),
+        )
+        .route("/api/host-fqdns", post(handlers::create_host_fqdns))
+        .route(
+            "/api/host-fqdns/{id}",
+            put(handlers::update_host_fqdns).delete(handlers::delete_host_fqdns),
+        )
         .route("/api/admins", post(handlers::create_admin))
         .route("/api/admins/{id}", put(handlers::update_admin))
         .route("/api/admins/{id}/toggle", post(handlers::toggle_admin))

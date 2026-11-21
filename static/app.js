@@ -28,6 +28,63 @@
     });
   }
 
+  // ---- reusable tag chip input ------------------------------------------------
+  // Wires an entry field, an "Add" button and a chip container inside `scope`.
+  // Returns the current tag list plus a reset helper.
+  function initTagInput(scope) {
+    var entry = scope.querySelector("[data-tag-entry]");
+    var addBtn = scope.querySelector("[data-tag-add]");
+    var chips = scope.querySelector("[data-tag-chips]");
+    var values = [];
+
+    function render() {
+      if (!chips) return;
+      chips.innerHTML = "";
+      values.forEach(function (tag, i) {
+        var chip = document.createElement("span");
+        chip.className = "host-chip";
+        chip.appendChild(document.createTextNode(tag));
+        var x = document.createElement("button");
+        x.type = "button";
+        x.className = "chip-x";
+        x.setAttribute("aria-label", "Remove " + tag);
+        x.innerHTML = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2"/></svg>';
+        x.addEventListener("click", function () {
+          values.splice(i, 1);
+          render();
+        });
+        chip.appendChild(x);
+        chips.appendChild(chip);
+      });
+    }
+
+    function add() {
+      var value = (entry && entry.value || "").trim();
+      if (!value) return;
+      if (values.indexOf(value) === -1) values.push(value);
+      if (entry) { entry.value = ""; entry.focus(); }
+      render();
+    }
+
+    if (addBtn) addBtn.addEventListener("click", add);
+    if (entry) entry.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); add(); }
+    });
+
+    render();
+
+    return {
+      values: function () { return values.slice(); },
+      add: function (tag) {
+        tag = String(tag == null ? "" : tag).trim();
+        if (!tag || values.indexOf(tag) !== -1) return;
+        values.push(tag);
+        render();
+      },
+      reset: function () { values = []; if (entry) entry.value = ""; render(); }
+    };
+  }
+
   // Wrap the matched part of the title so the typed fragment stands out.
   function highlight(text, needle) {
     var safe = escapeHtml(text);
@@ -818,57 +875,26 @@
   }
 
   // ==========================================================================
-  // Host groups — tag input + submit
+  // Host groups — selection, tags and submit
   // ==========================================================================
-  var groupForm = document.getElementById("group-form");
+  var groupForm = document.querySelector("[data-group-form]");
   if (groupForm) {
-    var hostInput = document.getElementById("group-host-input");
-    var hostAdd = document.getElementById("group-host-add");
-    var hostChips = document.getElementById("group-host-chips");
-    var groupHosts = [];
-
-    function renderHostChips() {
-      hostChips.innerHTML = "";
-      groupHosts.forEach(function (h, i) {
-        var chip = document.createElement("span");
-        chip.className = "host-chip";
-        chip.appendChild(document.createTextNode(h));
-        var x = document.createElement("button");
-        x.type = "button";
-        x.className = "chip-x";
-        x.setAttribute("aria-label", "Remove " + h);
-        x.innerHTML = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2"/></svg>';
-        x.addEventListener("click", function () {
-          groupHosts.splice(i, 1);
-          renderHostChips();
-        });
-        chip.appendChild(x);
-        hostChips.appendChild(chip);
-      });
-    }
-
-    function addHost() {
-      var value = (hostInput.value || "").trim();
-      if (!value) return;
-      if (groupHosts.indexOf(value) === -1) groupHosts.push(value);
-      hostInput.value = "";
-      hostInput.focus();
-      renderHostChips();
-    }
-
-    if (hostAdd) hostAdd.addEventListener("click", addHost);
-    if (hostInput) hostInput.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") { e.preventDefault(); addHost(); }
-    });
-
+    groupForm._tagHandle = initTagInput(groupForm);
     groupForm.addEventListener("submit", function (event) {
       event.preventDefault();
-      var ranges = [];
-      groupForm.querySelectorAll("input[name=ranges]:checked").forEach(function (c) { ranges.push(c.value); });
+
+      function checked(name) {
+        var out = [];
+        groupForm.querySelectorAll("input[name=" + name + "]:checked").forEach(function (c) { out.push(c.value); });
+        return out;
+      }
+
       var payload = {
         name: groupForm.querySelector("[name=name]").value,
-        ranges: ranges,
-        hosts: groupHosts
+        ips: checked("ips"),
+        ranges: checked("ranges"),
+        fqdns: checked("fqdns"),
+        tags: groupForm._tagHandle.values()
       };
       fetch("/api/host-groups", {
         method: "POST",
@@ -880,6 +906,19 @@
         .catch(function () { window.alert("Could not save the group. Please try again."); });
     });
   }
+
+  // Filterable checkbox lists inside the group modal.
+  document.querySelectorAll("[data-filter-input]").forEach(function (input) {
+    var field = input.closest(".field");
+    var list = field ? field.querySelector("[data-filter-list]") : null;
+    if (!list) return;
+    input.addEventListener("input", function () {
+      var needle = input.value.trim().toLowerCase();
+      list.querySelectorAll("[data-filter-item]").forEach(function (row) {
+        row.hidden = needle.length > 0 && row.textContent.toLowerCase().indexOf(needle) === -1;
+      });
+    });
+  });
 
   // ==========================================================================
   // Admin management — accounts (role-based) + roles
@@ -1092,112 +1131,106 @@
   }
 
   // ==========================================================================
-  // IP ranges — add single range or import CSV
+  // Host inventory — add IPs, ranges or FQDNs with optional tags
   // ==========================================================================
-  var ipForm = document.getElementById("ip-form");
-  if (ipForm) {
-    var ipMode = "single";
-    var ipSingle = document.getElementById("ip-single");
-    var ipImport = document.getElementById("ip-import");
-    var ipAddress = document.getElementById("ip-address");
-    var ipCity = document.getElementById("ip-city");
-    var ipDescription = document.getElementById("ip-description");
-    var ipFile = document.getElementById("ip-file");
-    var ipFileStatus = document.getElementById("ip-file-status");
-    var ipFileRanges = [];
-
-    function parseIpRanges(text) {
-      var pattern = /^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?$/;
-      return String(text || "")
-        .split(/[\n,;]+/)
-        .map(function (s) { return s.trim().replace(/^"|"$/g, ""); })
-        .filter(function (s) { return pattern.test(s); });
-    }
-
-    if (ipFile) {
-      ipFile.addEventListener("change", function () {
-        ipFileRanges = [];
-        var file = ipFile.files && ipFile.files[0];
-        if (ipFileStatus) ipFileStatus.textContent = "";
-        if (!file) return;
-        var reader = new FileReader();
-        reader.onload = function () {
-          ipFileRanges = parseIpRanges(reader.result);
-          if (ipFileStatus) {
-            ipFileStatus.textContent = ipFileRanges.length
-              ? ipFileRanges.length + " valid range(s) found in " + file.name
-              : "No valid IP or CIDR entries found in " + file.name + ".";
-          }
-        };
-        reader.onerror = function () {
-          if (ipFileStatus) ipFileStatus.textContent = "Could not read " + file.name + ".";
-        };
-        reader.readAsText(file);
-      });
-    }
-
-    function setIpMode(mode) {
-      ipMode = mode;
-      document.querySelectorAll("[data-ip-mode]").forEach(function (b) {
-        b.classList.toggle("active", b.getAttribute("data-ip-mode") === mode);
-      });
-      if (ipSingle) ipSingle.hidden = mode !== "single";
-      if (ipImport) ipImport.hidden = mode !== "import";
-    }
-
-    document.querySelectorAll("[data-ip-mode]").forEach(function (btn) {
-      btn.addEventListener("click", function () { setIpMode(btn.getAttribute("data-ip-mode")); });
-    });
-
-    var ipOpenBtn = document.querySelector('[data-open-modal="ip-modal"]');
-    if (ipOpenBtn) ipOpenBtn.addEventListener("click", function () {
-      ipForm.reset();
-      ipFileRanges = [];
-      if (ipFileStatus) ipFileStatus.textContent = "";
-      setIpMode("single");
-    });
-
-    ipForm.addEventListener("submit", function (event) {
+  document.querySelectorAll("form[data-host-add]").forEach(function (form) {
+    form._tagHandle = initTagInput(form);
+    form.addEventListener("submit", function (event) {
       event.preventDefault();
-      if (ipMode === "import") {
-        if (!ipFileRanges.length) {
-          if (ipFile && !ipFile.files.length) {
-            ipFile.focus();
-          } else if (ipFileStatus) {
-            ipFileStatus.textContent = "Choose a file with at least one valid IP or CIDR range.";
-          }
-          return;
-        }
-        fetch("/api/ip-ranges/import", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ranges: ipFileRanges })
-        })
-          .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
-          .then(function () { window.location.reload(); })
-          .catch(function () { window.alert("Could not import the IP list. Please try again."); });
+      var field = form.querySelector("textarea[name=values]");
+      var values = String((field && field.value) || "")
+        .split(/[\n,;]+/)
+        .map(function (s) { return s.trim(); })
+        .filter(function (s) { return s.length > 0; });
+      if (!values.length) {
+        if (field) field.focus();
         return;
       }
-
-      var address = (ipAddress.value || "").trim();
-      if (!address) {
-        if (ipAddress) ipAddress.focus();
-        return;
-      }
-      fetch("/api/ip-ranges", {
+      fetch(form.getAttribute("data-endpoint"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          address: address,
-          city: (ipCity.value || "").trim(),
-          description: (ipDescription.value || "").trim()
-        })
+        body: JSON.stringify({ values: values, tags: form._tagHandle.values() })
       })
         .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
         .then(function () { window.location.reload(); })
-        .catch(function () { window.alert("Could not add the IP range. Please try again."); });
+        .catch(function () { window.alert("Could not save these entries. Please try again."); });
     });
-  }
+  });
+
+  // Reset an add/group form whenever its modal is opened.
+  document.querySelectorAll("[data-open-modal]").forEach(function (btn) {
+    var modal = document.getElementById(btn.getAttribute("data-open-modal"));
+    if (!modal) return;
+    var form = modal.querySelector("form[data-host-add], form[data-group-form]");
+    if (!form) return;
+    btn.addEventListener("click", function () {
+      form.reset();
+      if (form._tagHandle) form._tagHandle.reset();
+    });
+  });
+
+  // ==========================================================================
+  // Host inventory — edit and remove rows
+  // ==========================================================================
+  var HOST_ENDPOINTS = {
+    ip: "/api/host-ips",
+    range: "/api/host-ranges",
+    fqdn: "/api/host-fqdns"
+  };
+
+  document.querySelectorAll("form[data-host-edit]").forEach(function (form) {
+    form._tagHandle = initTagInput(form);
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var id = form.querySelector("[name=id]").value;
+      var valueField = form.querySelector("[name=value]");
+      var value = (valueField.value || "").trim();
+      if (!value) {
+        valueField.focus();
+        return;
+      }
+      fetch(form.getAttribute("data-endpoint") + "/" + id, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: value, tags: form._tagHandle.values() })
+      })
+        .then(function (r) { if (!r.ok) throw new Error(); })
+        .then(function () { window.location.reload(); })
+        .catch(function () { window.alert("Could not save this entry. Please try again."); });
+    });
+  });
+
+  document.querySelectorAll("[data-edit]").forEach(function (btn) {
+    var kind = btn.getAttribute("data-edit");
+    var modal = document.getElementById(kind + "-edit-modal");
+    if (!modal) return;
+    btn.addEventListener("click", function () {
+      var form = modal.querySelector("form[data-host-edit]");
+      if (!form) return;
+      form.reset();
+      form.querySelector("[name=id]").value = btn.getAttribute("data-id");
+      form.querySelector("[name=value]").value = btn.getAttribute("data-value");
+      if (form._tagHandle) form._tagHandle.reset();
+      var row = btn.closest("tr");
+      if (row && form._tagHandle) {
+        row.querySelectorAll("[data-tag]").forEach(function (chip) {
+          form._tagHandle.add(chip.getAttribute("data-tag"));
+        });
+      }
+      openModal(kind + "-edit-modal");
+    });
+  });
+
+  document.querySelectorAll("[data-delete]").forEach(function (btn) {
+    var kind = btn.getAttribute("data-delete");
+    btn.addEventListener("click", function () {
+      if (!window.confirm("Remove this entry from the inventory?")) return;
+      fetch(HOST_ENDPOINTS[kind] + "/" + btn.getAttribute("data-id"), { method: "DELETE" })
+        .then(function (r) { if (!r.ok) throw new Error(); })
+        .then(function () { window.location.reload(); })
+        .catch(function () { window.alert("Could not remove this entry. Please try again."); });
+    });
+  });
 
   // ==========================================================================
   // Data Explorer — run query
