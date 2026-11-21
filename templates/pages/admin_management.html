@@ -86,9 +86,32 @@
           </div>
         </div>
         <div class="field" id="admin-password-field">
-          <label class="field-label" for="admin-password">Temporary password</label>
-          <input id="admin-password" name="password" type="password" placeholder="At least 12 characters">
-          <p class="field-hint">The administrator will be prompted to change this on first sign-in.</p>
+          <label class="field-label" for="admin-password">Password</label>
+          <input id="admin-password" name="password" type="password" placeholder="At least 8 characters" autocomplete="new-password" required>
+          <p class="field-hint">Leave blank when editing to keep the current password.</p>
+        </div>
+
+        <div class="field">
+          <span class="field-label">Permissions</span>
+          <p class="field-hint">Read hides or shows the page. Write allows creating, editing and deleting on it.</p>
+          <div class="perm-head">
+            <span>Page</span><span>Read</span><span>Write</span>
+          </div>
+          <div class="perm-list">
+            {% for p in permission_pages %}
+            <div class="perm-row" data-perm="{{ p.key }}">
+              <span class="perm-name">{{ p.label }}</span>
+              <label class="perm-toggle" title="Read {{ p.label }}">
+                <input type="checkbox" data-perm-read="{{ p.key }}">
+                <span class="check-box">{{ crate::icons::icon("check")|safe }}</span>
+              </label>
+              <label class="perm-toggle" title="Write {{ p.label }}">
+                <input type="checkbox" data-perm-write="{{ p.key }}">
+                <span class="check-box">{{ crate::icons::icon("check")|safe }}</span>
+              </label>
+            </div>
+            {% endfor %}
+          </div>
         </div>
       </div>
       <div class="modal-foot">

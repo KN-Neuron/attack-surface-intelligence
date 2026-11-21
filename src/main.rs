@@ -1,33 +1,43 @@
+mod auth;
+mod db;
 mod handlers;
 mod icons;
 mod mock;
 mod nav;
 mod state;
 
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use axum::{Router, routing::{get, post, put}};
+use axum::{
+    Router,
+    middleware,
+    routing::{get, post, put},
+};
 use tower_http::{compression::CompressionLayer, services::ServeDir};
 
-use crate::state::AppState;
-
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let shared: state::SharedState = Arc::new(Mutex::new(AppState::seeded()));
+async fn main() -> anyhow::Result<()> {
+    let pool = db::connect().await?;
+    db::init(&pool).await?;
 
     // Advance the simulated scan once a second while it is running.
-    let ticker = shared.clone();
+    let ticker = pool.clone();
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(Duration::from_secs(1)).await;
-            if let Ok(mut guard) = ticker.lock() {
-                guard.scan.tick();
-            }
+            db::tick_scan(&ticker).await;
         }
     });
 
-    let app = Router::new()
+    // Login and static assets are reachable without a session, so the login
+    // page can load its stylesheet.
+    let public: Router<sqlx::PgPool> = Router::new()
+        .route("/login", get(auth::login_page).post(auth::login_post))
+        .nest_service("/static", ServeDir::new("static"));
+
+    // Everything else requires a session and is checked against the RBAC
+    // permission matrix by the guard middleware.
+    let protected: Router<sqlx::PgPool> = Router::new()
         .route("/", get(handlers::root))
         // Scanning.
         .route("/scanning/management", get(handlers::scanning_management))
@@ -46,6 +56,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Single destinations.
         .route("/admin-management", get(handlers::admin_management))
         .route("/settings", get(handlers::settings))
+        // Auth.
+        .route("/logout", post(auth::logout))
         // JSON APIs.
         .route("/api/scan/status", get(handlers::scan_status))
         .route("/api/scan/pause", post(handlers::scan_pause))
@@ -60,9 +72,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/admins/{id}", put(handlers::update_admin))
         .route("/api/admins/{id}/toggle", post(handlers::toggle_admin))
         .route("/api/search", get(handlers::search))
-        .nest_service("/static", ServeDir::new("static"))
+        .layer(middleware::from_fn_with_state(pool.clone(), auth::guard));
+
+    let app = public
+        .merge(protected)
         .layer(CompressionLayer::new())
-        .with_state(shared);
+        .with_state(pool);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
     println!("attack-surface-intelligence listening on http://localhost:8080");

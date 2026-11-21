@@ -53,7 +53,7 @@
             <tr><th>Service</th><th>Version</th><th>CVE</th><th>Severity</th><th>Summary</th></tr>
           </thead>
           <tbody>
-            {% for row in db %}
+            {% for row in db_rows %}
             <tr>
               <td class="strong-cell">{{ row.service }}</td>
               <td>{{ row.version }}</td>

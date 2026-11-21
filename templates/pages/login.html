@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Attack Surface Intelligence</title>
+  <script>
+    (function () {
+      try {
+        var theme = window.localStorage.getItem("asi.theme");
+        if (theme === "light" || theme === "dark") {
+          document.documentElement.setAttribute("data-theme", theme);
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="login-body">
+  <div class="login-shell">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="login-logo">{{ crate::icons::icon("shield")|safe }}</div>
+        <div>
+          <div class="login-product">Attack Surface Intelligence</div>
+          <div class="login-sub">Sign in to continue</div>
+        </div>
+      </div>
+
+      {% if !error.is_empty() %}
+      <div class="login-error">{{ error }}</div>
+      {% endif %}
+
+      <form method="post" action="/login" class="login-form">
+        <div class="field">
+          <label class="field-label" for="login-email">Email</label>
+          <input id="login-email" name="email" type="email" placeholder="you@company.com" autocomplete="username" required autofocus>
+        </div>
+        <div class="field">
+          <label class="field-label" for="login-password">Password</label>
+          <input id="login-password" name="password" type="password" placeholder="Password" autocomplete="current-password" required>
+        </div>
+        <label class="check-row login-remember">
+          <input type="checkbox" name="remember" value="1">
+          <span class="check-box">{{ crate::icons::icon("check")|safe }}</span>
+          <span class="check-label">Remember me for 30 days</span>
+        </label>
+        <button class="btn primary login-btn" type="submit">Sign in</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

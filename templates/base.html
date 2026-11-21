@@ -34,7 +34,10 @@
       <div class="search-results" id="search-results" role="listbox" aria-label="Search results" hidden></div>
     </div>
     <div class="topbar-right">
-      <button class="icon-btn" type="button" aria-label="Account">{{ crate::icons::icon("user")|safe }}</button>
+      <span class="topbar-user">{{ shell.admin_name }}</span>
+      <form method="post" action="/logout" class="signout-form">
+        <button class="icon-btn" type="submit" title="Sign out" aria-label="Sign out">{{ crate::icons::icon("logout")|safe }}</button>
+      </form>
     </div>
   </header>
 

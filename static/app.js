@@ -863,8 +863,55 @@
     var adminIdInput = document.getElementById("admin-id");
     var adminTitle = document.getElementById("admin-modal-title");
     var adminStatus = document.getElementById("admin-status");
-    var adminPasswordField = document.getElementById("admin-password-field");
+    var adminPassword = document.getElementById("admin-password");
     var editingAdminId = null;
+
+    function permRows() {
+      return adminForm.querySelectorAll("[data-perm]");
+    }
+
+    function syncPermRow(row) {
+      var read = row.querySelector("[data-perm-read]");
+      var write = row.querySelector("[data-perm-write]");
+      if (!read || !write) return;
+      if (!read.checked) {
+        write.checked = false;
+        write.disabled = true;
+      } else {
+        write.disabled = false;
+      }
+    }
+
+    permRows().forEach(function (row) {
+      var read = row.querySelector("[data-perm-read]");
+      if (read) read.addEventListener("change", function () { syncPermRow(row); });
+    });
+
+    function clearPermissions() {
+      permRows().forEach(function (row) {
+        var read = row.querySelector("[data-perm-read]");
+        var write = row.querySelector("[data-perm-write]");
+        if (read) read.checked = false;
+        if (write) { write.checked = false; write.disabled = true; }
+      });
+    }
+
+    function collectPermissions() {
+      var out = [];
+      permRows().forEach(function (row) {
+        var key = row.getAttribute("data-perm");
+        var read = row.querySelector("[data-perm-read]");
+        var write = row.querySelector("[data-perm-write]");
+        if (read && (read.checked || (write && write.checked))) {
+          out.push({
+            page: key,
+            can_read: read.checked,
+            can_write: !!(write && write.checked)
+          });
+        }
+      });
+      return out;
+    }
 
     function resetAdminForm() {
       editingAdminId = null;
@@ -872,7 +919,8 @@
       if (adminIdInput) adminIdInput.value = "";
       if (adminStatus) adminStatus.value = "Active";
       if (adminTitle) adminTitle.textContent = "Add administrator";
-      if (adminPasswordField) adminPasswordField.hidden = false;
+      if (adminPassword) { adminPassword.required = true; adminPassword.value = ""; }
+      clearPermissions();
     }
 
     function openAdminEditor(admin) {
@@ -883,7 +931,19 @@
       adminForm.querySelector("[name=role]").value = admin.role;
       if (adminStatus) adminStatus.value = admin.status;
       if (adminTitle) adminTitle.textContent = "Edit administrator";
-      if (adminPasswordField) adminPasswordField.hidden = true;
+      if (adminPassword) { adminPassword.required = false; adminPassword.value = ""; }
+      clearPermissions();
+      (admin.permissions || []).forEach(function (perm) {
+        var row = adminForm.querySelector('[data-perm="' + perm.page + '"]');
+        if (!row) return;
+        var read = row.querySelector("[data-perm-read]");
+        var write = row.querySelector("[data-perm-write]");
+        if (read) read.checked = !!perm.can_read;
+        if (write) {
+          write.checked = !!perm.can_write;
+          write.disabled = !perm.can_read;
+        }
+      });
       openModal("admin-modal");
     }
 
@@ -914,7 +974,9 @@
         name: adminForm.querySelector("[name=name]").value,
         email: adminForm.querySelector("[name=email]").value,
         role: adminForm.querySelector("[name=role]").value,
-        status: adminStatus ? adminStatus.value : "Active"
+        status: adminStatus ? adminStatus.value : "Active",
+        password: adminPassword ? adminPassword.value : "",
+        permissions: collectPermissions()
       };
       var url = editingAdminId ? "/api/admins/" + editingAdminId : "/api/admins";
       var method = editingAdminId ? "PUT" : "POST";

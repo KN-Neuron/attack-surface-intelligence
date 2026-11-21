@@ -47,6 +47,7 @@ pub fn icon(name: &str) -> &'static str {
         "info" => r#"<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.1v4M8 4.9h.01"/></svg>"#,
         "target" => r#"<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="5.8"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="0.9" fill="currentColor" stroke="none"/></svg>"#,
         "layers" => r#"<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M8 1.9l5.8 3-5.8 3-5.8-3z"/><path d="M2.2 8l5.8 3 5.8-3M2.2 11.1l5.8 3 5.8-3"/></svg>"#,
+        "logout" => r#"<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 2.8H3.5a1.1 1.1 0 00-1.1 1.1v8.2a1.1 1.1 0 001.1 1.1h2.7"/><path d="M10.3 5.2L13.1 8l-2.8 2.8M5.6 8h7.5"/></svg>"#,
         _ => "",
     }
 }

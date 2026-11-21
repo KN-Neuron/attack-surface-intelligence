@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------- static IPs
 
@@ -52,20 +52,21 @@ pub fn static_ips() -> Vec<StaticIp> {
 
 // ---------------------------------------------------------------- upcoming
 
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct UpcomingScan {
-    pub name: &'static str,
-    pub schedule: &'static str,
-    pub next_run: &'static str,
-    pub target: &'static str,
+    pub name: String,
+    pub schedule: String,
+    pub next_run: String,
+    pub target: String,
     pub hosts: u32,
 }
 
 pub fn upcoming_scan() -> UpcomingScan {
     UpcomingScan {
-        name: "Nightly perimeter sweep",
-        schedule: "Daily at 01:00",
-        next_run: "November 22, 2026 01:00 AM",
-        target: "Perimeter DMZ · 10.0.0.0/24",
+        name: "Nightly perimeter sweep".into(),
+        schedule: "Daily at 01:00".into(),
+        next_run: "November 22, 2026 01:00 AM".into(),
+        target: "Perimeter DMZ · 10.0.0.0/24".into(),
         hosts: 254,
     }
 }
@@ -74,9 +75,9 @@ pub fn upcoming_scan() -> UpcomingScan {
 
 pub const LATEST_SCAN: &str = "November 21, 2026 09:14:02 AM";
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct TimelinePoint {
-    pub label: &'static str,
+    pub label: String,
     pub days: u32,
     pub alive: u32,
     pub alive_new: i32,
@@ -85,26 +86,24 @@ pub struct TimelinePoint {
     pub services: u32,
 }
 
-/// Defaults for the scan summary. The timeline control swaps between these;
-/// the numbers are written as deltas versus the previous comparable scan.
 pub fn timeline_points() -> Vec<TimelinePoint> {
     vec![
-        TimelinePoint { label: "24 hours", days: 1, alive: 132, alive_new: 6, down: 9, down_new: -2, services: 214 },
-        TimelinePoint { label: "7 days", days: 7, alive: 148, alive_new: 14, down: 12, down_new: 3, services: 246 },
-        TimelinePoint { label: "14 days", days: 14, alive: 156, alive_new: 18, down: 13, down_new: 2, services: 261 },
-        TimelinePoint { label: "30 days", days: 30, alive: 171, alive_new: 23, down: 15, down_new: 2, services: 289 },
-        TimelinePoint { label: "180 days", days: 180, alive: 196, alive_new: 34, down: 19, down_new: 1, services: 318 },
-        TimelinePoint { label: "365 days", days: 365, alive: 204, alive_new: 42, down: 21, down_new: 4, services: 331 },
+        TimelinePoint { label: "24 hours".into(), days: 1, alive: 132, alive_new: 6, down: 9, down_new: -2, services: 214 },
+        TimelinePoint { label: "7 days".into(), days: 7, alive: 148, alive_new: 14, down: 12, down_new: 3, services: 246 },
+        TimelinePoint { label: "14 days".into(), days: 14, alive: 156, alive_new: 18, down: 13, down_new: 2, services: 261 },
+        TimelinePoint { label: "30 days".into(), days: 30, alive: 171, alive_new: 23, down: 15, down_new: 2, services: 289 },
+        TimelinePoint { label: "180 days".into(), days: 180, alive: 196, alive_new: 34, down: 19, down_new: 1, services: 318 },
+        TimelinePoint { label: "365 days".into(), days: 365, alive: 204, alive_new: 42, down: 21, down_new: 4, services: 331 },
     ]
 }
 
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct ServiceSlice {
-    pub label: &'static str,
+    pub label: String,
     pub count: u32,
     pub pct: f64,
     pub gap: f64,
-    pub color: &'static str,
-    /// Stroke offset for a donut whose circumference is 100.
+    pub color: String,
     pub offset: f64,
 }
 
@@ -121,58 +120,67 @@ pub fn service_slices() -> Vec<ServiceSlice> {
     let mut cumulative = 0.0;
     raw.into_iter()
         .map(|(label, count, pct, color)| {
-            let offset = (25.0 - cumulative) as f64;
+            let offset = 25.0 - cumulative;
             cumulative += pct;
-            ServiceSlice { label, count, pct, gap: 100.0 - pct, color, offset }
+            ServiceSlice {
+                label: label.into(),
+                count,
+                pct,
+                gap: 100.0 - pct,
+                color: color.into(),
+                offset,
+            }
         })
         .collect()
 }
 
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct PopularService {
-    pub service: &'static str,
+    pub service: String,
     pub count: u32,
     pub pct: u32,
-    pub color: &'static str,
+    pub color: String,
 }
 
 pub fn popular_services() -> Vec<PopularService> {
     vec![
-        PopularService { service: "HTTPS", count: 1840, pct: 100, color: "#4aa8ff" },
-        PopularService { service: "HTTP", count: 1210, pct: 66, color: "#4aa8ff" },
-        PopularService { service: "SSH", count: 640, pct: 35, color: "#67c17f" },
-        PopularService { service: "DNS", count: 512, pct: 28, color: "#e5c458" },
-        PopularService { service: "MySQL", count: 188, pct: 10, color: "#b58cff" },
-        PopularService { service: "RDP", count: 142, pct: 8, color: "#ff8f6b" },
-        PopularService { service: "SMB", count: 96, pct: 5, color: "#5d7085" },
+        PopularService { service: "HTTPS".into(), count: 1840, pct: 100, color: "#4aa8ff".into() },
+        PopularService { service: "HTTP".into(), count: 1210, pct: 66, color: "#4aa8ff".into() },
+        PopularService { service: "SSH".into(), count: 640, pct: 35, color: "#67c17f".into() },
+        PopularService { service: "DNS".into(), count: 512, pct: 28, color: "#e5c458".into() },
+        PopularService { service: "MySQL".into(), count: 188, pct: 10, color: "#b58cff".into() },
+        PopularService { service: "RDP".into(), count: 142, pct: 8, color: "#ff8f6b".into() },
+        PopularService { service: "SMB".into(), count: 96, pct: 5, color: "#5d7085".into() },
     ]
 }
 
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct PopularTech {
-    pub name: &'static str,
-    pub version: &'static str,
+    pub name: String,
+    pub version: String,
     pub count: u32,
     pub pct: u32,
-    pub color: &'static str,
+    pub color: String,
 }
 
 pub fn popular_technologies() -> Vec<PopularTech> {
     vec![
-        PopularTech { name: "WordPress", version: "6.4.2", count: 14, pct: 100, color: "#4aa8ff" },
-        PopularTech { name: "Node.js", version: "20.10.0", count: 12, pct: 86, color: "#67c17f" },
-        PopularTech { name: "nginx", version: "1.24.0", count: 11, pct: 79, color: "#e5c458" },
-        PopularTech { name: "WordPress", version: "6.2.1", count: 9, pct: 64, color: "#4aa8ff" },
-        PopularTech { name: "PHP", version: "8.2.13", count: 9, pct: 64, color: "#b58cff" },
-        PopularTech { name: "Joomla", version: "4.3.2", count: 6, pct: 43, color: "#ff8f6b" },
-        PopularTech { name: "Django", version: "4.2", count: 5, pct: 36, color: "#5d7085" },
-        PopularTech { name: "Laravel", version: "10.2", count: 4, pct: 29, color: "#c98bff" },
-        PopularTech { name: "Drupal", version: "10.1", count: 3, pct: 21, color: "#6bd1c4" },
-        PopularTech { name: "Rails", version: "7.1", count: 2, pct: 14, color: "#e06b8b" },
+        PopularTech { name: "WordPress".into(), version: "6.4.2".into(), count: 14, pct: 100, color: "#4aa8ff".into() },
+        PopularTech { name: "Node.js".into(), version: "20.10.0".into(), count: 12, pct: 86, color: "#67c17f".into() },
+        PopularTech { name: "nginx".into(), version: "1.24.0".into(), count: 11, pct: 79, color: "#e5c458".into() },
+        PopularTech { name: "WordPress".into(), version: "6.2.1".into(), count: 9, pct: 64, color: "#4aa8ff".into() },
+        PopularTech { name: "PHP".into(), version: "8.2.13".into(), count: 9, pct: 64, color: "#b58cff".into() },
+        PopularTech { name: "Joomla".into(), version: "4.3.2".into(), count: 6, pct: 43, color: "#ff8f6b".into() },
+        PopularTech { name: "Django".into(), version: "4.2".into(), count: 5, pct: 36, color: "#5d7085".into() },
+        PopularTech { name: "Laravel".into(), version: "10.2".into(), count: 4, pct: 29, color: "#c98bff".into() },
+        PopularTech { name: "Drupal".into(), version: "10.1".into(), count: 3, pct: 21, color: "#6bd1c4".into() },
+        PopularTech { name: "Rails".into(), version: "7.1".into(), count: 2, pct: 14, color: "#e06b8b".into() },
     ]
 }
 
 // ---------------------------------------------------------------- technologies
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct TechHost {
     pub ip: String,
     pub hostname: String,
@@ -183,12 +191,12 @@ pub struct TechHost {
     pub last_seen: String,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct TechRow {
     pub id: usize,
-    pub name: &'static str,
-    pub versions: &'static str,
-    pub category: &'static str,
+    pub name: String,
+    pub versions: String,
+    pub category: String,
     pub host_count: usize,
     pub hosts: Vec<TechHost>,
 }
@@ -209,9 +217,9 @@ pub fn technologies() -> Vec<TechRow> {
     vec![
         TechRow {
             id: 1,
-            name: "nginx",
-            versions: "1.24.0, 1.25.3",
-            category: "Web server",
+            name: "nginx".into(),
+            versions: "1.24.0, 1.25.3".into(),
+            category: "Web server".into(),
             host_count: 3,
             hosts: vec![
                 host("35.159.0.131", "edge-proxy-01", "Ubuntu 22.04", 443, "HTTPS"),
@@ -221,9 +229,9 @@ pub fn technologies() -> Vec<TechRow> {
         },
         TechRow {
             id: 2,
-            name: "OpenSSH",
-            versions: "8.9p1, 9.6p1",
-            category: "Remote access",
+            name: "OpenSSH".into(),
+            versions: "8.9p1, 9.6p1".into(),
+            category: "Remote access".into(),
             host_count: 3,
             hosts: vec![
                 host("10.0.0.14", "edge-proxy-02", "Ubuntu 22.04", 22, "SSH"),
@@ -233,9 +241,9 @@ pub fn technologies() -> Vec<TechRow> {
         },
         TechRow {
             id: 3,
-            name: "PostgreSQL",
-            versions: "15.4, 16.1",
-            category: "Database",
+            name: "PostgreSQL".into(),
+            versions: "15.4, 16.1".into(),
+            category: "Database".into(),
             host_count: 2,
             hosts: vec![
                 host("10.0.5.7", "db-primary", "Rocky Linux 9", 5432, "PostgreSQL"),
@@ -244,9 +252,9 @@ pub fn technologies() -> Vec<TechRow> {
         },
         TechRow {
             id: 4,
-            name: "Apache httpd",
-            versions: "2.4.58",
-            category: "Web server",
+            name: "Apache httpd".into(),
+            versions: "2.4.58".into(),
+            category: "Web server".into(),
             host_count: 2,
             hosts: vec![
                 host("10.0.4.4", "legacy-crm", "CentOS 7", 80, "HTTP"),
@@ -255,9 +263,9 @@ pub fn technologies() -> Vec<TechRow> {
         },
         TechRow {
             id: 5,
-            name: "MySQL",
-            versions: "8.0.35",
-            category: "Database",
+            name: "MySQL".into(),
+            versions: "8.0.35".into(),
+            category: "Database".into(),
             host_count: 2,
             hosts: vec![
                 host("10.0.5.11", "shop-db", "Ubuntu 20.04", 3306, "MySQL"),
@@ -266,9 +274,9 @@ pub fn technologies() -> Vec<TechRow> {
         },
         TechRow {
             id: 6,
-            name: "Redis",
-            versions: "7.2.3",
-            category: "Cache",
+            name: "Redis".into(),
+            versions: "7.2.3".into(),
+            category: "Cache".into(),
             host_count: 2,
             hosts: vec![
                 host("10.0.4.30", "cache-01", "Debian 12", 6379, "Redis"),
@@ -277,9 +285,9 @@ pub fn technologies() -> Vec<TechRow> {
         },
         TechRow {
             id: 7,
-            name: "Docker Engine",
-            versions: "24.0.7, 25.0.3",
-            category: "Container runtime",
+            name: "Docker Engine".into(),
+            versions: "24.0.7, 25.0.3".into(),
+            category: "Container runtime".into(),
             host_count: 3,
             hosts: vec![
                 host("10.0.4.9", "build-runner", "Debian 12", 2375, "Docker"),
@@ -289,9 +297,9 @@ pub fn technologies() -> Vec<TechRow> {
         },
         TechRow {
             id: 8,
-            name: "Node.js",
-            versions: "20.10.0",
-            category: "Application runtime",
+            name: "Node.js".into(),
+            versions: "20.10.0".into(),
+            category: "Application runtime".into(),
             host_count: 2,
             hosts: vec![
                 host("10.0.6.3", "staging-app", "Ubuntu 22.04", 3000, "HTTP"),
@@ -300,17 +308,17 @@ pub fn technologies() -> Vec<TechRow> {
         },
         TechRow {
             id: 9,
-            name: "PHP",
-            versions: "8.2.13",
-            category: "Application runtime",
+            name: "PHP".into(),
+            versions: "8.2.13".into(),
+            category: "Application runtime".into(),
             host_count: 1,
             hosts: vec![host("10.0.4.5", "intranet", "CentOS 7", 443, "HTTPS")],
         },
         TechRow {
             id: 10,
-            name: "Kubernetes",
-            versions: "1.28.5",
-            category: "Orchestration",
+            name: "Kubernetes".into(),
+            versions: "1.28.5".into(),
+            category: "Orchestration".into(),
             host_count: 1,
             hosts: vec![host("10.0.6.10", "k8s-control", "Ubuntu 22.04", 6443, "HTTPS")],
         },
@@ -319,47 +327,49 @@ pub fn technologies() -> Vec<TechRow> {
 
 // ---------------------------------------------------------------- vulnerabilities
 
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct VulnDbRow {
-    pub service: &'static str,
-    pub version: &'static str,
-    pub cve: &'static str,
-    pub severity: &'static str,
-    pub summary: &'static str,
+    pub service: String,
+    pub version: String,
+    pub cve: String,
+    pub severity: String,
+    pub summary: String,
 }
 
 pub fn vulnerable_db() -> Vec<VulnDbRow> {
     vec![
-        VulnDbRow { service: "OpenSSH", version: "8.9p1", cve: "CVE-2023-38408", severity: "Critical", summary: "Remote code execution via the PKCS#11 provider" },
-        VulnDbRow { service: "Apache httpd", version: "2.4.58", cve: "CVE-2023-45802", severity: "High", summary: "HTTP/2 memory exhaustion in request handling" },
-        VulnDbRow { service: "nginx", version: "1.24.0", cve: "CVE-2023-44487", severity: "High", summary: "HTTP/2 rapid reset denial of service" },
-        VulnDbRow { service: "PostgreSQL", version: "15.4", cve: "CVE-2023-5869", severity: "High", summary: "Integer overflow in array modification" },
-        VulnDbRow { service: "MySQL", version: "8.0.35", cve: "CVE-2024-20960", severity: "Medium", summary: "Privilege escalation in the server component" },
-        VulnDbRow { service: "Redis", version: "7.2.3", cve: "CVE-2023-45145", severity: "Medium", summary: "Race condition on Unix socket permissions" },
+        VulnDbRow { service: "OpenSSH".into(), version: "8.9p1".into(), cve: "CVE-2023-38408".into(), severity: "Critical".into(), summary: "Remote code execution via the PKCS#11 provider".into() },
+        VulnDbRow { service: "Apache httpd".into(), version: "2.4.58".into(), cve: "CVE-2023-45802".into(), severity: "High".into(), summary: "HTTP/2 memory exhaustion in request handling".into() },
+        VulnDbRow { service: "nginx".into(), version: "1.24.0".into(), cve: "CVE-2023-44487".into(), severity: "High".into(), summary: "HTTP/2 rapid reset denial of service".into() },
+        VulnDbRow { service: "PostgreSQL".into(), version: "15.4".into(), cve: "CVE-2023-5869".into(), severity: "High".into(), summary: "Integer overflow in array modification".into() },
+        VulnDbRow { service: "MySQL".into(), version: "8.0.35".into(), cve: "CVE-2024-20960".into(), severity: "Medium".into(), summary: "Privilege escalation in the server component".into() },
+        VulnDbRow { service: "Redis".into(), version: "7.2.3".into(), cve: "CVE-2023-45145".into(), severity: "Medium".into(), summary: "Race condition on Unix socket permissions".into() },
     ]
 }
 
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct DetectedVuln {
-    pub service: &'static str,
-    pub version: &'static str,
-    pub cve: &'static str,
-    pub severity: &'static str,
-    pub hosts: Vec<&'static str>,
+    pub service: String,
+    pub version: String,
+    pub cve: String,
+    pub severity: String,
+    pub hosts: Vec<String>,
 }
 
 pub fn detected_vulns() -> Vec<DetectedVuln> {
     vec![
-        DetectedVuln { service: "OpenSSH", version: "8.9p1", cve: "CVE-2023-38408", severity: "Critical", hosts: vec!["10.0.0.14", "10.0.4.9"] },
-        DetectedVuln { service: "Apache httpd", version: "2.4.58", cve: "CVE-2023-45802", severity: "High", hosts: vec!["10.0.4.4", "10.0.4.5"] },
-        DetectedVuln { service: "nginx", version: "1.24.0", cve: "CVE-2023-44487", severity: "High", hosts: vec!["35.159.0.131", "10.0.0.14"] },
-        DetectedVuln { service: "PostgreSQL", version: "15.4", cve: "CVE-2023-5869", severity: "High", hosts: vec!["10.0.5.7", "10.0.5.8"] },
-        DetectedVuln { service: "MySQL", version: "8.0.35", cve: "CVE-2024-20960", severity: "Medium", hosts: vec!["10.0.5.11", "10.0.5.12"] },
-        DetectedVuln { service: "Redis", version: "7.2.3", cve: "CVE-2023-45145", severity: "Medium", hosts: vec!["10.0.4.30", "10.0.4.31"] },
+        DetectedVuln { service: "OpenSSH".into(), version: "8.9p1".into(), cve: "CVE-2023-38408".into(), severity: "Critical".into(), hosts: vec!["10.0.0.14".into(), "10.0.4.9".into()] },
+        DetectedVuln { service: "Apache httpd".into(), version: "2.4.58".into(), cve: "CVE-2023-45802".into(), severity: "High".into(), hosts: vec!["10.0.4.4".into(), "10.0.4.5".into()] },
+        DetectedVuln { service: "nginx".into(), version: "1.24.0".into(), cve: "CVE-2023-44487".into(), severity: "High".into(), hosts: vec!["35.159.0.131".into(), "10.0.0.14".into()] },
+        DetectedVuln { service: "PostgreSQL".into(), version: "15.4".into(), cve: "CVE-2023-5869".into(), severity: "High".into(), hosts: vec!["10.0.5.7".into(), "10.0.5.8".into()] },
+        DetectedVuln { service: "MySQL".into(), version: "8.0.35".into(), cve: "CVE-2024-20960".into(), severity: "Medium".into(), hosts: vec!["10.0.5.11".into(), "10.0.5.12".into()] },
+        DetectedVuln { service: "Redis".into(), version: "7.2.3".into(), cve: "CVE-2023-45145".into(), severity: "Medium".into(), hosts: vec!["10.0.4.30".into(), "10.0.4.31".into()] },
     ]
 }
 
 // ---------------------------------------------------------------- scan history
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct ScanRow {
     pub id: u32,
     pub label: String,
@@ -405,7 +415,7 @@ fn build_scan_rows() -> Vec<ScanRow> {
                 services: 180 + ((i * 5) % 220),
                 technologies: 6 + (i % 9),
                 vulns: (i % 8) + 1,
-                days_ago: ((i * 18 + 2) / 24),
+                days_ago: (i * 18 + 2) / 24,
                 status: status.to_string(),
             }
         })
@@ -416,19 +426,16 @@ pub fn scan_history() -> Vec<ScanRow> {
     build_scan_rows()
 }
 
-pub fn scan_options() -> Vec<ScanRow> {
-    build_scan_rows()
-}
-
 // ---------------------------------------------------------------- data explorer
 
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct DataEvent {
     pub no: usize,
     pub event_time: String,
-    pub host: &'static str,
-    pub category: &'static str,
-    pub event: &'static str,
-    pub severity: &'static str,
+    pub host: String,
+    pub category: String,
+    pub event: String,
+    pub severity: String,
 }
 
 pub fn data_events() -> Vec<DataEvent> {
@@ -457,10 +464,10 @@ pub fn data_events() -> Vec<DataEvent> {
             DataEvent {
                 no: i + 1,
                 event_time: time.format("%b %-d, %Y %-I:%M:%S %p").to_string(),
-                host: hosts[i % hosts.len()],
-                category: categories[i % categories.len()],
-                event: ev.0,
-                severity: ev.1,
+                host: hosts[i % hosts.len()].into(),
+                category: categories[i % categories.len()].into(),
+                event: ev.0.into(),
+                severity: ev.1.into(),
             }
         })
         .collect()

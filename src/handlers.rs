@@ -1,17 +1,23 @@
 use askama::Template;
 use axum::{
-    Json,
+    Extension, Json,
     extract::{Path, Query, State},
     http::StatusCode,
-    response::{Html, Redirect},
+    response::{Html, IntoResponse, Redirect, Response},
 };
 use serde::Deserialize;
+use sqlx::PgPool;
 
-use crate::mock::{self, DataEvent, DetectedVuln, PopularService, PopularTech, ScanRow, ServiceSlice, TechRow, TimelinePoint, UpcomingScan, VulnDbRow};
+use crate::auth::{self, CurrentAdmin, PERMISSION_PAGES, PermissionPage};
+use crate::db;
+use crate::mock::{
+    DataEvent, DetectedVuln, PopularService, PopularTech, ScanRow, ServiceSlice, TechRow,
+    TimelinePoint, UpcomingScan, VulnDbRow,
+};
 use crate::nav::{self, NavGroup};
 use crate::state::{
-    self, Admin, HostGroup, ImportIpRanges, IpRange, NewAdmin, NewGroup, NewIpRange, NewPolicy, Policy,
-    Scan, ScanStatus, SharedState,
+    Admin, HostGroup, ImportIpRanges, IpRange, NewAdmin, NewGroup, NewIpRange, NewPolicy, Policy,
+    ScanStatus, UpdateAdmin,
 };
 
 const PRODUCT: &str = "Attack Surface Intelligence";
@@ -34,28 +40,40 @@ pub struct Shell {
     pub section: &'static str,
     pub section_icon: &'static str,
     pub groups: Vec<NavGroupView>,
+    pub admin_name: String,
 }
 
-/// Builds the shared shell with the single application navigation.
-fn build_shell(active_path: &str) -> Shell {
+/// Builds the shared shell, filtering navigation to pages this admin may read.
+fn build_shell(active_path: &str, admin: &CurrentAdmin) -> Shell {
     let def = nav::main_nav();
 
     let groups = def
         .groups
         .iter()
-        .map(|g: &NavGroup| NavGroupView {
-            title: g.title,
-            icon: g.icon,
-            items: g
+        .filter_map(|g: &NavGroup| {
+            let items: Vec<NavItemView> = g
                 .items
                 .iter()
+                .filter(|i| match auth::nav_permission(i.href) {
+                    Some(page) => admin.can_read(page),
+                    None => true,
+                })
                 .map(|i| NavItemView {
                     label: i.label,
                     href: i.href,
                     icon: i.icon,
                     active: i.href == active_path,
                 })
-                .collect(),
+                .collect();
+            if items.is_empty() {
+                None
+            } else {
+                Some(NavGroupView {
+                    title: g.title,
+                    icon: g.icon,
+                    items,
+                })
+            }
         })
         .collect();
 
@@ -64,6 +82,7 @@ fn build_shell(active_path: &str) -> Shell {
         section: def.title,
         section_icon: def.icon,
         groups,
+        admin_name: admin.name.clone(),
     }
 }
 
@@ -84,16 +103,16 @@ pub struct ScanView {
     pub paused: bool,
     pub progress: f64,
     pub progress_label: String,
-    pub targets_done: u32,
-    pub target_total: u32,
-    pub hosts_found: u32,
+    pub targets_done: i32,
+    pub target_total: i32,
+    pub hosts_found: i32,
     pub current_target: String,
     pub started_at: String,
     pub completed_at: String,
 }
 
-impl From<&Scan> for ScanView {
-    fn from(scan: &Scan) -> Self {
+impl From<&ScanStatus> for ScanView {
+    fn from(scan: &ScanStatus) -> Self {
         Self {
             running: scan.running,
             paused: scan.paused,
@@ -118,46 +137,34 @@ struct ScanningManagementPage {
     scan: ScanView,
 }
 
-pub async fn scanning_management(State(state): State<SharedState>) -> Html<String> {
-    let scan = state.lock().unwrap().scan_status_view();
+pub async fn scanning_management(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+) -> Html<String> {
+    let scan = db::get_scan_state(&pool).await;
     let page = ScanningManagementPage {
-        shell: build_shell(nav::SCANNING_MANAGEMENT),
+        shell: build_shell(nav::SCANNING_MANAGEMENT, &admin),
         title: "Scan management",
-        upcoming: mock::upcoming_scan(),
-        scan,
+        upcoming: db::get_data(&pool, "upcoming_scan").await,
+        scan: ScanView::from(&scan),
     };
     render(&page)
 }
 
-impl state::AppState {
-    fn scan_status_view(&self) -> ScanView {
-        ScanView::from(&self.scan)
-    }
+pub async fn scan_status(State(pool): State<PgPool>) -> Json<ScanStatus> {
+    Json(db::get_scan_state(&pool).await)
 }
 
-pub async fn scan_status(State(state): State<SharedState>) -> Json<ScanStatus> {
-    let guard = state.lock().unwrap();
-    Json(ScanStatus::from(&guard.scan))
+pub async fn scan_pause(State(pool): State<PgPool>) -> Json<ScanStatus> {
+    Json(db::pause_scan(&pool).await)
 }
 
-pub async fn scan_pause(State(state): State<SharedState>) -> Json<ScanStatus> {
-    let mut guard = state.lock().unwrap();
-    if guard.scan.running {
-        guard.scan.paused = !guard.scan.paused;
-    }
-    Json(ScanStatus::from(&guard.scan))
+pub async fn scan_cancel(State(pool): State<PgPool>) -> Json<ScanStatus> {
+    Json(db::cancel_scan(&pool).await)
 }
 
-pub async fn scan_cancel(State(state): State<SharedState>) -> Json<ScanStatus> {
-    let mut guard = state.lock().unwrap();
-    guard.scan.cancel();
-    Json(ScanStatus::from(&guard.scan))
-}
-
-pub async fn scan_start(State(state): State<SharedState>) -> Json<ScanStatus> {
-    let mut guard = state.lock().unwrap();
-    guard.scan.start();
-    Json(ScanStatus::from(&guard.scan))
+pub async fn scan_start(State(pool): State<PgPool>) -> Json<ScanStatus> {
+    Json(db::start_scan(&pool).await)
 }
 
 // ---------------------------------------------------------------- policies
@@ -172,23 +179,24 @@ struct PoliciesPage {
     policies_json: String,
 }
 
-pub async fn scanning_policies(State(state): State<SharedState>) -> Html<String> {
-    let (policies, host_groups, ip_ranges) = {
-        let guard = state.lock().unwrap();
-        (
-            guard.policies.clone(),
-            guard.host_groups.iter().map(|g| g.name.clone()).collect::<Vec<_>>(),
-            guard.ip_addresses(),
-        )
-    };
+pub async fn scanning_policies(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+) -> Html<String> {
+    let policies = db::list_policies(&pool).await;
+    let groups = db::list_groups(&pool).await;
+    let host_groups: Vec<String> = groups.into_iter().map(|g| g.name).collect();
+    let ip_ranges = db::ip_addresses(&pool).await;
+
     let options_json = serde_json::json!({
         "groups": &host_groups,
         "ranges": &ip_ranges,
     })
     .to_string();
     let policies_json = serde_json::to_string(&policies).unwrap_or_else(|_| "[]".into());
+
     let page = PoliciesPage {
-        shell: build_shell(nav::SCANNING_POLICIES),
+        shell: build_shell(nav::SCANNING_POLICIES, &admin),
         title: "Scan policies",
         policies,
         options_json,
@@ -198,32 +206,31 @@ pub async fn scanning_policies(State(state): State<SharedState>) -> Html<String>
 }
 
 pub async fn create_policy(
-    State(state): State<SharedState>,
+    State(pool): State<PgPool>,
     Json(payload): Json<NewPolicy>,
-) -> Json<Policy> {
-    let mut guard = state.lock().unwrap();
-    let order = if payload.order == 0 { guard.policies.len() as u32 + 1 } else { payload.order };
-    Json(guard.add_policy(payload.name, order, payload.criteria, payload.enabled))
+) -> Result<Json<Policy>, StatusCode> {
+    db::create_policy(&pool, payload.name, payload.order, payload.criteria, payload.enabled)
+        .await
+        .map(Json)
+        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 pub async fn update_policy(
-    State(state): State<SharedState>,
-    Path(id): Path<u32>,
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
     Json(payload): Json<NewPolicy>,
 ) -> Result<Json<Policy>, StatusCode> {
-    let mut guard = state.lock().unwrap();
-    let order = if payload.order == 0 { guard.policies.len() as u32 + 1 } else { payload.order };
-    guard
-        .update_policy(id, payload.name, order, payload.criteria, payload.enabled)
+    db::update_policy(&pool, id, payload.name, payload.order, payload.criteria, payload.enabled)
+        .await
         .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
 
 pub async fn delete_policy(
-    State(state): State<SharedState>,
-    Path(id): Path<u32>,
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
 ) -> StatusCode {
-    if state.lock().unwrap().delete_policy(id) {
+    if db::delete_policy(&pool, id).await {
         StatusCode::NO_CONTENT
     } else {
         StatusCode::NOT_FOUND
@@ -238,40 +245,34 @@ struct ScanSummaryPage {
     shell: Shell,
     title: &'static str,
     timeline_json: String,
-    latest_scan: &'static str,
+    latest_scan: String,
     initial: TimelinePoint,
     services: Vec<ServiceSlice>,
     popular: Vec<PopularService>,
     tech_popular: Vec<PopularTech>,
 }
 
-pub async fn scan_summary() -> Html<String> {
-    let points = mock::timeline_points();
-    // Default the timeline to the 7-day window (index 1).
+pub async fn scan_summary(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+) -> Html<String> {
+    let points: Vec<TimelinePoint> = db::get_data(&pool, "timeline_points").await;
     let initial = points
         .get(1)
         .or_else(|| points.first())
-        .map(|p| TimelinePoint {
-            label: p.label,
-            days: p.days,
-            alive: p.alive,
-            alive_new: p.alive_new,
-            down: p.down,
-            down_new: p.down_new,
-            services: p.services,
-        })
-        .unwrap_or(TimelinePoint { label: "7 days", days: 7, alive: 0, alive_new: 0, down: 0, down_new: 0, services: 0 });
+        .cloned()
+        .unwrap_or_default();
     let timeline_json = serde_json::to_string(&points).unwrap_or_else(|_| "[]".into());
 
     let page = ScanSummaryPage {
-        shell: build_shell(nav::SCAN_SUMMARY),
+        shell: build_shell(nav::SCAN_SUMMARY, &admin),
         title: "Scan summary",
         timeline_json,
-        latest_scan: mock::LATEST_SCAN,
+        latest_scan: db::get_data(&pool, "latest_scan").await,
         initial,
-        services: mock::service_slices(),
-        popular: mock::popular_services(),
-        tech_popular: mock::popular_technologies(),
+        services: db::get_data(&pool, "service_slices").await,
+        popular: db::get_data(&pool, "popular_services").await,
+        tech_popular: db::get_data(&pool, "popular_technologies").await,
     };
     render(&page)
 }
@@ -287,11 +288,14 @@ struct TechnologiesPage {
     tech_json: String,
 }
 
-pub async fn technologies_used() -> Html<String> {
-    let techs = mock::technologies();
+pub async fn technologies_used(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+) -> Html<String> {
+    let techs: Vec<TechRow> = db::get_data(&pool, "technologies").await;
     let tech_json = serde_json::to_string(&techs).unwrap_or_else(|_| "[]".into());
     let page = TechnologiesPage {
-        shell: build_shell(nav::TECHNOLOGIES),
+        shell: build_shell(nav::TECHNOLOGIES, &admin),
         title: "Technologies used",
         techs,
         tech_json,
@@ -306,18 +310,21 @@ pub async fn technologies_used() -> Html<String> {
 struct VulnerablePage {
     shell: Shell,
     title: &'static str,
-    db: Vec<VulnDbRow>,
+    db_rows: Vec<VulnDbRow>,
     detected: Vec<DetectedVuln>,
     total_hosts: usize,
 }
 
-pub async fn vulnerable_versions() -> Html<String> {
-    let detected = mock::detected_vulns();
+pub async fn vulnerable_versions(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+) -> Html<String> {
+    let detected: Vec<DetectedVuln> = db::get_data(&pool, "detected_vulns").await;
     let total_hosts = detected.iter().map(|d| d.hosts.len()).sum();
     let page = VulnerablePage {
-        shell: build_shell(nav::VULNERABLE),
+        shell: build_shell(nav::VULNERABLE, &admin),
         title: "Vulnerable versions",
-        db: mock::vulnerable_db(),
+        db_rows: db::get_data(&pool, "vulnerabilities").await,
         detected,
         total_hosts,
     };
@@ -334,39 +341,43 @@ struct HostManagementPage {
     ips: Vec<IpRange>,
 }
 
-pub async fn ip_ranges(State(state): State<SharedState>) -> Html<String> {
-    let ips = state.lock().unwrap().ip_ranges.clone();
+pub async fn ip_ranges(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+) -> Html<String> {
     let page = HostManagementPage {
-        shell: build_shell(nav::IP_RANGES),
+        shell: build_shell(nav::IP_RANGES, &admin),
         title: "IP ranges",
-        ips,
+        ips: db::list_ip_ranges(&pool).await,
     };
     render(&page)
 }
 
 pub async fn create_ip_range(
-    State(state): State<SharedState>,
+    State(pool): State<PgPool>,
     Json(payload): Json<NewIpRange>,
-) -> Json<IpRange> {
-    let mut guard = state.lock().unwrap();
+) -> Result<Json<IpRange>, StatusCode> {
     let now = chrono::Local::now()
         .format("%B %-d, %Y %-I:%M %p")
         .to_string();
-    Json(guard.add_ip_range(
+    db::add_ip_range(
+        &pool,
         payload.address,
         if payload.city.is_empty() { "—".into() } else { payload.city },
         if payload.description.is_empty() { "—".into() } else { payload.description },
         now,
         "Admin".into(),
-    ))
+    )
+    .await
+    .map(Json)
+    .ok_or(StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 pub async fn import_ip_ranges(
-    State(state): State<SharedState>,
+    State(pool): State<PgPool>,
     Json(payload): Json<ImportIpRanges>,
 ) -> Json<usize> {
-    let mut guard = state.lock().unwrap();
-    Json(guard.import_ip_ranges(payload.ranges))
+    Json(db::import_ip_ranges(&pool, payload.ranges).await)
 }
 
 #[derive(Template)]
@@ -378,29 +389,52 @@ struct HostGroupsPage {
     ip_ranges: Vec<String>,
 }
 
-pub async fn host_groups(State(state): State<SharedState>) -> Html<String> {
-    let (groups, ip_ranges) = {
-        let guard = state.lock().unwrap();
-        (guard.host_groups.clone(), guard.ip_addresses())
-    };
+pub async fn host_groups(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+) -> Html<String> {
     let page = HostGroupsPage {
-        shell: build_shell(nav::HOST_GROUPS),
+        shell: build_shell(nav::HOST_GROUPS, &admin),
         title: "Host groups",
-        groups,
-        ip_ranges,
+        groups: db::list_groups(&pool).await,
+        ip_ranges: db::ip_addresses(&pool).await,
     };
     render(&page)
 }
 
 pub async fn create_group(
-    State(state): State<SharedState>,
+    State(pool): State<PgPool>,
     Json(payload): Json<NewGroup>,
-) -> Json<HostGroup> {
-    let mut guard = state.lock().unwrap();
-    Json(guard.add_group(payload.name, payload.ranges, payload.hosts))
+) -> Result<Json<HostGroup>, StatusCode> {
+    db::create_group(&pool, payload.name, payload.ranges, payload.hosts)
+        .await
+        .map(Json)
+        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 // ---------------------------------------------------------------- log center
+
+#[derive(Template)]
+#[template(path = "pages/data_explorer.html")]
+struct DataExplorerPage {
+    shell: Shell,
+    title: &'static str,
+    rows: Vec<DataEvent>,
+    range_label: &'static str,
+}
+
+pub async fn data_explorer(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+) -> Html<String> {
+    let page = DataExplorerPage {
+        shell: build_shell(nav::DATA_EXPLORER, &admin),
+        title: "Data Explorer",
+        rows: db::get_data(&pool, "data_events").await,
+        range_label: "Nov 21, 2026 09:14 AM - now",
+    };
+    render(&page)
+}
 
 #[derive(Template)]
 #[template(path = "pages/scan_history.html")]
@@ -411,11 +445,14 @@ struct ScanHistoryPage {
     range_label: &'static str,
 }
 
-pub async fn scan_history() -> Html<String> {
+pub async fn scan_history(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+) -> Html<String> {
     let page = ScanHistoryPage {
-        shell: build_shell(nav::SCAN_HISTORY),
+        shell: build_shell(nav::SCAN_HISTORY, &admin),
         title: "Scan History",
-        scans: mock::scan_history(),
+        scans: db::get_data(&pool, "scan_history").await,
         range_label: "Nov 1, 2026 - Nov 21, 2026",
     };
     render(&page)
@@ -429,34 +466,16 @@ struct ScanComparePage {
     scan_json: String,
 }
 
-pub async fn scan_compare() -> Html<String> {
-    let scans = mock::scan_options();
+pub async fn scan_compare(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+) -> Html<String> {
+    let scans: Vec<ScanRow> = db::get_data(&pool, "scan_history").await;
     let scan_json = serde_json::to_string(&scans).unwrap_or_else(|_| "[]".into());
     let page = ScanComparePage {
-        shell: build_shell(nav::SCAN_COMPARE),
+        shell: build_shell(nav::SCAN_COMPARE, &admin),
         title: "Compare Scans",
         scan_json,
-    };
-    render(&page)
-}
-
-// ---------------------------------------------------------------- data explorer
-
-#[derive(Template)]
-#[template(path = "pages/data_explorer.html")]
-struct DataExplorerPage {
-    shell: Shell,
-    title: &'static str,
-    rows: Vec<DataEvent>,
-    range_label: &'static str,
-}
-
-pub async fn data_explorer() -> Html<String> {
-    let page = DataExplorerPage {
-        shell: build_shell(nav::DATA_EXPLORER),
-        title: "Data Explorer",
-        rows: mock::data_events(),
-        range_label: "Nov 21, 2026 09:14 AM - now",
     };
     render(&page)
 }
@@ -470,58 +489,91 @@ struct AdminPage {
     title: &'static str,
     admins: Vec<Admin>,
     admins_json: String,
+    permission_pages: Vec<PermissionPage>,
 }
 
-pub async fn admin_management(State(state): State<SharedState>) -> Html<String> {
-    let admins = state.lock().unwrap().admins.clone();
+pub async fn admin_management(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+) -> Html<String> {
+    let admins = db::list_admins(&pool).await;
     let admins_json = serde_json::to_string(&admins).unwrap_or_else(|_| "[]".into());
     let page = AdminPage {
-        shell: build_shell(nav::ADMIN_MANAGEMENT),
+        shell: build_shell(nav::ADMIN_MANAGEMENT, &admin),
         title: "Admin management",
         admins,
         admins_json,
+        permission_pages: PERMISSION_PAGES.to_vec(),
     };
     render(&page)
 }
 
 pub async fn create_admin(
-    State(state): State<SharedState>,
+    State(pool): State<PgPool>,
     Json(payload): Json<NewAdmin>,
-) -> Json<Admin> {
-    let mut guard = state.lock().unwrap();
-    let role = if payload.role.is_empty() { "Analyst".to_string() } else { payload.role };
-    let mut admin = guard.add_admin(payload.name, payload.email, role);
-    if payload.status == "Disabled" {
-        admin = guard.toggle_admin(admin.id).unwrap_or(admin);
+) -> Result<Json<Admin>, StatusCode> {
+    if payload.password.trim().len() < 8 {
+        return Err(StatusCode::BAD_REQUEST);
     }
-    Json(admin)
+    let hash = bcrypt::hash(payload.password.trim(), bcrypt::DEFAULT_COST)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let role = if payload.role.is_empty() { "Analyst".to_string() } else { payload.role };
+    db::create_admin(
+        &pool,
+        payload.name,
+        payload.email.trim().to_lowercase(),
+        role,
+        payload.status,
+        hash,
+        payload.permissions,
+    )
+    .await
+    .map(Json)
+    .ok_or(StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 pub async fn update_admin(
-    State(state): State<SharedState>,
-    Path(id): Path<u32>,
-    Json(payload): Json<state::UpdateAdmin>,
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
+    Json(payload): Json<UpdateAdmin>,
 ) -> Result<Json<Admin>, StatusCode> {
-    let role = if payload.role.is_empty() { "Analyst".to_string() } else { payload.role };
-    let mut guard = state.lock().unwrap();
-    if guard.is_default_admin(id) {
+    if db::is_default_admin(&pool, id).await {
         return Err(StatusCode::FORBIDDEN);
     }
-    guard
-        .update_admin(id, payload.name, payload.email, role, payload.status)
-        .map(Json)
-        .ok_or(StatusCode::NOT_FOUND)
+    let password_hash = match payload.password {
+        Some(password) if !password.trim().is_empty() => Some(
+            bcrypt::hash(password.trim(), bcrypt::DEFAULT_COST)
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+        ),
+        _ => None,
+    };
+    let role = if payload.role.is_empty() { "Analyst".to_string() } else { payload.role };
+    db::update_admin(
+        &pool,
+        id,
+        payload.name,
+        payload.email.trim().to_lowercase(),
+        role,
+        payload.status,
+        password_hash,
+        payload.permissions,
+    )
+    .await
+    .map(Json)
+    .ok_or(StatusCode::NOT_FOUND)
 }
 
 pub async fn toggle_admin(
-    State(state): State<SharedState>,
-    Path(id): Path<u32>,
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
 ) -> Result<Json<Admin>, StatusCode> {
-    let mut guard = state.lock().unwrap();
-    if guard.is_default_admin(id) {
+    if db::is_default_admin(&pool, id).await {
         return Err(StatusCode::FORBIDDEN);
     }
-    guard.toggle_admin(id).map(Json).ok_or(StatusCode::NOT_FOUND)
+    db::toggle_admin(&pool, id)
+        .await
+        .map(Json)
+        .ok_or(StatusCode::NOT_FOUND)
 }
 
 // ---------------------------------------------------------------- settings
@@ -533,9 +585,12 @@ struct SettingsPage {
     title: &'static str,
 }
 
-pub async fn settings() -> Html<String> {
+pub async fn settings(
+    State(_pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+) -> Html<String> {
     let page = SettingsPage {
-        shell: build_shell(nav::SETTINGS),
+        shell: build_shell(nav::SETTINGS, &admin),
         title: "Settings",
     };
     render(&page)
@@ -543,8 +598,20 @@ pub async fn settings() -> Html<String> {
 
 // ---------------------------------------------------------------- root + api
 
-pub async fn root() -> Redirect {
-    Redirect::permanent(nav::SCAN_SUMMARY)
+pub async fn root(Extension(admin): Extension<CurrentAdmin>) -> Response {
+    match auth::first_allowed_path(&admin) {
+        Some(path) => Redirect::to(path).into_response(),
+        None => (
+            StatusCode::FORBIDDEN,
+            Html(
+                "<!doctype html><html><body style=\"font-family:sans-serif;background:#080b11;color:#e6edf5;padding:40px\">\
+                 <h1>No access</h1><p>Your account has no page permissions. Contact an administrator.</p>\
+                 <a style=\"color:#7cc0ff\" href=\"/logout\">Sign out</a></body></html>"
+                    .to_string(),
+            ),
+        )
+            .into_response(),
+    }
 }
 
 #[derive(Deserialize)]
@@ -563,8 +630,6 @@ pub struct SearchHit {
     pub svg: &'static str,
 }
 
-/// Lower-cases text and folds separators into spaces so "scan_history" and
-/// "scan-history" index the same words a user would type.
 fn normalize(text: &str) -> String {
     text.to_lowercase()
         .replace(['_', '-', '/', '&'], " ")
@@ -574,10 +639,10 @@ fn normalize(text: &str) -> String {
 }
 
 /// Ranked type-ahead search over the navigation index.
-///
-/// Scoring favours prefix matches, then word-boundary matches, then substring
-/// matches; ties break by shorter title so the most specific page wins.
-pub async fn search(Query(q): Query<SearchQuery>) -> Json<Vec<SearchHit>> {
+pub async fn search(
+    Extension(admin): Extension<CurrentAdmin>,
+    Query(q): Query<SearchQuery>,
+) -> Json<Vec<SearchHit>> {
     let needle = normalize(&q.q.unwrap_or_default());
     let limit = q.limit.unwrap_or(8).clamp(1, 25);
 
@@ -587,6 +652,10 @@ pub async fn search(Query(q): Query<SearchQuery>) -> Json<Vec<SearchHit>> {
 
     let mut scored: Vec<(i32, usize, SearchHit)> = nav::search_index()
         .into_iter()
+        .filter(|e| match auth::nav_permission(e.href) {
+            Some(page) => admin.can_read(page),
+            None => true,
+        })
         .filter_map(|e| {
             let title = normalize(e.title);
             let crumb = normalize(e.crumb);
