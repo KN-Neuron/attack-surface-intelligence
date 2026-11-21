@@ -1900,6 +1900,24 @@ pub async fn upsert_host_capture(
 }
 
 pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
+    // CVEs are raised as alerts, so the host's vulnerability list comes from the
+    // alerts the scanner generated rather than from the technology list.
+    let vulns = sqlx::query(
+        "SELECT host, detail FROM alerts
+         WHERE kind = 'new_cve' AND COALESCE(detail, '') <> ''
+         ORDER BY severity, detail",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    let mut vulns_by_host: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
+    for row in &vulns {
+        let host: String = row.get("host");
+        let detail: String = row.get("detail");
+        vulns_by_host.entry(host).or_default().push(detail);
+    }
+
     sqlx::query(
         "SELECT address, up, scheme, port, status_code, title, webserver, tech, ports,
                 url, final_url, content_length, cdn, cname, response_time, tls,
@@ -1950,6 +1968,10 @@ pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
                     })
                 })
                 .collect(),
+            vulnerabilities: vulns_by_host
+                .get(&row.get::<String, _>("address"))
+                .cloned()
+                .unwrap_or_default(),
             last_checked: row
                 .get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_checked")
                 .map(|t| t.format("%b %-d, %Y %-I:%M %p").to_string())

@@ -1667,6 +1667,7 @@
       { key: "title", label: "Title", type: "text", wrap: true, editable: "title" },
       { key: "webserver", label: "Server", type: "text", editable: "webserver" },
       { key: "technologies", label: "Technologies", type: "list", tech: true },
+      { key: "vulnerabilities", label: "Vulnerabilities", type: "list", tech: true },
       { key: "ports", label: "Open ports", type: "text", mono: true },
       { key: "cdn", label: "CDN", type: "text", editable: "cdn" },
       { key: "cname", label: "CNAME", type: "text", editable: "cname" },
@@ -1688,7 +1689,9 @@
         { id: "contains", label: "contains" },
         { id: "not_contains", label: "does not contain" },
         { id: "equals", label: "equals" },
-        { id: "starts", label: "starts with" }
+        { id: "starts", label: "starts with" },
+        { id: "empty", label: "is empty" },
+        { id: "not_empty", label: "is not empty" }
       ],
       number: [
         { id: "eq", label: "=" },
@@ -1709,9 +1712,16 @@
       list: [
         { id: "contains", label: "contains" },
         { id: "not_contains", label: "does not contain" },
-        { id: "empty", label: "is empty" }
+        { id: "empty", label: "is empty" },
+        { id: "not_empty", label: "is not empty" }
       ]
     };
+
+    // Operators that carry no value, so their chip only shows a column + verb.
+    function isValueless(filter) {
+      var col = COLUMN_BY_KEY[filter.key];
+      return (col && col.type === "bool") || filter.op === "empty" || filter.op === "not_empty";
+    }
 
     function valueOf(row, key) {
       var value = row[key];
@@ -1733,6 +1743,7 @@
       if (col.type === "list") {
         var list = Array.isArray(raw) ? raw : [];
         if (op === "empty") return list.length === 0;
+        if (op === "not_empty") return list.length > 0;
         var joined = list.join(" ").toLowerCase();
         var box = String(needle || "").toLowerCase();
         return op === "not_contains" ? joined.indexOf(box) === -1 : joined.indexOf(box) !== -1;
@@ -1754,12 +1765,13 @@
 
       var hay = valueOf(row, filter.key).toLowerCase();
       var pin = String(needle || "").toLowerCase();
-      if (!pin) return true;
       switch (op) {
+        case "empty": return hay === "";
+        case "not_empty": return hay !== "";
         case "equals": return hay === pin;
         case "not_contains": return hay.indexOf(pin) === -1;
         case "starts": return hay.indexOf(pin) === 0;
-        default: return hay.indexOf(pin) !== -1;
+        default: return pin ? hay.indexOf(pin) !== -1 : true;
       }
     }
 
@@ -1776,8 +1788,12 @@
       return Math.floor(date.getTime() / 1000);
     }
 
+    // `draft` holds the filters as they are being edited; `applied` is what the
+    // table is actually showing. Apply copies draft onto applied, so a half-typed
+    // filter never changes the results until the operator asks for it.
     var state = {
-      filters: [],
+      draft: [],
+      applied: [],
       timeframe: "month",
       from: null,
       to: null,
@@ -1792,6 +1808,8 @@
       from: document.getElementById("explorer-from"),
       to: document.getElementById("explorer-to"),
       addBtn: document.getElementById("explorer-add-filter"),
+      addMore: document.getElementById("explorer-add-more"),
+      filterCount: explorer.querySelector("[data-filter-tally]"),
       menu: document.getElementById("filter-menu"),
       menuSearch: document.getElementById("filter-menu-search"),
       menuList: document.getElementById("filter-menu-list"),
@@ -1830,7 +1848,7 @@
         var stamp = row.last_checked_ts || row.last_seen_ts || row.first_seen_ts || 0;
         if (bounds.from != null && stamp < bounds.from) return false;
         if (bounds.to != null && stamp > bounds.to) return false;
-        return state.filters.every(function (filter) { return matchesFilter(row, filter); });
+        return state.applied.every(function (filter) { return matchesFilter(row, filter); });
       });
     }
 
@@ -1868,7 +1886,7 @@
       }
       if (col.tech) {
         td.className = "asset-tech";
-        var list = Array.isArray(row.technologies) ? row.technologies : [];
+        var list = Array.isArray(row[col.key]) ? row[col.key] : [];
         if (!list.length) {
           td.textContent = "—";
           td.className += " muted";
@@ -1948,41 +1966,86 @@
     function render() {
       var rows = visibleRows();
       if (els.count) els.count.textContent = rows.length + (rows.length === 1 ? " host" : " hosts");
-      if (els.clear) els.clear.hidden = !state.filters.length;
       renderPager(rows.length);
       var start = (state.page - 1) * state.size;
       renderBody(rows.slice(start, start + state.size));
+      syncApplyButton();
+    }
+
+    // ---- main action button --------------------------------------------------
+    // One button serves both jobs: it adds a filter column, and once at least one
+    // filter exists it becomes Apply, which runs every filter at once.
+
+    function hasDraft() {
+      return state.draft.length > 0;
+    }
+
+    function draftDiffers() {
+      if (state.draft.length !== state.applied.length) return true;
+      return state.draft.some(function (filter, index) {
+        var other = state.applied[index];
+        return !other || other.key !== filter.key || other.op !== filter.op ||
+          other.value !== filter.value;
+      });
+    }
+
+    function syncApplyButton() {
+      if (!els.addBtn) return;
+      var label = hasDraft() ? "Apply" : "Add filter";
+      if (els.addBtn.textContent !== label) els.addBtn.textContent = label;
+      els.addBtn.classList.toggle("is-apply", hasDraft());
+      var pending = hasDraft() && draftDiffers();
+      els.addBtn.setAttribute("aria-expanded", String(!els.menu.hidden));
+      els.addBtn.setAttribute("aria-label", hasDraft()
+        ? "Apply all filters"
+        : "Add a filter");
+      els.addBtn.classList.toggle("is-pending", pending);
+      if (els.clear) els.clear.hidden = !hasDraft();
+      if (els.filterCount) {
+        els.filterCount.textContent = state.draft.length
+          ? state.draft.length + (state.draft.length === 1 ? " filter" : " filters")
+          : "";
+      }
+    }
+
+    function applyFilters() {
+      state.applied = state.draft.map(function (filter) {
+        return { key: filter.key, op: filter.op, value: filter.value };
+      });
+      state.page = 1;
+      render();
     }
 
     // ---- active filter chips -------------------------------------------------
 
+    // Every chip is editable at all times: the operator and value controls are
+    // part of the chip, and removing it just drops that one filter.
     function renderActiveFilters() {
       if (!els.active) return;
       els.active.innerHTML = "";
-      if (!state.filters.length) {
+      if (!state.draft.length) {
         var hint = document.createElement("p");
         hint.className = "filter-empty";
-        hint.textContent = "No filters applied. Use Add filter to narrow the results.";
+        hint.textContent = "No filters yet. Use Add filter to narrow the results.";
         els.active.appendChild(hint);
+        syncApplyButton();
         return;
       }
-      state.filters.forEach(function (filter, index) {
+
+      state.draft.forEach(function (filter, index) {
         var col = COLUMN_BY_KEY[filter.key];
+        if (!col) return;
+
         var chip = document.createElement("div");
         chip.className = "filter-chip";
 
-        var text = document.createElement("span");
-        text.className = "filter-chip-text";
-        var opLabel = (OPS[col.type] || []).filter(function (op) {
-          return op.id === filter.op;
-        })[0];
-        var readable = opLabel ? opLabel.label : filter.op;
-        text.innerHTML = "<b>" + escapeHtml(col.label) + "</b>";
-        var rest = document.createElement("span");
-        rest.textContent = " " + readable +
-          (filter.op === "empty" || col.type === "bool" ? "" : " " + filter.value);
-        text.appendChild(rest);
-        chip.appendChild(text);
+        var head = document.createElement("div");
+        head.className = "filter-chip-head";
+
+        var name = document.createElement("span");
+        name.className = "filter-chip-name";
+        name.textContent = col.label;
+        head.appendChild(name);
 
         var remove = document.createElement("button");
         remove.type = "button";
@@ -1990,14 +2053,62 @@
         remove.setAttribute("aria-label", "Remove " + col.label + " filter");
         remove.innerHTML = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2"/></svg>';
         remove.addEventListener("click", function () {
-          state.filters.splice(index, 1);
-          state.page = 1;
+          state.draft.splice(index, 1);
           renderActiveFilters();
-          render();
+          syncApplyButton();
         });
-        chip.appendChild(remove);
+        head.appendChild(remove);
+        chip.appendChild(head);
+
+        var controls = document.createElement("div");
+        controls.className = "filter-chip-controls";
+
+        var opSel = document.createElement("select");
+        opSel.className = "filter-op";
+        opSel.setAttribute("aria-label", col.label + " operator");
+        (OPS[col.type] || []).forEach(function (op) {
+          var option = document.createElement("option");
+          option.value = op.id;
+          option.textContent = op.label;
+          if (op.id === filter.op) option.selected = true;
+          opSel.appendChild(option);
+        });
+        controls.appendChild(opSel);
+
+        var valueInput = null;
+        if (!isValueless(filter)) {
+          valueInput = document.createElement("input");
+          valueInput.className = "filter-value";
+          valueInput.type = col.type === "number" ? "number" : "text";
+          valueInput.value = filter.value || "";
+          valueInput.placeholder = col.type === "date" ? "YYYY-MM-DD" : "value";
+          valueInput.setAttribute("aria-label", col.label + " value");
+          controls.appendChild(valueInput);
+        }
+        chip.appendChild(controls);
+
+        opSel.addEventListener("change", function () {
+          filter.op = opSel.value;
+          filter.value = "";
+          renderActiveFilters();
+          syncApplyButton();
+        });
+        if (valueInput) {
+          valueInput.addEventListener("input", function () {
+            filter.value = valueInput.value;
+            syncApplyButton();
+          });
+          valueInput.addEventListener("keydown", function (event) {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              applyFilters();
+            }
+          });
+        }
+
         els.active.appendChild(chip);
       });
+      syncApplyButton();
     }
 
     // ---- add-filter menu -----------------------------------------------------
@@ -2019,8 +2130,15 @@
         item.setAttribute("role", "option");
         item.textContent = col.label;
         item.addEventListener("click", function () {
-          addFilter(col);
+          state.draft.push({
+            key: col.key,
+            op: (OPS[col.type] || [{ id: "contains" }])[0].id,
+            value: ""
+          });
+          renderActiveFilters();
           closeMenu();
+          var inputs = els.active.querySelectorAll(".filter-value");
+          if (inputs.length) inputs[inputs.length - 1].focus();
         });
         els.menuList.appendChild(item);
       });
@@ -2037,88 +2155,6 @@
     function closeMenu() {
       els.menu.hidden = true;
       els.addBtn.setAttribute("aria-expanded", "false");
-    }
-
-    // Picking a column inserts a chip with the operator and value selects open,
-    // so a filter is fully configurable without leaving the sidebar.
-    function addFilter(col) {
-      state.filters.push({
-        key: col.key,
-        op: (OPS[col.type] || [{ id: "contains" }])[0].id,
-        value: ""
-      });
-      state.page = 1;
-      renderActiveFilters();
-      render();
-      renderChipEditor(state.filters.length - 1);
-    }
-
-    function renderChipEditor(index) {
-      var filter = state.filters[index];
-      if (!filter) return;
-      var col = COLUMN_BY_KEY[filter.key];
-      var chip = els.active.children[index];
-      if (!chip) return;
-
-      chip.classList.add("is-editing");
-      chip.innerHTML = "";
-
-      var name = document.createElement("span");
-      name.className = "filter-chip-name";
-      name.textContent = col.label;
-      chip.appendChild(name);
-
-      var opSel = document.createElement("select");
-      opSel.className = "filter-op";
-      opSel.setAttribute("aria-label", col.label + " operator");
-      (OPS[col.type] || []).forEach(function (op) {
-        var option = document.createElement("option");
-        option.value = op.id;
-        option.textContent = op.label;
-        if (op.id === filter.op) option.selected = true;
-        opSel.appendChild(option);
-      });
-      chip.appendChild(opSel);
-
-      var needsValue = col.type !== "bool" && filter.op !== "empty";
-      var valueInput = null;
-      if (needsValue) {
-        valueInput = document.createElement("input");
-        valueInput.className = "filter-value";
-        valueInput.type = col.type === "number" ? "number" : "text";
-        valueInput.value = filter.value || "";
-        valueInput.placeholder = "value";
-        valueInput.setAttribute("aria-label", col.label + " value");
-        chip.appendChild(valueInput);
-      }
-
-      var apply = document.createElement("button");
-      apply.type = "button";
-      apply.className = "btn primary filter-apply";
-      apply.textContent = "Apply";
-      chip.appendChild(apply);
-
-      opSel.addEventListener("change", function () {
-        filter.op = opSel.value;
-        renderChipEditor(index);
-      });
-
-      apply.addEventListener("click", function () {
-        filter.op = opSel.value;
-        filter.value = valueInput ? valueInput.value : "";
-        state.page = 1;
-        renderActiveFilters();
-        render();
-      });
-      if (valueInput) {
-        valueInput.addEventListener("keydown", function (event) {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            apply.click();
-          }
-        });
-        valueInput.focus();
-      }
     }
 
     // ---- timeframe -----------------------------------------------------------
@@ -2160,14 +2196,29 @@
       input.addEventListener("change", syncTimeframe);
     });
 
+    // The button adds a filter while the list is empty and applies all of them
+    // afterwards. Adding a further column stays available from the menu, which
+    // the small caret next to the button opens.
     els.addBtn.addEventListener("click", function () {
-      if (els.menu.hidden) openMenu();
-      else closeMenu();
+      if (!hasDraft()) {
+        if (els.menu.hidden) openMenu();
+        else closeMenu();
+        return;
+      }
+      applyFilters();
     });
+    if (els.addMore) {
+      els.addMore.addEventListener("click", function () {
+        if (els.menu.hidden) openMenu();
+        else closeMenu();
+      });
+    }
     els.menuSearch.addEventListener("input", renderMenu);
     document.addEventListener("click", function (event) {
       if (els.menu.hidden) return;
-      if (els.menu.contains(event.target) || els.addBtn.contains(event.target)) return;
+      if (els.menu.contains(event.target) ||
+          els.addBtn.contains(event.target) ||
+          (els.addMore && els.addMore.contains(event.target))) return;
       closeMenu();
     });
     document.addEventListener("keydown", function (event) {
@@ -2176,7 +2227,8 @@
 
     if (els.clear) {
       els.clear.addEventListener("click", function () {
-        state.filters = [];
+        state.draft = [];
+        state.applied = [];
         state.page = 1;
         renderActiveFilters();
         render();
@@ -2282,6 +2334,23 @@
     renderHead();
     renderActiveFilters();
     syncTimeframe();
+
+    // Dashboards deep-link here with `?filter=<key>|<op>|<value>`, repeated for
+    // as many filters as the view needs. They land pre-applied so the Explorer
+    // opens already scoped to what the dashboard was showing.
+    var params = new URLSearchParams(window.location.search);
+    var incoming = params.getAll("filter");
+    if (incoming.length) {
+      incoming.forEach(function (raw) {
+        var parts = raw.split("|");
+        var col = COLUMN_BY_KEY[parts[0]];
+        if (!col) return;
+        var op = parts[1] || (OPS[col.type] || [{ id: "contains" }])[0].id;
+        state.draft.push({ key: col.key, op: op, value: parts.slice(2).join("|") });
+      });
+      renderActiveFilters();
+      applyFilters();
+    }
   }
 
   // ==========================================================================

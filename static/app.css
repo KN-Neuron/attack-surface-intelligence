@@ -2549,7 +2549,15 @@ body.modal-open { overflow: hidden; }
   letter-spacing: -0.6px;
   font-variant-numeric: tabular-nums;
 }
-.kpi .metric-delta { font-size: 12px; color: var(--text-mute); }
+.kpi .metric-delta {
+  font-size: 12px;
+  color: var(--text-mute);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.kpi .metric-delta .ico { width: 12px; height: 12px; flex: 0 0 auto; }
 .kpi .metric-delta.up { color: var(--good); }
 .kpi .metric-delta.down { color: var(--bad); }
 
@@ -3188,28 +3196,79 @@ body.modal-open { overflow: hidden; }
 .filter-menu-item:focus-visible { background: color-mix(in srgb, var(--accent) 14%, transparent); outline: none; }
 .filter-menu-empty { padding: 12px 10px; font-size: 12px; color: var(--text-mute); }
 
+.filter-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0 -16px;
+  padding: 0 16px 8px;
+}
+
 .filter-active { display: flex; flex-direction: column; gap: 8px; }
 .filter-empty { margin: 0; font-size: 11.5px; line-height: 1.5; color: var(--text-mute); }
 
+/* Action button + result summary always sit at the bottom of the sidebar. */
+.filter-footer {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.filter-add-row { display: flex; gap: 6px; }
+.filter-add-row .run-btn { flex: 1 1 auto; }
+.filter-more {
+  flex: 0 0 auto;
+  width: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.filter-more .ico { width: 14px; height: 14px; }
+
+/* Apply is the primary action once filters exist. */
+.run-btn.is-apply { background: var(--accent); color: #120d26; }
+.run-btn.is-apply:hover { background: color-mix(in srgb, var(--accent) 84%, #fff); }
+.run-btn.is-pending::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-left: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* The popup opens upward because the button lives at the bottom. */
+.filter-add .filter-menu {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
 .filter-chip {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 6px;
-  padding: 7px 8px 7px 10px;
+  padding: 8px 8px 9px 10px;
   border-radius: var(--radius);
   border: 1px solid var(--border-soft);
   background: var(--input-bg);
   font-size: 11.5px;
 }
-.filter-chip-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.filter-chip-text b { font-weight: 600; }
-.filter-chip .chip-x { flex: 0 0 auto; }
-
-.filter-chip.is-editing { flex-wrap: wrap; background: color-mix(in srgb, var(--accent) 8%, var(--input-bg)); }
-.filter-chip-name { flex: 1 1 100%; font-weight: 600; font-size: 11.5px; }
-.filter-chip.is-editing select,
-.filter-chip.is-editing input {
-  flex: 1 1 90px;
+.filter-chip-head { display: flex; align-items: center; gap: 6px; }
+.filter-chip-name { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: 11.5px; }
+.filter-chip-head .chip-x { flex: 0 0 auto; }
+.filter-chip-controls { display: flex; align-items: center; gap: 6px; }
+.filter-chip-controls select,
+.filter-chip-controls input {
   min-width: 0;
   height: 28px;
   padding: 0 8px;
@@ -3220,24 +3279,37 @@ body.modal-open { overflow: hidden; }
   font-family: inherit;
   font-size: 11.5px;
 }
-.filter-chip.is-editing input:focus,
-.filter-chip.is-editing select:focus { border-color: var(--accent); outline: none; }
-.filter-apply { flex: 0 0 auto; height: 28px; padding: 0 12px; font-size: 11.5px; }
+.filter-chip-controls select { flex: 0 0 auto; max-width: 55%; }
+.filter-chip-controls input { flex: 1 1 auto; }
+.filter-chip-controls input:focus,
+.filter-chip-controls select:focus { border-color: var(--accent); outline: none; }
 
 .filter-summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-soft);
   font-size: 11.5px;
   color: var(--text-dim);
 }
+.filter-tally { margin-left: auto; margin-right: 10px; color: var(--text-mute); }
 .filter-count { font-variant-numeric: tabular-nums; }
 
 .log-empty { padding: 40px 20px; text-align: center; font-size: 13px; color: var(--text-mute); }
 
 .asset-tech.muted { color: var(--text-mute); }
 .explorer .log-tbl td.mono { font-variant-numeric: tabular-nums; }
+
+/* Per-tile deep link from a dashboard into the Data Explorer. */
+.kpi-link {
+  margin-top: auto;
+  padding-top: 6px;
+  font-size: 11.5px;
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: opacity 0.14s ease;
+}
+.kpi-link:hover { opacity: 0.8; text-decoration: underline; text-underline-offset: 3px; }
+.kpi-link .ico { width: 12px; height: 12px; }

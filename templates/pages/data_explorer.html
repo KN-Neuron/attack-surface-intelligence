@@ -3,45 +3,55 @@
 {% block content %}
 <div class="explorer" id="explorer" data-can-edit="{% if can_edit %}true{% else %}false{% endif %}">
   <section class="filter-panel">
-    <div class="timeframe">
-      <div class="timeframe-head">
-        <span class="field-label">Timeframe</span>
-        {% if can_edit %}
-        <button class="icon-btn subtle edit-toggle" type="button" id="explorer-edit" aria-pressed="false" title="Edit mode">{{ crate::icons::icon("sliders")|safe }}</button>
-        {% endif %}
-      </div>
-      <div class="select-wrap">
-        <select id="explorer-timeframe" aria-label="Timeframe">
-          <option value="day">Current day</option>
-          <option value="week">Current week</option>
-          <option value="month" selected>Current month</option>
-          <option value="custom">Custom</option>
-        </select>
-      </div>
-      <div class="custom-range" id="custom-range" hidden>
-        <label class="field-label" for="explorer-from">From</label>
-        <input type="datetime-local" id="explorer-from" aria-label="Start of custom range">
-        <label class="field-label" for="explorer-to">To</label>
-        <input type="datetime-local" id="explorer-to" aria-label="End of custom range">
-      </div>
-    </div>
-
-    <div class="filter-add">
-      <button class="run-btn" type="button" id="explorer-add-filter" aria-expanded="false" aria-controls="filter-menu">Add filter</button>
-      <div class="filter-menu" id="filter-menu" hidden>
-        <div class="search-box filter-menu-search">
-          <input type="search" id="filter-menu-search" placeholder="Search filters..." aria-label="Search available filters" autocomplete="off">
-          {{ crate::icons::icon("search")|safe }}
+    <div class="filter-scroll">
+      <div class="timeframe">
+        <div class="timeframe-head">
+          <span class="field-label">Timeframe</span>
+          {% if can_edit %}
+          <button class="icon-btn subtle edit-toggle" type="button" id="explorer-edit" aria-pressed="false" title="Edit mode">{{ crate::icons::icon("sliders")|safe }}</button>
+          {% endif %}
         </div>
-        <div class="filter-menu-list" id="filter-menu-list" role="listbox" aria-label="Available filters"></div>
+        <div class="select-wrap">
+          <select id="explorer-timeframe" aria-label="Timeframe">
+            <option value="day">Current day</option>
+            <option value="week">Current week</option>
+            <option value="month" selected>Current month</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div class="custom-range" id="custom-range" hidden>
+          <label class="field-label" for="explorer-from">From</label>
+          <input type="datetime-local" id="explorer-from" aria-label="Start of custom range">
+          <label class="field-label" for="explorer-to">To</label>
+          <input type="datetime-local" id="explorer-to" aria-label="End of custom range">
+        </div>
       </div>
+
+      <div class="filter-active" id="filter-active"></div>
     </div>
 
-    <div class="filter-active" id="filter-active"></div>
+    <!-- Action + summary stay pinned to the bottom of the sidebar. -->
+    <div class="filter-footer">
+      <div class="filter-summary">
+        <span class="filter-count" data-filter-count>{{ total }} hosts</span>
+        <span class="filter-tally" data-filter-tally></span>
+        <button class="link-btn" type="button" id="explorer-clear" hidden>Clear all</button>
+      </div>
 
-    <div class="filter-summary" id="filter-summary">
-      <span class="filter-count" data-filter-count>{{ total }} hosts</span>
-      <button class="link-btn" type="button" id="explorer-clear">Clear all</button>
+      <div class="filter-add">
+        <div class="filter-menu" id="filter-menu" hidden>
+          <div class="search-box filter-menu-search">
+            <input type="search" id="filter-menu-search" placeholder="Search filters..." aria-label="Search available filters" autocomplete="off">
+            {{ crate::icons::icon("search")|safe }}
+          </div>
+          <div class="filter-menu-list" id="filter-menu-list" role="listbox" aria-label="Available filters"></div>
+        </div>
+
+        <div class="filter-add-row">
+          <button class="run-btn" type="button" id="explorer-add-filter" aria-expanded="false" aria-controls="filter-menu">Add filter</button>
+          <button class="run-btn filter-more" type="button" id="explorer-add-more" aria-expanded="false" aria-controls="filter-menu" title="Choose another column" aria-label="Choose another filter column">{{ crate::icons::icon("plus")|safe }}</button>
+        </div>
+      </div>
     </div>
   </section>
 

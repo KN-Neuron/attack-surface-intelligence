@@ -357,6 +357,8 @@ pub struct AssetRow {
     pub title: String,
     pub webserver: String,
     pub technologies: Vec<String>,
+    /// CVE ids raised against this host by the scanner.
+    pub vulnerabilities: Vec<String>,
     pub last_checked: String,
     pub last_scan: String,
     /// Full URL httpx reported (after redirects).

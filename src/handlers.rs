@@ -393,6 +393,7 @@ struct ScanSummaryPage {
     tech_popular: Vec<PopularTech>,
     open_alerts: i64,
     can_read_alerts: bool,
+    can_read_explorer: bool,
 }
 
 pub async fn scan_summary(
@@ -430,6 +431,7 @@ pub async fn scan_summary(
         tech_popular: db::get_data(&pool, "popular_technologies").await,
         open_alerts: db::count_open_alerts(&pool).await,
         can_read_alerts: admin.can_read("alerts"),
+        can_read_explorer: admin.can_read("data_explorer"),
     };
     render(&page)
 }
@@ -443,6 +445,7 @@ struct TechnologiesPage {
     title: &'static str,
     techs: Vec<TechRow>,
     tech_json: String,
+    can_read_explorer: bool,
 }
 
 pub async fn technologies_used(
@@ -456,6 +459,7 @@ pub async fn technologies_used(
         title: "Technologies used",
         techs,
         tech_json,
+        can_read_explorer: admin.can_read("data_explorer"),
     };
     render(&page)
 }
@@ -472,6 +476,7 @@ struct VulnerablePage {
     critical: usize,
     high: usize,
     medium: usize,
+    can_read_explorer: bool,
 }
 
 pub async fn vulnerable_versions(
@@ -494,6 +499,7 @@ pub async fn vulnerable_versions(
         critical,
         high,
         medium,
+        can_read_explorer: admin.can_read("data_explorer"),
     };
     render(&page)
 }
