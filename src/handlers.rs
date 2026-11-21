@@ -42,6 +42,7 @@ pub struct Shell {
     pub section_icon: &'static str,
     pub groups: Vec<NavGroupView>,
     pub admin_name: String,
+    pub admin_role: String,
     pub docs_url: String,
 }
 
@@ -85,6 +86,7 @@ fn build_shell(active_path: &str, admin: &CurrentAdmin) -> Shell {
         section_icon: def.icon,
         groups,
         admin_name: admin.name.clone(),
+        admin_role: admin.role.clone(),
         docs_url: docs_url(),
     }
 }

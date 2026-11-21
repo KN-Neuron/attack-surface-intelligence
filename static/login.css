@@ -237,15 +237,21 @@ h1 { margin: 0 0 24px; font-size: 24px; font-weight: 700; letter-spacing: -0.2px
 .primary:active { transform: scale(0.985); }
 
 .primary .label { display: inline-block; transition: opacity 0.16s ease, transform 0.24s var(--ease-out); }
-.primary .spinner,
+/* Hidden ring centred over the label; it only shows while the form submits. */
 .primary .spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   width: 20px;
   height: 20px;
   margin: -10px 0 0 -10px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.35);
   border-top-color: #fff;
+  opacity: 0;
   transform: scale(0.6);
+  transition: opacity 0.16s ease, transform 0.24s var(--ease-out);
+  pointer-events: none;
 }
 
 .primary.is-loading { cursor: progress; }
@@ -291,6 +297,8 @@ h1 { margin: 0 0 24px; font-size: 24px; font-weight: 700; letter-spacing: -0.2px
 
 @media (max-width: 480px) {
   .card { padding: 28px 20px 24px; }
-  @media (prefers-reduced-motion: reduce) {
+}
+
+@media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
 }
