@@ -473,12 +473,29 @@
         render();
       });
     }
-    if (attrSel && attrName) {
+    if (attrSel && attrName && attrSel.tagName === "SELECT") {
       state.attr = attrSel.value || "";
       attrSel.addEventListener("change", function () {
         state.attr = attrSel.value || "";
         state.page = 1;
         render();
+      });
+    } else if (attrSel && attrName) {
+      // A group of tab buttons, each carrying the value in `data-attr-value`.
+      var attrTabs = Array.prototype.slice.call(attrSel.querySelectorAll("[data-attr-value]"));
+      var activeTab = attrTabs.filter(function (t) { return t.classList.contains("is-on"); })[0];
+      state.attr = activeTab ? activeTab.getAttribute("data-attr-value") : "";
+      attrTabs.forEach(function (tab) {
+        tab.addEventListener("click", function () {
+          state.attr = tab.getAttribute("data-attr-value");
+          attrTabs.forEach(function (t) {
+            var on = t === tab;
+            t.classList.toggle("is-on", on);
+            t.setAttribute("aria-pressed", on ? "true" : "false");
+          });
+          state.page = 1;
+          render();
+        });
       });
     }
     // Optional severity tiles: `[data-sev-filter]` buttons filter rows by `data-sev`.
@@ -2146,18 +2163,39 @@
       });
     }
 
+    // The menu floats over the page next to the add button: below it when
+    // there is room, otherwise above, so it is never clipped by the sidebar.
+    function placeMenu() {
+      if (els.menu.hidden) return;
+      var anchor = els.addBtn.parentElement.getBoundingClientRect();
+      var below = window.innerHeight - anchor.bottom;
+      els.menu.style.left = anchor.left + "px";
+      els.menu.style.width = anchor.width + "px";
+      if (below >= 320 || below >= anchor.top) {
+        els.menu.style.top = (anchor.bottom + 6) + "px";
+        els.menu.style.bottom = "auto";
+      } else {
+        els.menu.style.top = "auto";
+        els.menu.style.bottom = (window.innerHeight - anchor.top + 6) + "px";
+      }
+    }
+
     function openMenu() {
       els.menu.hidden = false;
       els.addBtn.setAttribute("aria-expanded", "true");
       els.menuSearch.value = "";
       renderMenu();
-      els.menuSearch.focus();
+      placeMenu();
+      els.menuSearch.focus({ preventScroll: true });
     }
 
     function closeMenu() {
       els.menu.hidden = true;
       els.addBtn.setAttribute("aria-expanded", "false");
     }
+
+    window.addEventListener("resize", placeMenu);
+    window.addEventListener("scroll", placeMenu, true);
 
     // ---- timeframe -----------------------------------------------------------
 
@@ -2394,15 +2432,14 @@
     var renderDetail = function (scan) {
       var title = document.getElementById("scan-detail-title");
       if (title) title.textContent = scan.label;
-      setText("scan-detail-sub", [scan.started, scan.scan_type_label, scan.engine, scan.status]
+      setText("scan-detail-sub", [scan.scan_type_label, scan.engine]
         .filter(function (part) { return part; }).join(" · "));
 
       var meta = document.getElementById("scan-detail-meta");
       if (meta) {
         meta.innerHTML = "";
         [
-          ["Type", scan.scan_type_label],
-          ["Engine", scan.engine],
+          ["Status", scan.status],
           ["Trigger", scan.trigger],
           ["Started", scan.started],
           ["Finished", scan.finished],

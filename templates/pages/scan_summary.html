@@ -23,7 +23,7 @@
       </div>
       {% endif %}
       {% if can_read_explorer %}
-      <a class="overview-link" href="/log-center/data-explorer?filter=up%7Ctrue%7C">
+      <a class="overview-link overview-history" href="/log-center/data-explorer?filter=up%7Ctrue%7C">
         {{ crate::icons::icon("file-text")|safe }} Hosts in Explorer
       </a>
       {% endif %}
@@ -59,9 +59,7 @@
       <h2>Open alerts</h2>
       <strong id="stat-alerts">{{ open_alerts }}</strong>
       {% if can_read_alerts %}
-      <a class="metric-delta" href="/log-center/alerts">Review alerts {{ crate::icons::icon("chevron-right")|safe }}</a>
-      {% else %}
-      <span class="metric-delta">Alerts raised by scans</span>
+      <a class="kpi-link" href="/log-center/alerts">Review alerts {{ crate::icons::icon("chevron-right")|safe }}</a>
       {% endif %}
     </section>
     <section class="tile kpi">

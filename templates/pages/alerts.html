@@ -3,26 +3,23 @@
 {% block content %}
 <div class="page-head">
   <h1>{{ title }}</h1>
-  <span class="page-sub">{{ open }} new · {{ acknowledged }} acknowledged</span>
   <span class="spacer"></span>
-  <div class="search-box alerts-search">
-    <input type="search" placeholder="Host, message, severity..." aria-label="Search alerts" data-table-filter="alerts-table" id="alerts-filter">
-    {{ crate::icons::icon("search")|safe }}
-  </div>
-  <div class="select-wrap">
-    <select id="alerts-status" aria-label="Alert status">
-      <option value="">All alerts</option>
-      <option value="new" selected>New</option>
-      <option value="ack">Acknowledged</option>
-    </select>
-  </div>
   {% if can_ack %}
-  <button class="btn primary" type="button" id="alerts-ack-selected" disabled>Acknowledge selected</button>
+  <button class="btn primary" type="button" id="alerts-ack-selected" disabled>{{ crate::icons::icon("check")|safe }} Acknowledge selected</button>
   {% endif %}
 </div>
 
 <div class="page-body">
-  <section class="card">
+  <section class="card tab-card">
+    <div class="vuln-tabs" id="alerts-status" role="group" aria-label="Filter alerts by status">
+      <button type="button" class="is-on" data-attr-value="new" aria-pressed="true">New<span>{{ open }}</span></button>
+      <button type="button" data-attr-value="ack" aria-pressed="false">Acknowledged<span>{{ acknowledged }}</span></button>
+      <button type="button" data-attr-value="" aria-pressed="false">All<span>{{ rows.len() }}</span></button>
+      <div class="search-box">
+        <input type="search" placeholder="Search host, finding, severity..." aria-label="Search alerts" data-table-filter="alerts-table" id="alerts-filter">
+        {{ crate::icons::icon("search")|safe }}
+      </div>
+    </div>
     <div class="tbl-wrap">
       <table class="tbl" id="alerts-table" data-attr-filter="data-ack" data-attr-select="alerts-status">
         <thead>
@@ -35,7 +32,7 @@
             <th>Scan</th>
             <th>Detected</th>
             <th>Status</th>
-            {% if can_ack %}<th class="right w-actions">Action</th>{% endif %}
+            {% if can_ack %}<th class="right w-actions"><span class="visually-hidden">Actions</span></th>{% endif %}
           </tr>
         </thead>
         <tbody>
@@ -79,7 +76,7 @@
           </tr>
           {% endfor %}
           {% if rows.is_empty() %}
-          <tr><td colspan="{% if can_ack %}9{% else %}7{% endif %}" class="empty-cell">No alerts yet. They appear as scans discover changes.</td></tr>
+          <tr><td colspan="{% if can_ack %}9{% else %}7{% endif %}" class="empty-cell">No alerts yet.</td></tr>
           {% endif %}
         </tbody>
       </table>
