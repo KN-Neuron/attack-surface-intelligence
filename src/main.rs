@@ -35,6 +35,8 @@ async fn main() -> anyhow::Result<()> {
     // page can load its stylesheet.
     let public: Router<sqlx::PgPool> = Router::new()
         .route("/login", get(auth::login_page).post(auth::login_post))
+        // Liveness probe for Docker / Railway healthchecks.
+        .route("/healthz", get(|| async { "ok" }))
         .nest_service(
             "/static",
             Router::new()
@@ -112,8 +114,10 @@ async fn main() -> anyhow::Result<()> {
         .layer(CompressionLayer::new())
         .with_state(pool);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
-    println!("attack-surface-intelligence listening on http://localhost:8080");
+    // Railway (and most PaaS) injects PORT; default to 8080 for local runs.
+    let port = std::env::var("PORT").ok().and_then(|p| p.parse::<u16>().ok()).unwrap_or(8080);
+    let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
+    println!("attack-surface-intelligence listening on http://localhost:{port}");
     axum::serve(listener, app).await?;
     Ok(())
 }

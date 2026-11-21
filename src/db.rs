@@ -11,8 +11,12 @@ use crate::state::{
     Permission, Policy, Role, ScanStatus, SCAN_TARGETS, now_label,
 };
 
-/// Hardcoded Railway Postgres connection (per project requirement).
-pub const DATABASE_URL: &str = "postgresql://postgres:JIaDSrzVxxkQlmAUMFzgJnRKdcHvVBOK@thomas.proxy.rlwy.net:32733/railway?sslmode=require";
+/// Postgres connection string, read from the `DATABASE_URL` environment variable.
+/// On Railway, reference the Postgres service: `DATABASE_URL=${{Postgres.DATABASE_URL}}`.
+fn database_url() -> anyhow::Result<String> {
+    std::env::var("DATABASE_URL")
+        .map_err(|_| anyhow::anyhow!("DATABASE_URL is not set (e.g. postgresql://user:pass@host:5432/db)"))
+}
 
 pub const DEFAULT_ADMIN_EMAIL: &str = "admin@hacknation.pl";
 pub const DEFAULT_ADMIN_PASSWORD: &str = "securepassword";
@@ -107,7 +111,7 @@ CREATE TABLE IF NOT EXISTS app_data (
 pub async fn connect() -> anyhow::Result<PgPool> {
     let pool = PgPoolOptions::new()
         .max_connections(8)
-        .connect(DATABASE_URL)
+        .connect(&database_url()?)
         .await?;
     Ok(pool)
 }

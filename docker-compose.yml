@@ -1,0 +1,40 @@
+# Local stack: Postgres + app + docs.
+#   docker compose up --build
+# App: http://localhost:8080   Docs: http://localhost:3000/docs
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: visibly
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d visibly"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/visibly
+      DOCS_URL: http://localhost:3000/docs
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  docs:
+    build: ../../frontend/docs
+    environment:
+      # Point at an Ollama on the host for generated answers; without it the
+      # assistant falls back to search-only mode.
+      OLLAMA_URL: http://host.docker.internal:11434
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
