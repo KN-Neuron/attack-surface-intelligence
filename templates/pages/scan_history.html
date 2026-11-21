@@ -1,9 +1,9 @@
 {% extends "base.html" %}
+{% block bodyclass %}screen-redesign{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>{{ title }}</h1>
   <span class="spacer"></span>
-  <span class="head-note">{{ crate::icons::icon("clock")|safe }} {{ range_label }}</span>
   <div class="select-wrap range-select">
     <select id="history-range" aria-label="Time range">
       <option value="1">Last 24 hours</option>

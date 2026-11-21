@@ -1,24 +1,23 @@
 {% extends "base.html" %}
+{% block bodyclass %}screen-redesign{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>{{ title }}</h1>
-  <span class="spacer"></span>
-  <span class="head-note">{{ crate::icons::icon("git-compare")|safe }} Compare two scans side by side</span>
 </div>
 
 <div class="page-body">
   <div class="compare-slots">
     <section class="card compare-slot" data-slot="a">
       <div class="slot-label">Scan A</div>
-      <div class="slot-name" id="slot-a-name">Select a scan</div>
-      <div class="slot-date" id="slot-a-date">No scan selected</div>
+      <div class="slot-name" id="slot-a-name">&mdash;</div>
+      <div class="slot-date" id="slot-a-date"></div>
       <button class="btn" type="button" data-pick-scan="a">{{ crate::icons::icon("search")|safe }} Select scan</button>
     </section>
     <div class="compare-vs">{{ crate::icons::icon("git-compare")|safe }}<span>VS</span></div>
     <section class="card compare-slot" data-slot="b">
       <div class="slot-label">Scan B</div>
-      <div class="slot-name" id="slot-b-name">Select a scan</div>
-      <div class="slot-date" id="slot-b-date">No scan selected</div>
+      <div class="slot-name" id="slot-b-name">&mdash;</div>
+      <div class="slot-date" id="slot-b-date"></div>
       <button class="btn" type="button" data-pick-scan="b">{{ crate::icons::icon("search")|safe }} Select scan</button>
     </section>
   </div>
@@ -26,8 +25,6 @@
   <section class="card compare-result">
     <div class="card-head">
       <h2>Comparison</h2>
-      <span class="spacer"></span>
-      <span class="card-note" id="compare-note">Choose two scans to compare</span>
     </div>
     <div class="tbl-wrap">
       <table class="tbl compare-table">
@@ -35,7 +32,7 @@
           <tr><th>Metric</th><th class="right">Scan A</th><th class="right">Scan B</th><th class="right">Change</th></tr>
         </thead>
         <tbody id="compare-body">
-          <tr><td colspan="4" class="empty-cell">No comparison yet.</td></tr>
+          <tr><td colspan="4" class="empty-cell">Choose two scans to compare.</td></tr>
         </tbody>
       </table>
     </div>

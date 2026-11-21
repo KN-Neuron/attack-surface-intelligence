@@ -226,7 +226,7 @@ button {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 6px;
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.62);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
   overflow: hidden;
   z-index: 80;
   animation: results-in 0.16s ease both;
@@ -371,10 +371,11 @@ html.nav-collapsed .sidebar .sidebar-title span { opacity: 0; max-width: 0; }
 html.nav-collapsed .sidebar .nav-group-items,
 html.nav-collapsed .sidebar .nav-item:not(.root) { display: none; }
 
-.sidebar:hover {
-  box-shadow: 22px 0 50px rgba(0, 0, 0, 0.55);
-  border-right-color: var(--border);
-}
+.sidebar:hover { border-right-color: var(--border); }
+
+/* A folded rail that opens over the content gets a light edge shadow; the
+   pinned sidebar sits beside the content and needs none. */
+.sidebar:not(.is-pinned):hover { box-shadow: 6px 0 18px rgba(0, 0, 0, 0.2); }
 
 /* label visibility: hidden in rail mode, revealed on hover / pin */
 
@@ -868,11 +869,6 @@ html.nav-collapsed .sidebar .nav-item:not(.root) { display: none; }
 
 .card-head .spacer { flex: 1 1 auto; }
 
-.card-note {
-  font-size: 11px;
-  color: var(--text-mute);
-  letter-spacing: 0.2px;
-}
 
 /* ---------- charts ---------- */
 
@@ -1209,7 +1205,7 @@ html.nav-collapsed .sidebar .nav-item:not(.root) { display: none; }
   border-right: 1px solid var(--border-soft);
   background: var(--canvas);
   overflow-y: auto;
-  padding: 0 18px 20px;
+  padding: 20px 18px 20px;
   scrollbar-width: thin;
   scrollbar-color: #312d4a transparent;
 }
@@ -1603,8 +1599,6 @@ html.nav-collapsed .sidebar .nav-item:not(.root) { display: none; }
 .muted { color: var(--text-mute); }
 .wrap-cell { white-space: normal; line-height: 1.45; max-width: 420px; }
 .empty-cell { text-align: center; color: var(--text-mute); padding: 28px 12px; }
-.head-note { display: inline-flex; align-items: center; gap: 6px; color: var(--text-mute); font-size: 12px; white-space: nowrap; }
-.head-note .ico { width: 14px; height: 14px; }
 .w-narrow { width: 70px; }
 .w-status { width: 110px; }
 .w-actions { width: 160px; }
@@ -1985,7 +1979,7 @@ td .host-chips { padding: 1px 0; }
   max-height: calc(100vh - 48px);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
   animation: modal-in 0.18s ease both;
   overflow: hidden;
 }
@@ -2283,6 +2277,16 @@ body.modal-open { overflow: hidden; }
    ================================================================ */
 
 [data-theme="light"] .sidebar-title { color: var(--text); }
+[data-theme="light"] .nav-item:hover { color: var(--text); }
+[data-theme="light"] .nav-item:hover::after {
+  background: rgba(26, 22, 48, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(26, 22, 48, 0.04);
+}
+[data-theme="light"] .tab.active,
+[data-theme="light"] .ptab.active,
+[data-theme="light"] .tab-link.active { color: var(--text); }
+[data-theme="light"] .carousel-arrow:hover { color: var(--text); background: rgba(26, 22, 48, 0.06); }
+[data-theme="light"] .search-result-title mark { color: var(--text); }
 [data-theme="light"] .nav-item.active,
 [data-theme="light"] .nav-item.active .nav-label { color: var(--text); }
 [data-theme="light"] .tbl tbody tr:nth-child(even) { background: rgba(26, 22, 48, 0.022); }
@@ -2444,7 +2448,6 @@ body.modal-open { overflow: hidden; }
 
 .overview-chart { grid-column: span 8; }
 .families { grid-column: span 4; }
-.overview-chart p { margin: 3px 0 0; color: var(--text-mute); font-size: 12px; }
 
 .overview-bars {
   display: grid;
@@ -2502,7 +2505,6 @@ body.modal-open { overflow: hidden; }
 
 .overview .tile.card { padding: 0; overflow: hidden; }
 .overview .tile.card .card-head { padding: 16px 20px 12px; min-height: 0; border-bottom: 1px solid var(--border-soft); }
-.overview .tile.card .card-note { color: var(--text-mute); }
 .overview .bar-col { width: 26%; }
 .overview .mini-bar span { background: var(--accent); }
 .overview-empty { margin: 0; padding: 18px 0; color: var(--text-dim); }
@@ -2534,7 +2536,7 @@ body.modal-open { overflow: hidden; }
   .overview-screen.overview-menu-ready .sidebar { visibility: hidden; width: var(--sidebar-w); }
   .overview-screen.overview-menu-ready .sidebar.overview-nav-open {
     visibility: visible;
-    box-shadow: 20px 0 45px rgb(0 0 0 / 30%);
+    box-shadow: 6px 0 18px rgb(0 0 0 / 22%);
   }
   .overview-screen.overview-menu-ready .sidebar-foot { display: none; }
   .overview-screen.overview-menu-ready .sidebar .nav-label,
@@ -2580,7 +2582,6 @@ body.modal-open { overflow: hidden; }
 .screen-redesign .card:hover { border-color: var(--border); }
 .screen-redesign .card-head { padding: 16px 20px 12px; }
 .screen-redesign .card-head h2 { font-size: 13px; font-weight: 600; color: var(--text-dim); }
-.screen-redesign .card-note { color: var(--text-mute); }
 
 /* buttons */
 .screen-redesign .btn,
@@ -2631,7 +2632,7 @@ body.modal-open { overflow: hidden; }
   width: min(520px, 100%);
   border-radius: 14px;
   border-color: var(--border);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
   max-height: min(640px, calc(100vh - 48px));
   max-height: min(640px, calc(100dvh - 48px));
 }
@@ -2790,7 +2791,6 @@ body.modal-open { overflow: hidden; }
 .vuln-tabs button.is-on::after { transform: scaleX(1); }
 .vuln-tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
 .vuln-tabs button span { font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text-mute); }
-.vuln-tabs-note { margin-left: auto; align-self: center; font-size: 12px; color: var(--text-mute); }
 .sev-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sev); }
 .sev-d-Critical { --sev: #ff6b7d; }
 .sev-d-High { --sev: #ff9a55; }

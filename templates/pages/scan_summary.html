@@ -47,12 +47,10 @@
     <section class="tile kpi">
       <h2>Detected services</h2>
       <strong id="stat-services">{{ initial.services }}</strong>
-      <span class="metric-delta">Across reachable hosts</span>
     </section>
 
     <section class="tile overview-chart" id="summary-chart" aria-labelledby="chart-title" hidden>
       <h2 id="chart-title">Services by scan range</h2>
-      <p>Select a bar to update the figures above.</p>
       <div class="overview-bars" id="summary-bars"></div>
     </section>
 
@@ -96,8 +94,6 @@
       <section class="tile card">
         <div class="card-head">
           <h2>Most detected services</h2>
-          <span class="spacer"></span>
-          <span class="card-note">Open ports</span>
         </div>
         {% if popular.is_empty() %}
         <p class="overview-empty">No service data is available yet.</p>
@@ -105,7 +101,7 @@
         <div class="tbl-wrap">
           <table class="tbl" aria-label="Most detected services">
             <thead>
-              <tr><th scope="col">Service</th><th scope="col" class="right">Detected</th><th scope="col" class="bar-col">Relative volume</th></tr>
+              <tr><th scope="col">Service</th><th scope="col" class="right">Detected</th><th scope="col" class="bar-col"><span class="visually-hidden">Relative volume</span></th></tr>
             </thead>
             <tbody>
               {% for s in popular %}
@@ -136,7 +132,7 @@
         <div class="tbl-wrap">
           <table class="tbl" aria-label="Most detected technologies">
             <thead>
-              <tr><th scope="col">Technology</th><th scope="col">Version</th><th scope="col" class="right">Hosts</th><th scope="col" class="bar-col">Relative volume</th></tr>
+              <tr><th scope="col">Technology</th><th scope="col">Version</th><th scope="col" class="right">Hosts</th><th scope="col" class="bar-col"><span class="visually-hidden">Relative volume</span></th></tr>
             </thead>
             <tbody>
               {% for t in tech_popular %}

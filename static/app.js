@@ -1534,19 +1534,17 @@
           nameEl.textContent = scan.label;
           dateEl.textContent = scan.started + " · " + scan.target;
         } else {
-          nameEl.textContent = "Select a scan";
-          dateEl.textContent = "No scan selected";
+          nameEl.textContent = "\u2014";
+          dateEl.textContent = "";
         }
       });
     };
 
     var renderCompare = function () {
       var body = document.getElementById("compare-body");
-      var note = document.getElementById("compare-note");
       if (!body) return;
       if (!selected.a || !selected.b) {
         body.innerHTML = '<tr><td colspan="4" class="empty-cell">Choose two scans to compare.</td></tr>';
-        if (note) note.textContent = "Choose two scans to compare";
         return;
       }
       var a = selected.a, b = selected.b;
@@ -1575,7 +1573,6 @@
             "<span class='delta-pill delta-" + state + "'>" + icon + sign + delta + "</span>" +
             "<span class='delta-pct'>" + pct + "</span></div></td></tr>";
       }).join("");
-      if (note) note.textContent = a.label + " vs " + b.label;
     };
 
     var renderPicker = function (filter) {
