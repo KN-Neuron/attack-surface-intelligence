@@ -686,118 +686,123 @@
   }
 
   // ==========================================================================
-  // Policies — dynamic criteria
+  // Scans — targets from host management + schedule pickers
   // ==========================================================================
   var policyForm = document.getElementById("policy-form");
   if (policyForm) {
-    var optionsEl = document.getElementById("policy-options");
-    var options = { groups: [], ranges: [] };
-    try { options = JSON.parse(optionsEl.textContent || "{}"); } catch (_) {}
-    var criteriaList = document.getElementById("criteria-list");
-    var criteriaEmpty = document.getElementById("criteria-empty");
-
-    var KINDS = ["host group", "IP to scan", "when", "frequency"];
-
-    function valueControl(kind, current) {
-      var el;
-      if (kind === "host group" && options.groups && options.groups.length) {
-        el = document.createElement("select");
-        options.groups.forEach(function (g) {
-          var o = document.createElement("option");
-          o.value = g; o.textContent = g;
-          el.appendChild(o);
-        });
-      } else if (kind === "IP to scan" && options.ranges && options.ranges.length) {
-        el = document.createElement("select");
-        options.ranges.forEach(function (r) {
-          var o = document.createElement("option");
-          o.value = r; o.textContent = r;
-          el.appendChild(o);
-        });
-      } else if (kind === "frequency") {
-        el = document.createElement("select");
-        ["Daily", "Weekly", "Monthly", "On demand"].forEach(function (f) {
-          var o = document.createElement("option");
-          o.value = f; o.textContent = f;
-          el.appendChild(o);
-        });
-      } else if (kind === "when") {
-        el = document.createElement("input");
-        el.type = "text";
-        el.placeholder = "e.g. Every day at 01:00";
-      } else {
-        el = document.createElement("input");
-        el.type = "text";
-        el.placeholder = "e.g. 10.0.0.0/24";
-      }
-      if (current) {
-        if (el.tagName === "SELECT") {
-          var found = Array.prototype.some.call(el.options, function (o) { return o.value === current; });
-          if (!found) {
-            var opt = document.createElement("option");
-            opt.value = current; opt.textContent = current;
-            el.appendChild(opt);
-          }
-        } else {
-          el.value = current;
-        }
-        el.value = current;
-      }
-      el.className = "criterion-value";
-      return el;
-    }
-
-    function updateEmpty() {
-      if (!criteriaEmpty) return;
-      criteriaEmpty.style.display = criteriaList.children.length ? "none" : "";
-    }
-
-    function addCriterion(kind, current) {
-      var row = document.createElement("div");
-      row.className = "criteria-row";
-
-      var select = document.createElement("select");
-      select.className = "criterion-kind";
-      KINDS.forEach(function (k) {
-        var o = document.createElement("option");
-        o.value = k; o.textContent = k.charAt(0).toUpperCase() + k.slice(1);
-        select.appendChild(o);
-      });
-      select.value = kind || "host group";
-
-      var valueSlot = document.createElement("span");
-      valueSlot.style.flex = "1 1 auto";
-      valueSlot.style.display = "flex";
-      valueSlot.appendChild(valueControl(select.value, current));
-
-      var remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "icon-btn";
-      remove.setAttribute("aria-label", "Remove criterion");
-      remove.innerHTML = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 4.4h9.6M6.4 4.4V3.1h3.2v1.3M4.6 4.4l.5 8a1 1 0 001 .9h3.8a1 1 0 001-.9l.5-8"/></svg>';
-      remove.addEventListener("click", function () {
-        row.remove();
-        updateEmpty();
-      });
-
-      select.addEventListener("change", function () {
-        valueSlot.innerHTML = "";
-        valueSlot.appendChild(valueControl(select.value, ""));
-      });
-
-      row.appendChild(select);
-      row.appendChild(valueSlot);
-      row.appendChild(remove);
-      criteriaList.appendChild(row);
-      updateEmpty();
-    }
-
-    var addCriterionBtn = document.querySelector("[data-add-criterion]");
-    if (addCriterionBtn) addCriterionBtn.addEventListener("click", function () { addCriterion("host group"); });
-
     var policyDataEl = document.getElementById("policy-data");
     var policyData = [];
     try { policyData = JSON.parse(policyDataEl.textContent || "[]"); } catch (_) {}
+
+    var targetCount = policyForm.querySelector("[data-target-count]");
+    var frequencyEl = document.getElementById("policy-frequency");
+    var dayEl = document.getElementById("policy-day");
+    var dayField = document.getElementById("policy-day-field");
+    var hourEl = document.getElementById("policy-hour");
+    var hourField = document.getElementById("policy-hour-field");
+    var minuteEl = document.getElementById("policy-minute");
+    var minuteField = document.getElementById("policy-minute-field");
+    var scheduleHint = document.getElementById("policy-schedule-hint");
+
+    var DAY_NAMES = {
+      mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday",
+      fri: "Friday", sat: "Saturday", sun: "Sunday"
+    };
+
+    function fillSelect(select, values) {
+      select.innerHTML = "";
+      values.forEach(function (value) {
+        var opt = document.createElement("option");
+        opt.value = value.value;
+        opt.textContent = value.label;
+        select.appendChild(opt);
+      });
+    }
+
+    function pad(n) { return (n < 10 ? "0" : "") + n; }
+
+    (function initStaticOptions() {
+      var hours = [];
+      for (var h = 0; h < 24; h++) hours.push({ value: pad(h), label: pad(h) });
+      fillSelect(hourEl, hours);
+
+      var minutes = [];
+      for (var m = 0; m < 60; m += 5) minutes.push({ value: pad(m), label: pad(m) });
+      fillSelect(minuteEl, minutes);
+    })();
+
+    function dayOptions(frequency) {
+      if (frequency === "Weekly") {
+        return ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map(function (d) {
+          return { value: d, label: DAY_NAMES[d] };
+        });
+      }
+      if (frequency === "Monthly") {
+        var days = [];
+        for (var d = 1; d <= 28; d++) days.push({ value: "d" + d, label: "Day " + d });
+        return days;
+      }
+      return [];
+    }
+
+    function dayLabel(value) {
+      if (DAY_NAMES[value]) return DAY_NAMES[value];
+      var dayOfMonth = /^d(\d+)$/.exec(value);
+      return dayOfMonth ? "Day " + dayOfMonth[1] : value;
+    }
+
+    function ensureOption(select, value) {
+      var found = Array.prototype.some.call(select.options, function (o) { return o.value === value; });
+      if (!found && value) {
+        var opt = document.createElement("option");
+        opt.value = value;
+        opt.textContent = select === dayEl ? dayLabel(value) : value;
+        select.appendChild(opt);
+      }
+    }
+
+    function syncScheduleFields() {
+      var frequency = frequencyEl.value;
+      var timed = frequency !== "On demand";
+
+      if (timed && frequency !== "Daily") {
+        var previousDay = dayEl.value;
+        fillSelect(dayEl, dayOptions(frequency));
+        var valid = Array.prototype.some.call(dayEl.options, function (o) { return o.value === previousDay; });
+        dayEl.value = valid ? previousDay : dayEl.options[0].value;
+        dayField.hidden = false;
+      } else {
+        dayField.hidden = true;
+      }
+
+      hourField.hidden = !timed;
+      minuteField.hidden = !timed;
+
+      if (!timed) {
+        scheduleHint.textContent = "This scan only runs when started manually.";
+        return;
+      }
+
+      var dayLabel = frequency === "Daily"
+        ? "every day"
+        : frequency === "Weekly"
+          ? "every " + DAY_NAMES[dayEl.value]
+          : "on day " + dayEl.value.slice(1) + " of the month";
+      scheduleHint.textContent = "Runs " + dayLabel + " at " + hourEl.value + ":" + minuteEl.value + ".";
+    }
+
+    function updateTargetCount() {
+      var count = policyForm.querySelectorAll("input[name=targets]:checked").length;
+      if (targetCount) targetCount.textContent = count + " selected";
+    }
+
+    policyForm.querySelectorAll("input[name=targets]").forEach(function (box) {
+      box.addEventListener("change", updateTargetCount);
+    });
+    frequencyEl.addEventListener("change", syncScheduleFields);
+    [dayEl, hourEl, minuteEl].forEach(function (el) {
+      el.addEventListener("change", syncScheduleFields);
+    });
 
     var policyIdInput = document.getElementById("policy-id");
     var policyTitle = document.getElementById("policy-modal-title");
@@ -813,15 +818,48 @@
 
     if (policyEnabled) policyEnabled.addEventListener("change", syncPolicyEnabled);
 
+    function clearTargets() {
+      policyForm.querySelectorAll("input[name=targets]").forEach(function (box) { box.checked = false; });
+    }
+
     function resetPolicyForm() {
       editingPolicyId = null;
       policyForm.reset();
       if (policyIdInput) policyIdInput.value = "";
       if (policyEnabled) policyEnabled.checked = true;
       syncPolicyEnabled();
-      if (policyTitle) policyTitle.textContent = "Add scan policy";
-      criteriaList.innerHTML = "";
-      updateEmpty();
+      if (policyTitle) policyTitle.textContent = "New scan";
+      clearTargets();
+      frequencyEl.value = "Daily";
+      hourEl.value = "01";
+      minuteEl.value = "00";
+      syncScheduleFields();
+      updateTargetCount();
+    }
+
+    // Schedule values are stored as `<day> <HH:MM>`; older readable values
+    // such as "Sundays at 22:00" are still understood when editing.
+    function parseWhen(value) {
+      var raw = String(value || "").trim().toLowerCase();
+      var match = raw.match(/^(every|every day|(?:mon|tue|wed|thu|fri|sat|sun)(?:days?)?|day (\d+)|d(\d+))\s+(?:at\s+)?(\d{1,2}):(\d{2})$/);
+      if (!match) return null;
+
+      var day = match[1];
+      if (day === "every" || day === "every day") {
+        day = "every";
+      } else if (/^d\d+$/.test(day)) {
+        day = day;
+      } else if (day.indexOf("day ") === 0) {
+        day = "d" + day.slice(4);
+      } else {
+        day = day.slice(0, 3);
+      }
+
+      return {
+        day: day,
+        hour: pad(Number(match[4])),
+        minute: pad(Number(match[5]))
+      };
     }
 
     function openPolicyEditor(policy) {
@@ -831,10 +869,37 @@
       policyForm.querySelector("[name=order]").value = policy.order;
       if (policyEnabled) policyEnabled.checked = !!policy.enabled;
       syncPolicyEnabled();
-      if (policyTitle) policyTitle.textContent = "Edit scan policy";
-      criteriaList.innerHTML = "";
-      (policy.criteria || []).forEach(function (c) { addCriterion(c.kind, c.value); });
-      updateEmpty();
+      if (policyTitle) policyTitle.textContent = "Edit scan";
+
+      clearTargets();
+      var frequency = "Daily";
+      var when = null;
+      (policy.criteria || []).forEach(function (c) {
+        if (c.kind === "frequency") {
+          frequency = c.value;
+        } else if (c.kind === "when") {
+          when = parseWhen(c.value);
+        } else {
+          policyForm.querySelectorAll("input[name=targets]").forEach(function (box) {
+            if (box.value === c.value) box.checked = true;
+          });
+        }
+      });
+
+      frequencyEl.value = frequency;
+      if (frequencyEl.value !== frequency) frequencyEl.value = "Daily";
+      syncScheduleFields();
+
+      if (when) {
+        if (when.day !== "every") ensureOption(dayEl, when.day);
+        ensureOption(hourEl, when.hour);
+        ensureOption(minuteEl, when.minute);
+        if (when.day !== "every") dayEl.value = when.day;
+        hourEl.value = when.hour;
+        minuteEl.value = when.minute;
+      }
+      syncScheduleFields();
+      updateTargetCount();
       openModal("policy-modal");
     }
 
@@ -852,30 +917,38 @@
     document.querySelectorAll("[data-policy-remove]").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var id = btn.getAttribute("data-policy-remove");
-        if (!window.confirm("Remove this scan policy? This cannot be undone.")) return;
+        if (!window.confirm("Remove this scan? This cannot be undone.")) return;
         fetch("/api/policies/" + id, { method: "DELETE" })
           .then(function (r) { if (!r.ok) throw new Error(); })
           .then(function () { window.location.reload(); })
-          .catch(function () { window.alert("Could not remove the policy. Please try again."); });
+          .catch(function () { window.alert("Could not remove the scan. Please try again."); });
       });
     });
 
     policyForm.addEventListener("submit", function (event) {
       event.preventDefault();
-      var crit = [];
-      criteriaList.querySelectorAll(".criteria-row").forEach(function (row) {
-        var kind = row.querySelector(".criterion-kind").value;
-        var val = row.querySelector(".criterion-value").value;
-        if (val) crit.push({ kind: kind, value: val });
+
+      var criteria = [];
+      policyForm.querySelectorAll("input[name=targets]:checked").forEach(function (box) {
+        criteria.push({ kind: box.getAttribute("data-picker-kind"), value: box.value });
       });
-      if (!crit.length) {
-        addCriterion("host group");
+      if (!criteria.length) {
+        window.alert("Pick at least one target from host management.");
         return;
       }
+
+      var frequency = frequencyEl.value;
+      criteria.push({ kind: "frequency", value: frequency });
+
+      if (frequency !== "On demand") {
+        var day = frequency === "Daily" ? "every" : dayEl.value;
+        criteria.push({ kind: "when", value: day + " " + hourEl.value + ":" + minuteEl.value });
+      }
+
       var payload = {
         name: policyForm.querySelector("[name=name]").value,
         order: Number(policyForm.querySelector("[name=order]").value) || 0,
-        criteria: crit,
+        criteria: criteria,
         enabled: policyEnabled ? policyEnabled.checked : true
       };
       var url = editingPolicyId ? "/api/policies/" + editingPolicyId : "/api/policies";
@@ -887,18 +960,87 @@
       })
         .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
         .then(function () { window.location.reload(); })
-        .catch(function () { window.alert("Could not save the policy. Please try again."); });
+        .catch(function () { window.alert("Could not save the scan. Please try again."); });
     });
 
-    updateEmpty();
+    resetPolicyForm();
   }
 
   // ==========================================================================
-  // Host groups — selection, tags and submit
+  // Host groups — create, edit, remove
   // ==========================================================================
   var groupForm = document.querySelector("[data-group-form]");
   if (groupForm) {
     groupForm._tagHandle = initTagInput(groupForm);
+
+    var groupDataEl = document.getElementById("group-data");
+    var groupData = [];
+    try { groupData = JSON.parse(groupDataEl.textContent || "[]"); } catch (_) {}
+
+    var groupIdInput = groupForm.querySelector("[name=id]");
+    var groupTitle = document.getElementById("group-modal-title");
+    var groupNameInput = groupForm.querySelector("[name=name]");
+    var editingGroupId = null;
+
+    function setGroupMembers(name, values) {
+      var wanted = {};
+      (values || []).forEach(function (v) { wanted[v] = true; });
+      groupForm.querySelectorAll("input[name=" + name + "]").forEach(function (box) {
+        box.checked = !!wanted[box.value];
+      });
+    }
+
+    function clearGroupFilters() {
+      groupForm.querySelectorAll("[data-filter-input]").forEach(function (input) {
+        input.value = "";
+        input.dispatchEvent(new Event("input"));
+      });
+    }
+
+    function resetGroupForm() {
+      editingGroupId = null;
+      groupForm.reset();
+      if (groupIdInput) groupIdInput.value = "";
+      if (groupTitle) groupTitle.textContent = "New host group";
+      if (groupForm._tagHandle) groupForm._tagHandle.reset();
+      clearGroupFilters();
+    }
+
+    function openGroupEditor(group) {
+      editingGroupId = group.id;
+      if (groupIdInput) groupIdInput.value = String(group.id);
+      if (groupNameInput) groupNameInput.value = group.name;
+      if (groupTitle) groupTitle.textContent = "Edit host group";
+      if (groupForm._tagHandle) {
+        groupForm._tagHandle.reset();
+        group.tags.forEach(function (tag) { groupForm._tagHandle.add(tag); });
+      }
+      setGroupMembers("ips", group.ips);
+      setGroupMembers("ranges", group.ranges);
+      setGroupMembers("fqdns", group.fqdns);
+      clearGroupFilters();
+      openModal("group-modal");
+    }
+
+    document.querySelectorAll("[data-group-edit]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = Number(btn.getAttribute("data-group-edit"));
+        var group = groupData.filter(function (g) { return g.id === id; })[0];
+        if (group) openGroupEditor(group);
+      });
+    });
+
+    document.querySelectorAll("[data-group-remove]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var name = btn.getAttribute("data-group-name");
+        if (!window.confirm("Remove the host group \"" + name + "\"? Inventory entries are kept.")) return;
+        fetch("/api/host-groups/" + btn.getAttribute("data-group-remove"), { method: "DELETE" })
+          .then(function (r) { if (!r.ok) throw new Error(); })
+          .then(function () { window.location.reload(); })
+          .catch(function () { window.alert("Could not remove the group. Please try again."); });
+      });
+    });
+
     groupForm.addEventListener("submit", function (event) {
       event.preventDefault();
 
@@ -909,14 +1051,14 @@
       }
 
       var payload = {
-        name: groupForm.querySelector("[name=name]").value,
+        name: groupNameInput.value,
         ips: checked("ips"),
         ranges: checked("ranges"),
         fqdns: checked("fqdns"),
         tags: groupForm._tagHandle.values()
       };
-      fetch("/api/host-groups", {
-        method: "POST",
+      fetch(editingGroupId ? "/api/host-groups/" + editingGroupId : "/api/host-groups", {
+        method: editingGroupId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       })
@@ -924,12 +1066,17 @@
         .then(function () { window.location.reload(); })
         .catch(function () { window.alert("Could not save the group. Please try again."); });
     });
+
+    resetGroupForm();
+
+    var groupOpen = document.querySelector('[data-open-modal="group-modal"]');
+    if (groupOpen) groupOpen.addEventListener("click", resetGroupForm);
   }
 
-  // Filterable checkbox lists inside the group modal.
+  // Filterable checkbox lists (host group modal + scan targets).
   document.querySelectorAll("[data-filter-input]").forEach(function (input) {
-    var field = input.closest(".field");
-    var list = field ? field.querySelector("[data-filter-list]") : null;
+    var scope = input.closest(".field") || input.closest(".target-group");
+    var list = scope ? scope.querySelector("[data-filter-list]") : null;
     if (!list) return;
     input.addEventListener("input", function () {
       var needle = input.value.trim().toLowerCase();
@@ -1176,11 +1323,12 @@
     });
   });
 
-  // Reset an add/group form whenever its modal is opened.
+  // Reset an add form whenever its modal is opened. The group form has its own
+  // reset (title, id and tag chips) wired above.
   document.querySelectorAll("[data-open-modal]").forEach(function (btn) {
     var modal = document.getElementById(btn.getAttribute("data-open-modal"));
     if (!modal) return;
-    var form = modal.querySelector("form[data-host-add], form[data-host-import], form[data-group-form]");
+    var form = modal.querySelector("form[data-host-add], form[data-host-import]");
     if (!form) return;
     btn.addEventListener("click", function () {
       form.reset();

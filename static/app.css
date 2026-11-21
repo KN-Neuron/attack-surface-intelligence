@@ -2689,6 +2689,40 @@ body.modal-open { overflow: hidden; }
 .screen-redesign .criteria-panel .field-hint { margin: 0; padding: 4px 2px; }
 .screen-redesign .criteria-list:not(:empty) + .field-hint { display: none; }
 
+/* ---- new scan: targets + schedule ---- */
+.screen-redesign .modal.modal-wide { width: min(680px, 100%); }
+.screen-redesign .modal.modal-wide { max-height: min(760px, calc(100vh - 48px)); max-height: min(760px, calc(100dvh - 48px)); }
+
+.target-picker { display: flex; flex-direction: column; gap: 14px; }
+.target-picker > .field-hint { padding: 0 2px; }
+.target-group { display: flex; flex-direction: column; gap: 6px; }
+.target-group .field-label { margin: 0; }
+.target-group .picker-search { margin-bottom: 0; }
+.target-group .check-list.scroll { max-height: 132px; }
+.target-picker .check-list:empty { display: none; }
+.criteria-head [data-target-count] {
+  font-size: 11px;
+  color: var(--text-mute);
+  font-variant-numeric: tabular-nums;
+}
+.target-picker .check-meta {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-mute);
+  font-variant-numeric: tabular-nums;
+}
+
+.schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 150px));
+  gap: 10px;
+}
+.schedule-grid .field { margin-bottom: 0; min-width: 0; }
+.schedule-grid .field[hidden] { display: none; }
+.schedule-grid select { background: var(--card); }
+.criteria-panel #policy-schedule-hint { margin: 10px 0 0; padding: 0 2px; }
+
 /* ---- scan management ---- */
 .screen-redesign .scan-layout { grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); gap: 14px; }
 .screen-redesign .scan-live { height: auto; padding-bottom: 20px; }

@@ -177,13 +177,22 @@ pub async fn scan_start(State(pool): State<PgPool>) -> Json<ScanStatus> {
 
 // ---------------------------------------------------------------- policies
 
+/// A host group as offered in the scan target picker.
+pub struct GroupOption {
+    pub name: String,
+    pub targets: usize,
+}
+
 #[derive(Template)]
 #[template(path = "pages/policies.html")]
 struct PoliciesPage {
     shell: Shell,
     title: &'static str,
     policies: Vec<Policy>,
-    options_json: String,
+    groups: Vec<GroupOption>,
+    ips: Vec<String>,
+    ranges: Vec<String>,
+    fqdns: Vec<String>,
     policies_json: String,
 }
 
@@ -192,22 +201,42 @@ pub async fn scanning_policies(
     Extension(admin): Extension<CurrentAdmin>,
 ) -> Html<String> {
     let policies = db::list_policies(&pool).await;
-    let groups = db::list_groups(&pool).await;
-    let host_groups: Vec<String> = groups.into_iter().map(|g| g.name).collect();
-    let ip_ranges = db::range_cidrs(&pool).await;
 
-    let options_json = serde_json::json!({
-        "groups": &host_groups,
-        "ranges": &ip_ranges,
-    })
-    .to_string();
+    // Targets come from host management, so both pages share one inventory.
+    let groups: Vec<GroupOption> = db::list_groups(&pool)
+        .await
+        .into_iter()
+        .map(|g| GroupOption {
+            name: g.name,
+            targets: g.ips.len() + g.ranges.len() + g.fqdns.len(),
+        })
+        .collect();
+    let ips: Vec<String> = db::list_host_ips(&pool)
+        .await
+        .into_iter()
+        .map(|h| h.address)
+        .collect();
+    let ranges: Vec<String> = db::list_host_ranges(&pool)
+        .await
+        .into_iter()
+        .map(|h| h.cidr)
+        .collect();
+    let fqdns: Vec<String> = db::list_host_fqdns(&pool)
+        .await
+        .into_iter()
+        .map(|h| h.fqdn)
+        .collect();
+
     let policies_json = serde_json::to_string(&policies).unwrap_or_else(|_| "[]".into());
 
     let page = PoliciesPage {
         shell: build_shell(nav::SCANNING_POLICIES, &admin),
         title: "Scan scheduling",
         policies,
-        options_json,
+        groups,
+        ips,
+        ranges,
+        fqdns,
         policies_json,
     };
     render(&page)
@@ -369,19 +398,23 @@ struct HostManagementPage {
     ranges: Vec<HostRange>,
     fqdns: Vec<HostFqdn>,
     groups: Vec<HostGroup>,
+    groups_json: String,
 }
 
 pub async fn host_management(
     State(pool): State<PgPool>,
     Extension(admin): Extension<CurrentAdmin>,
 ) -> Html<String> {
+    let groups = db::list_groups(&pool).await;
+    let groups_json = serde_json::to_string(&groups).unwrap_or_else(|_| "[]".into());
     let page = HostManagementPage {
         shell: build_shell(nav::HOST_MANAGEMENT, &admin),
         title: "Host management",
         ips: db::list_host_ips(&pool).await,
         ranges: db::list_host_ranges(&pool).await,
         fqdns: db::list_host_fqdns(&pool).await,
-        groups: db::list_groups(&pool).await,
+        groups,
+        groups_json,
     };
     render(&page)
 }
@@ -496,6 +529,33 @@ pub async fn create_group(
     .await
     .map(Json)
     .ok_or(StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+pub async fn update_group(
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
+    Json(payload): Json<NewGroup>,
+) -> Result<Json<HostGroup>, StatusCode> {
+    db::update_group(
+        &pool,
+        id,
+        payload.name,
+        payload.ips,
+        payload.ranges,
+        payload.fqdns,
+        payload.tags,
+    )
+    .await
+    .map(Json)
+    .ok_or(StatusCode::NOT_FOUND)
+}
+
+pub async fn delete_group(State(pool): State<PgPool>, Path(id): Path<i64>) -> StatusCode {
+    if db::delete_group(&pool, id).await {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
 }
 
 // ---------------------------------------------------------------- log center

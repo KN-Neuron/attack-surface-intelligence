@@ -78,6 +78,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/policies", post(handlers::create_policy))
         .route("/api/policies/{id}", put(handlers::update_policy).delete(handlers::delete_policy))
         .route("/api/host-groups", post(handlers::create_group))
+        .route(
+            "/api/host-groups/{id}",
+            put(handlers::update_group).delete(handlers::delete_group),
+        )
         .route("/api/host-ips", post(handlers::create_host_ips))
         .route(
             "/api/host-ips/{id}",
