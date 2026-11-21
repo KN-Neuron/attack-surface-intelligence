@@ -632,7 +632,7 @@ pub async fn root(Extension(admin): Extension<CurrentAdmin>) -> Response {
             Html(
                 "<!doctype html><html><body style=\"font-family:sans-serif;background:#121212;color:#f3f1f1;padding:40px\">\
                  <h1>No access</h1><p>Your account has no page permissions. Contact an administrator.</p>\
-                 <a style=\"color:#f28a9b\" href=\"/logout\">Sign out</a></body></html>"
+                 <a style=\"color:#7fdcab\" href=\"/logout\">Sign out</a></body></html>"
                     .to_string(),
             ),
         )
