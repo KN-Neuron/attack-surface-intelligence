@@ -241,16 +241,25 @@ async fn seed(pool: &PgPool) -> anyhow::Result<()> {
 /// Seeded chart colours live in `app_data`, and seeding never overwrites existing
 /// rows. Rewrite the legacy blue palette to the current one so charts match the UI.
 async fn migrate_chart_palette(pool: &PgPool) {
-    const LEGACY: [(&str, &str); 9] = [
-        ("#4aa8ff", "#8b6cff"),
-        ("#67c17f", "#2dd4bf"),
+    const LEGACY: [(&str, &str); 16] = [
+        // original blue palette
+        ("#4aa8ff", "#e5566c"),
+        ("#67c17f", "#3fb27f"),
         ("#e5c458", "#f2c14e"),
-        ("#b58cff", "#f472b6"),
+        ("#b58cff", "#5aa9e6"),
         ("#ff8f6b", "#ff9a62"),
-        ("#5d7085", "#6f6c8c"),
-        ("#c98bff", "#c4b5fd"),
-        ("#6bd1c4", "#5eead4"),
-        ("#e06b8b", "#fb7185"),
+        ("#5d7085", "#8a8587"),
+        ("#c98bff", "#f28a9b"),
+        ("#6bd1c4", "#7ad3a9"),
+        ("#e06b8b", "#ff9a8f"),
+        // short-lived violet palette
+        ("#8b6cff", "#e5566c"),
+        ("#2dd4bf", "#3fb27f"),
+        ("#f472b6", "#5aa9e6"),
+        ("#6f6c8c", "#8a8587"),
+        ("#c4b5fd", "#f28a9b"),
+        ("#5eead4", "#7ad3a9"),
+        ("#fb7185", "#ff9a8f"),
     ];
     for (old, new) in LEGACY {
         let _ = sqlx::query(

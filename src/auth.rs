@@ -201,9 +201,9 @@ fn forbidden(admin: &CurrentAdmin, path: &str) -> Response {
         None => (
             StatusCode::FORBIDDEN,
             Html(
-                "<!doctype html><html><body style=\"font-family:sans-serif;background:#0b0a12;color:#ece9f7;padding:40px\">\
+                "<!doctype html><html><body style=\"font-family:sans-serif;background:#121212;color:#f3f1f1;padding:40px\">\
                  <h1>No access</h1><p>Your account has no page permissions. Contact an administrator.</p>\
-                 <a style=\"color:#b7a3ff\" href=\"/logout\">Sign out</a></body></html>"
+                 <a style=\"color:#f28a9b\" href=\"/logout\">Sign out</a></body></html>"
                     .to_string(),
             ),
         )
