@@ -1,9 +1,13 @@
 {% extends "base.html" %}
+{% block bodyclass %}screen-redesign{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{{ title }}</h1>
+  <div>
+    <h1>{{ title }}</h1>
+    <p class="page-sub">Policies define what each scan covers.</p>
+  </div>
   <span class="spacer"></span>
-  <button class="btn primary" type="button" data-open-modal="policy-modal" data-policy-add>{{ crate::icons::icon("plus")|safe }} Add Scan</button>
+  <button class="btn primary" type="button" data-open-modal="policy-modal" data-policy-add>{{ crate::icons::icon("plus")|safe }} Add policy</button>
 </div>
 
 <div class="page-body">
@@ -68,32 +72,34 @@
     <form id="policy-form">
       <input type="hidden" id="policy-id" value="">
       <div class="modal-body">
+        <div class="field">
+          <label class="field-label" for="policy-name">Name</label>
+          <input id="policy-name" name="name" type="text" placeholder="e.g. Nightly perimeter sweep" autocomplete="off" required>
+        </div>
+
         <div class="form-grid">
-          <div class="field">
-            <label class="field-label" for="policy-name">Name</label>
-            <input id="policy-name" name="name" type="text" placeholder="e.g. Nightly perimeter sweep" required>
-          </div>
           <div class="field field-order">
             <label class="field-label" for="policy-order">Order</label>
             <input id="policy-order" name="order" type="number" min="1" value="1">
           </div>
+          <div class="field">
+            <span class="field-label">Status</span>
+            <label class="switch">
+              <input type="checkbox" id="policy-enabled" checked>
+              <span class="switch-track"></span>
+              <span class="switch-text" id="policy-enabled-text">Enabled</span>
+            </label>
+          </div>
         </div>
 
-        <div class="field">
-          <span class="field-label">Status</span>
-          <label class="switch">
-            <input type="checkbox" id="policy-enabled" checked>
-            <span class="switch-track"></span>
-            <span class="switch-text" id="policy-enabled-text">Enabled</span>
-          </label>
+        <div class="criteria-panel">
+          <div class="criteria-head">
+            <span class="field-label">Criteria</span>
+            <button class="add-criterion" type="button" data-add-criterion>{{ crate::icons::icon("plus")|safe }} Add criterion</button>
+          </div>
+          <div id="criteria-list" class="criteria-list"></div>
+          <p class="field-hint" id="criteria-empty">No criteria yet. Add at least one to define what this policy scans.</p>
         </div>
-
-        <div class="criteria-head">
-          <span class="field-label">Criteria</span>
-          <button class="add-criterion" type="button" data-add-criterion>{{ crate::icons::icon("plus")|safe }} New criteria</button>
-        </div>
-        <div id="criteria-list" class="criteria-list"></div>
-        <p class="field-hint" id="criteria-empty">No criteria yet — add at least one to define what this policy scans.</p>
       </div>
       <div class="modal-foot">
         <button class="btn" type="button" data-close-modal>Cancel</button>

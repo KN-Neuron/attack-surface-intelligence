@@ -245,9 +245,13 @@ struct ScanSummaryPage {
     shell: Shell,
     title: &'static str,
     timeline_json: String,
+    ranges: Vec<TimelinePoint>,
+    selected_range: usize,
     latest_scan: String,
     initial: TimelinePoint,
+    can_read_history: bool,
     services: Vec<ServiceSlice>,
+    service_family_total: u64,
     popular: Vec<PopularService>,
     tech_popular: Vec<PopularTech>,
 }
@@ -257,20 +261,25 @@ pub async fn scan_summary(
     Extension(admin): Extension<CurrentAdmin>,
 ) -> Html<String> {
     let points: Vec<TimelinePoint> = db::get_data(&pool, "timeline_points").await;
-    let initial = points
-        .get(1)
-        .or_else(|| points.first())
-        .cloned()
-        .unwrap_or_default();
-    let timeline_json = serde_json::to_string(&points).unwrap_or_else(|_| "[]".into());
+    let selected_range = points.iter().position(|point| point.days == 7).unwrap_or(0);
+    let initial = points.get(selected_range).cloned().unwrap_or_default();
+    let timeline_json = serde_json::to_string(&points)
+        .unwrap_or_else(|_| "[]".into())
+        .replace('<', "\\u003c");
+    let services: Vec<ServiceSlice> = db::get_data(&pool, "service_slices").await;
+    let service_family_total = services.iter().map(|slice| u64::from(slice.count)).sum();
 
     let page = ScanSummaryPage {
         shell: build_shell(nav::SCAN_SUMMARY, &admin),
         title: "Scan summary",
         timeline_json,
+        ranges: points,
+        selected_range,
         latest_scan: db::get_data(&pool, "latest_scan").await,
         initial,
-        services: db::get_data(&pool, "service_slices").await,
+        can_read_history: admin.can_read("scan_history"),
+        services,
+        service_family_total,
         popular: db::get_data(&pool, "popular_services").await,
         tech_popular: db::get_data(&pool, "popular_technologies").await,
     };

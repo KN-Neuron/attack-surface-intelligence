@@ -1,62 +1,69 @@
 {% extends "base.html" %}
+{% block bodyclass %}overview-screen{% endblock %}
+{% block topbar_left %}
+  <button class="icon-btn overview-menu" id="overview-menu" type="button" aria-label="Navigation" aria-controls="sidebar" aria-expanded="false" hidden>{{ crate::icons::icon("panel-left")|safe }}</button>
+  <button class="icon-btn overview-help" type="button" aria-label="Help">{{ crate::icons::icon("help")|safe }}</button>
+{% endblock %}
+{% block search_hint %}<kbd class="overview-shortcut" id="overview-shortcut" aria-hidden="true" hidden>Ctrl K</kbd>{% endblock %}
 {% block content %}
-<div class="page-head">
-  <h1>{{ title }}</h1>
-  <span class="spacer"></span>
-  <div class="select-wrap range-select summary-range">
-    <select id="summary-range" aria-label="Time range">
-      <option value="0">Last 24 hours</option>
-      <option value="1" selected>Last 7 days</option>
-      <option value="2">Last 14 days</option>
-      <option value="3">Last 30 days</option>
-      <option value="4">Last 180 days</option>
-      <option value="5">Last 365 days</option>
-    </select>
-  </div>
-</div>
+<div class="overview">
+  <header class="overview-heading">
+    <div>
+      <h1>{{ title }}</h1>
+      <p>Latest scan <span>{% if latest_scan.is_empty() %}unavailable{% else %}{{ latest_scan }}{% endif %}</span></p>
+    </div>
+    <div class="overview-actions">
+      {% if !ranges.is_empty() %}
+      <div class="select-wrap summary-range">
+        <select id="summary-range" aria-label="Scan range" disabled>
+          {% for range in ranges %}
+          <option value="{{ loop.index0 }}"{% if loop.index0 == selected_range %} selected{% endif %}>Last {{ range.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      {% if can_read_history %}
+      <a class="overview-link overview-history" href="/log-center/scan-history">
+        {{ crate::icons::icon("clock")|safe }} Scan history
+      </a>
+      {% endif %}
+    </div>
+  </header>
 
-<div class="page-body">
-  <div class="summary-top">
-    <section class="card metric-card">
-      <div class="metric-icon good">{{ crate::icons::icon("server")|safe }}</div>
-      <div class="metric-value" id="stat-alive">{{ initial.alive }}</div>
-      <div class="metric-label">Alive hosts</div>
-      <div class="metric-delta {% if initial.alive_new >= 0 %}up{% else %}down{% endif %}" id="stat-alive-delta">
-        {% if initial.alive_new >= 0 %}+{% endif %}{{ initial.alive_new }} since last scan
-      </div>
+  {% if ranges.is_empty() %}
+  <p class="overview-empty">No scan summary is available yet.</p>
+  {% else %}
+  <div class="bento" aria-live="polite">
+    <section class="tile kpi">
+      <h2>Reachable hosts</h2>
+      <strong id="stat-alive">{{ initial.alive }}</strong>
+      <span class="metric-delta {% if initial.alive_new > 0 %}up{% else if initial.alive_new < 0 %}down{% endif %}" id="stat-alive-delta">{% if initial.alive_new > 0 %}+{% endif %}{{ initial.alive_new }} since last scan</span>
     </section>
-    <section class="card metric-card">
-      <div class="metric-icon bad">{{ crate::icons::icon("alert-triangle")|safe }}</div>
-      <div class="metric-value" id="stat-down">{{ initial.down }}</div>
-      <div class="metric-label">Hosts down</div>
-      <div class="metric-delta {% if initial.down_new >= 0 %}down{% else %}up{% endif %}" id="stat-down-delta">
-        {% if initial.down_new >= 0 %}+{% endif %}{{ initial.down_new }} since last scan
-      </div>
+    <section class="tile kpi">
+      <h2>Unreachable hosts</h2>
+      <strong id="stat-down">{{ initial.down }}</strong>
+      <span class="metric-delta {% if initial.down_new > 0 %}down{% else if initial.down_new < 0 %}up{% endif %}" id="stat-down-delta">{% if initial.down_new > 0 %}+{% endif %}{{ initial.down_new }} since last scan</span>
     </section>
-    <section class="card metric-card">
-      <div class="metric-icon accent">{{ crate::icons::icon("layers")|safe }}</div>
-      <div class="metric-value" id="stat-services">{{ initial.services }}</div>
-      <div class="metric-label">Services detected</div>
-      <div class="metric-delta" id="stat-services-delta">across all alive hosts</div>
+    <section class="tile kpi">
+      <h2>Detected services</h2>
+      <strong id="stat-services">{{ initial.services }}</strong>
+      <span class="metric-delta">Across reachable hosts</span>
     </section>
-    <section class="card metric-card">
-      <div class="metric-icon">{{ crate::icons::icon("clock")|safe }}</div>
-      <div class="metric-value small" id="stat-latest">{{ latest_scan }}</div>
-      <div class="metric-label">Time of latest scan</div>
-      <div class="metric-delta">Completed successfully</div>
-    </section>
-  </div>
 
-  <div class="summary-grid">
-    <section class="card">
-      <div class="card-head">
-        <h2>Services detected</h2>
-        <span class="spacer"></span>
-        <span class="card-note">By service family</span>
-      </div>
+    <section class="tile overview-chart" id="summary-chart" aria-labelledby="chart-title" hidden>
+      <h2 id="chart-title">Services by scan range</h2>
+      <p>Select a bar to update the figures above.</p>
+      <div class="overview-bars" id="summary-bars"></div>
+    </section>
+
+    <section class="tile families">
+      <h2>Service families</h2>
+      {% if services.is_empty() %}
+      <p class="overview-empty">No service family data is available yet.</p>
+      {% else %}
       <div class="donut-box">
         <div class="donut-wrap">
-          <svg class="donut" viewBox="0 0 42 42" role="img" aria-label="Services detected">
+          <svg class="donut" viewBox="0 0 42 42" role="img" aria-label="{{ service_family_total }} service detections by family">
             <circle class="donut-ring" cx="21" cy="21" r="15.915"></circle>
             {% for s in services %}
             <circle class="donut-seg" cx="21" cy="21" r="15.915" stroke="{{ s.color }}"
@@ -64,14 +71,14 @@
               <title>{{ s.label }}: {{ s.count }} ({{ s.pct }}%)</title>
             </circle>
             {% endfor %}
-            <text class="donut-center" x="21" y="20.2" text-anchor="middle" id="donut-total">{{ initial.services }}</text>
-            <text class="donut-sub" x="21" y="24.4" text-anchor="middle">services</text>
+            <text class="donut-center" x="21" y="20.2" text-anchor="middle">{{ service_family_total }}</text>
+            <text class="donut-sub" x="21" y="24.4" text-anchor="middle">detections</text>
           </svg>
         </div>
         <ul class="donut-legend">
           {% for s in services %}
           <li>
-            <span class="legend-swatch" style="background: {{ s.color }}"></span>
+            <span class="legend-swatch" style="background: {{ s.color }}" aria-hidden="true"></span>
             <span class="donut-name">{{ s.label }}</span>
             <span class="donut-count">{{ s.count }}</span>
             <span class="donut-pct">{{ s.pct }}%</span>
@@ -79,63 +86,77 @@
           {% endfor %}
         </ul>
       </div>
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <h2>Most popular services</h2>
-        <span class="spacer"></span>
-        <span class="card-note">Open ports</span>
-      </div>
-      <div class="tbl-wrap">
-        <table class="tbl">
-          <thead>
-            <tr><th>Service</th><th class="right">Detected</th><th class="bar-col">Share</th></tr>
-          </thead>
-          <tbody>
-            {% for s in popular %}
-            <tr>
-              <td class="strong-cell">{{ s.service }}</td>
-              <td class="right">{{ s.count }}</td>
-              <td class="bar-col">
-                <span class="mini-bar"><span style="width: {{ s.pct }}%; background: {{ s.color }}"></span></span>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% include "partials/pager.html" %}
-    </section>
-
-    <section class="card span-2">
-      <div class="card-head">
-        <h2>Most popular technologies</h2>
-        <span class="spacer"></span>
-        <span class="card-note">By host count</span>
-      </div>
-      <div class="tbl-wrap">
-        <table class="tbl">
-          <thead>
-            <tr><th>Technology</th><th>Version</th><th class="right">Hosts</th><th class="bar-col">Share</th></tr>
-          </thead>
-          <tbody>
-            {% for t in tech_popular %}
-            <tr>
-              <td class="strong-cell">{{ t.name }}</td>
-              <td>{{ t.version }}</td>
-              <td class="right">{{ t.count }}</td>
-              <td class="bar-col">
-                <span class="mini-bar"><span style="width: {{ t.pct }}%; background: {{ t.color }}"></span></span>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% include "partials/pager.html" %}
+      {% endif %}
     </section>
   </div>
+  {% endif %}
+
+  <section class="overview-context">
+    <div class="overview-inventory">
+      <section class="tile card">
+        <div class="card-head">
+          <h2>Most detected services</h2>
+          <span class="spacer"></span>
+          <span class="card-note">Open ports</span>
+        </div>
+        {% if popular.is_empty() %}
+        <p class="overview-empty">No service data is available yet.</p>
+        {% else %}
+        <div class="tbl-wrap">
+          <table class="tbl" aria-label="Most detected services">
+            <thead>
+              <tr><th scope="col">Service</th><th scope="col" class="right">Detected</th><th scope="col" class="bar-col">Relative volume</th></tr>
+            </thead>
+            <tbody>
+              {% for s in popular %}
+              <tr>
+                <td class="strong-cell">{{ s.service }}</td>
+                <td class="right">{{ s.count }}</td>
+                <td class="bar-col">
+                  <span class="mini-bar" role="img" aria-label="{{ s.pct }}% of the highest count"><span style="width: {{ s.pct }}%"></span></span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% include "partials/pager.html" %}
+        {% endif %}
+      </section>
+
+      <section class="tile card">
+        <div class="card-head">
+          <h2>Most detected technologies</h2>
+          <span class="spacer"></span>
+          <a class="overview-link" href="/dashboards/technologies-used">All technologies {{ crate::icons::icon("chevron-right")|safe }}</a>
+        </div>
+        {% if tech_popular.is_empty() %}
+        <p class="overview-empty">No technology data is available yet.</p>
+        {% else %}
+        <div class="tbl-wrap">
+          <table class="tbl" aria-label="Most detected technologies">
+            <thead>
+              <tr><th scope="col">Technology</th><th scope="col">Version</th><th scope="col" class="right">Hosts</th><th scope="col" class="bar-col">Relative volume</th></tr>
+            </thead>
+            <tbody>
+              {% for t in tech_popular %}
+              <tr>
+                <td class="strong-cell">{{ t.name }}</td>
+                <td>{{ t.version }}</td>
+                <td class="right">{{ t.count }}</td>
+                <td class="bar-col">
+                  <span class="mini-bar" role="img" aria-label="{{ t.pct }}% of the highest count"><span style="width: {{ t.pct }}%"></span></span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% include "partials/pager.html" %}
+        {% endif %}
+      </section>
+    </div>
+  </section>
 </div>
 <script type="application/json" id="summary-data">{{ timeline_json|safe }}</script>
 {% endblock %}

@@ -1,9 +1,11 @@
 {% extends "base.html" %}
+{% block bodyclass %}screen-redesign{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{{ title }}</h1>
-  <span class="spacer"></span>
-  <span class="head-note">{{ crate::icons::icon("scan")|safe }} Attack Surface Intelligence</span>
+  <div>
+    <h1>{{ title }}</h1>
+    <p class="page-sub">Start, pause and monitor scans.</p>
+  </div>
 </div>
 
 <div class="page-body">
@@ -55,7 +57,6 @@
 
       <div class="scan-idle" data-scan-idle {% if scan.running %}hidden{% endif %}>
         <div class="scan-idle-body">
-          <div class="scan-idle-icon">{{ crate::icons::icon("scan")|safe }}</div>
           <div>
             <h3>No scan in progress</h3>
             <p id="scan-last">{% if !scan.completed_at.is_empty() %}Last scan finished {{ scan.completed_at }}.{% else %}Start a scan to discover hosts, services and technologies.{% endif %}</p>
