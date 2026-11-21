@@ -2019,6 +2019,7 @@
         ? "Apply all filters"
         : "Add a filter");
       els.addBtn.classList.toggle("is-pending", pending);
+      if (els.addMore) els.addMore.hidden = !hasDraft();
       if (els.clear) els.clear.hidden = !hasDraft();
       if (els.filterCount) {
         els.filterCount.textContent = state.draft.length
