@@ -2,36 +2,10 @@
 {% block bodyclass %}screen-redesign{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div>
-    <h1>{{ title }}</h1>
-    <p class="page-sub">Service versions with known CVEs found on your hosts.</p>
-  </div>
+  <h1>{{ title }}</h1>
 </div>
 
 <div class="page-body">
-  <div class="sev-tiles" role="group" aria-label="Filter findings by severity">
-    <button type="button" class="sev-tile is-on" data-sev-filter="" aria-pressed="true" style="--i: 0">
-      <span class="sev-tile-label">All findings</span>
-      <strong>{{ detected.len() }}</strong>
-      <small>{{ unique_hosts }} affected hosts</small>
-    </button>
-    <button type="button" class="sev-tile sev-t-Critical" data-sev-filter="Critical" aria-pressed="false" style="--i: 1">
-      <span class="sev-tile-label"><i></i>Critical</span>
-      <strong>{{ critical }}</strong>
-      <small>Fix first</small>
-    </button>
-    <button type="button" class="sev-tile sev-t-High" data-sev-filter="High" aria-pressed="false" style="--i: 2">
-      <span class="sev-tile-label"><i></i>High</span>
-      <strong>{{ high }}</strong>
-      <small>Plan this week</small>
-    </button>
-    <button type="button" class="sev-tile sev-t-Medium" data-sev-filter="Medium" aria-pressed="false" style="--i: 3">
-      <span class="sev-tile-label"><i></i>Medium</span>
-      <strong>{{ medium }}</strong>
-      <small>Plan this month</small>
-    </button>
-  </div>
-
   <section class="card vuln-card">
     <div class="card-head">
       <h2>Detected vulnerable versions</h2>
@@ -40,6 +14,13 @@
         <input type="search" placeholder="Search service, CVE, host..." aria-label="Search detected vulnerable versions" data-table-filter="vuln-table">
         {{ crate::icons::icon("search")|safe }}
       </div>
+    </div>
+    <div class="vuln-tabs" role="group" aria-label="Filter findings by severity">
+      <button type="button" class="is-on" data-sev-filter="" aria-pressed="true">All<span>{{ detected.len() }}</span></button>
+      <button type="button" data-sev-filter="Critical" aria-pressed="false"><i class="sev-dot sev-d-Critical"></i>Critical<span>{{ critical }}</span></button>
+      <button type="button" data-sev-filter="High" aria-pressed="false"><i class="sev-dot sev-d-High"></i>High<span>{{ high }}</span></button>
+      <button type="button" data-sev-filter="Medium" aria-pressed="false"><i class="sev-dot sev-d-Medium"></i>Medium<span>{{ medium }}</span></button>
+      <span class="vuln-tabs-note">{{ unique_hosts }} affected hosts</span>
     </div>
     <div class="tbl-wrap">
       <table class="tbl vuln-tbl" id="vuln-table">

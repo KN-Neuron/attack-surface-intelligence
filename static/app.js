@@ -380,7 +380,7 @@
     sevTiles.forEach(function (tile) {
       tile.addEventListener("click", function () {
         var value = tile.getAttribute("data-sev-filter");
-        state.sev = state.sev === value ? "" : value;
+        state.sev = value;
         sevTiles.forEach(function (t) {
           var on = t.getAttribute("data-sev-filter") === state.sev;
           t.classList.toggle("is-on", on);
