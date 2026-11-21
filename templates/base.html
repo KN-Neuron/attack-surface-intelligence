@@ -25,7 +25,7 @@
   <header class="topbar">
     <div class="topbar-left">
       {% block topbar_left %}
-      <button class="icon-btn" type="button" aria-label="Help">{{ crate::icons::icon("help")|safe }}</button>
+      <a class="icon-btn" href="{{ shell.docs_url }}" target="_blank" rel="noopener" aria-label="Open documentation" title="Documentation">{{ crate::icons::icon("help")|safe }}</a>
       {% endblock %}
     </div>
     <div class="topbar-search" id="search">

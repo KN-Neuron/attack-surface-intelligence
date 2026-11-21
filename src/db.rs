@@ -233,8 +233,35 @@ async fn seed(pool: &PgPool) -> anyhow::Result<()> {
     seed_json(pool, "popular_technologies", &mock::popular_technologies()).await;
     seed_json(pool, "upcoming_scan", &mock::upcoming_scan()).await;
     seed_json(pool, "latest_scan", &mock::LATEST_SCAN).await;
+    migrate_chart_palette(pool).await;
 
     Ok(())
+}
+
+/// Seeded chart colours live in `app_data`, and seeding never overwrites existing
+/// rows. Rewrite the legacy blue palette to the current one so charts match the UI.
+async fn migrate_chart_palette(pool: &PgPool) {
+    const LEGACY: [(&str, &str); 9] = [
+        ("#4aa8ff", "#8b6cff"),
+        ("#67c17f", "#2dd4bf"),
+        ("#e5c458", "#f2c14e"),
+        ("#b58cff", "#f472b6"),
+        ("#ff8f6b", "#ff9a62"),
+        ("#5d7085", "#6f6c8c"),
+        ("#c98bff", "#c4b5fd"),
+        ("#6bd1c4", "#5eead4"),
+        ("#e06b8b", "#fb7185"),
+    ];
+    for (old, new) in LEGACY {
+        let _ = sqlx::query(
+            "UPDATE app_data SET data = replace(data::text, $1, $2)::jsonb
+             WHERE data::text LIKE '%' || $1 || '%'",
+        )
+        .bind(old)
+        .bind(new)
+        .execute(pool)
+        .await;
+    }
 }
 
 async fn seed_json<T: Serialize>(pool: &PgPool, key: &str, value: &T) {

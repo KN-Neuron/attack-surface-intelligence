@@ -41,6 +41,7 @@ pub struct Shell {
     pub section_icon: &'static str,
     pub groups: Vec<NavGroupView>,
     pub admin_name: String,
+    pub docs_url: String,
 }
 
 /// Builds the shared shell, filtering navigation to pages this admin may read.
@@ -83,7 +84,13 @@ fn build_shell(active_path: &str, admin: &CurrentAdmin) -> Shell {
         section_icon: def.icon,
         groups,
         admin_name: admin.name.clone(),
+        docs_url: docs_url(),
     }
+}
+
+/// Where the help button leads. Override with `DOCS_URL` when the docs site runs elsewhere.
+fn docs_url() -> String {
+    std::env::var("DOCS_URL").unwrap_or_else(|_| "http://localhost:3000/docs".to_string())
 }
 
 fn render<T: Template>(page: &T) -> Html<String> {
@@ -92,7 +99,7 @@ fn render<T: Template>(page: &T) -> Html<String> {
 
 fn error_page(msg: &str) -> String {
     format!(
-        "<!doctype html><html><body style=\"font-family:sans-serif;background:#080b11;color:#e6edf5;padding:40px\"><h1>Template error</h1><pre>{msg}</pre></body></html>"
+        "<!doctype html><html><body style=\"font-family:sans-serif;background:#0b0a12;color:#ece9f7;padding:40px\"><h1>Template error</h1><pre>{msg}</pre></body></html>"
     )
 }
 
@@ -623,9 +630,9 @@ pub async fn root(Extension(admin): Extension<CurrentAdmin>) -> Response {
         None => (
             StatusCode::FORBIDDEN,
             Html(
-                "<!doctype html><html><body style=\"font-family:sans-serif;background:#080b11;color:#e6edf5;padding:40px\">\
+                "<!doctype html><html><body style=\"font-family:sans-serif;background:#0b0a12;color:#ece9f7;padding:40px\">\
                  <h1>No access</h1><p>Your account has no page permissions. Contact an administrator.</p>\
-                 <a style=\"color:#7cc0ff\" href=\"/logout\">Sign out</a></body></html>"
+                 <a style=\"color:#b7a3ff\" href=\"/logout\">Sign out</a></body></html>"
                     .to_string(),
             ),
         )

@@ -2,7 +2,7 @@
 {% block bodyclass %}overview-screen{% endblock %}
 {% block topbar_left %}
   <button class="icon-btn overview-menu" id="overview-menu" type="button" aria-label="Navigation" aria-controls="sidebar" aria-expanded="false" hidden>{{ crate::icons::icon("panel-left")|safe }}</button>
-  <button class="icon-btn overview-help" type="button" aria-label="Help">{{ crate::icons::icon("help")|safe }}</button>
+  <a class="icon-btn overview-help" href="{{ shell.docs_url }}" target="_blank" rel="noopener" aria-label="Open documentation" title="Documentation">{{ crate::icons::icon("help")|safe }}</a>
 {% endblock %}
 {% block search_hint %}<kbd class="overview-shortcut" id="overview-shortcut" aria-hidden="true" hidden>Ctrl K</kbd>{% endblock %}
 {% block content %}
