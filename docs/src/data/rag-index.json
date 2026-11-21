@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-21T22:42:36.246Z",
+  "generatedAt": "2026-11-21T23:33:11.898Z",
   "chunks": [
     {
       "id": "/docs#start-0",
@@ -13,14 +13,14 @@
       "page": "Wprowadzenie",
       "section": "Do czego służy aplikacja",
       "href": "/docs#zakres",
-      "text": "Użytkownik wprowadza do aplikacji zasoby z ewidencji organizacji (adresy IP, zakresy CIDR, nazwy FQDN), wybiera, które z nich skanować, i przegląda, co wykryto. Skanowane są wyłącznie zasoby zadeklarowane w ewidencji. Typowe zastosowania:\noddzielne skanowanie środowiska produkcyjnego i deweloperskiego, każde z własną konfiguracją;\nsprawdzanie, jak zmieniają się usługi wykrywane na hostach między kolejnymi skanami;\nodtworzenie historii wykryć konkretnej aplikacji, np. na których hostach i kiedy pojawił się Nginx albo WordPress."
+      "text": "Użytkownik wprowadza do aplikacji zasoby z ewidencji organizacji (adresy IP, zakresy CIDR, nazwy FQDN), wybiera, które z nich skanować, i przegląda, co wykryto. Skanowane są wyłącznie zasoby zadeklarowane w ewidencji. Typowe zastosowania:\noddzielne skanowanie środowiska produkcyjnego i deweloperskiego, każde z własną konfiguracją;\nwykrywanie zmian między skanami: nowych hostów, hostów, które przestały odpowiadać, i technologii w wersjach ze znanymi podatnościami;\nsprawdzenie, na których hostach działa konkretna aplikacja, np. Nginx albo WordPress, i jak wygląda ich odpowiedź HTTP oraz certyfikat TLS."
     },
     {
       "id": "/docs#pojecia-0",
       "page": "Wprowadzenie",
       "section": "Ewidencja, cel, uruchomienie, obserwacja",
       "href": "/docs#pojecia",
-      "text": "Te pięć pojęć występuje w całej dokumentacji i odpowiada różnym ekranom aplikacji:\n- Pojęcie: Wpis w ewidencji; Przykład: 198.51.100.0/24 dodany w Host management; Gdzie: Host management\n- Pojęcie: Cel skanu; Przykład: Ten zakres zaznaczony w sekcji Targets konfiguracji; Gdzie: Skanowanie › Cele\n- Pojęcie: Konfiguracja / harmonogram; Przykład: Produkcja – nocny skan, codziennie o 01:00; Gdzie: Scan Scheduling\n- Pojęcie: Uruchomienie; Przykład: Scan #57 z 21 listopada, status Completed; Gdzie: Scan Results\n- Pojęcie: Obserwacja; Przykład: Detected nginx 1.24.0 na hoście 198.51.100.7; Gdzie: Data Explorer\nHost może być w ewidencji i zostać wybrany jako cel, a dopiero wynik konkretnego uruchomienia pokazuje, co na nim faktycznie wykryto. Licznik wpisów w ewidencji nie jest liczbą hostów wykrytych w skanie (Liczniki: ewidencja a skan)."
+      "text": "Te pięć pojęć występuje w całej dokumentacji i odpowiada różnym ekranom aplikacji:\n- Pojęcie: Wpis w ewidencji; Przykład: 198.51.100.0/24 dodany w Host management; Gdzie: Host management\n- Pojęcie: Cel skanu; Przykład: Ten zakres zaznaczony w sekcji Targets konfiguracji; Gdzie: Skanowanie › Cele\n- Pojęcie: Konfiguracja / harmonogram; Przykład: Produkcja – nocny skan, codziennie o 01:00; Gdzie: Scan Scheduling\n- Pojęcie: Uruchomienie; Przykład: Produkcja – nocny skan z 21 listopada, status Completed; Gdzie: Scan Results\n- Pojęcie: Obserwacja; Przykład: Host 198.51.100.7 z technologią Nginx 1.24.0; Gdzie: Data Explorer\nHost może być w ewidencji i zostać wybrany jako cel, a dopiero wynik konkretnego uruchomienia pokazuje, co na nim faktycznie wykryto. Licznik wpisów w ewidencji nie jest liczbą hostów wykrytych w skanie (Liczniki: ewidencja a skan)."
     },
     {
       "id": "/docs#workflow-0",
@@ -41,42 +41,56 @@
       "page": "Wprowadzenie",
       "section": "2. Scan Scheduling: skonfiguruj skan",
       "href": "/docs#krok-2",
-      "text": "W Scan Scheduling kliknij Add scan, nadaj konfiguracji nazwę, zaznacz cele z ewidencji (grupy, adresy, zakresy, FQDN) i wybierz częstotliwość: Daily, Weekly, Monthly albo On demand. Skan ręczny uruchamiasz przyciskiem Start scan now w Scan Management.\nSzczegóły: Tworzenie skanu, Uruchomienie skanu.\nStan obecnej wersji\nHarmonogramy są zapisywane, ale nie uruchamiają skanów automatycznie, a skan ręczny działa na stałej, przykładowej puli celów (Skanowanie › Harmonogram)."
+      "text": "W Scan Scheduling kliknij Add scan, nadaj konfiguracji nazwę, wybierz typ skanu (Full scan test albo Reachability), zaznacz cele z ewidencji (grupy, adresy, zakresy, FQDN) i wybierz częstotliwość: Daily, Weekly, Monthly albo On demand. Włączona konfiguracja uruchamia się sama w wyznaczonym terminie.\nSkan możesz też uruchomić od razu: Run now przy konfiguracji albo Start scan now w Scan Management, gdzie widać też postęp i można skan wstrzymać lub przerwać.\nSzczegóły: Tworzenie skanu, Typy skanu, Uruchamianie z harmonogramu, Uruchomienie skanu.\nProgramy skanujące\nSkan Full wymaga zainstalowanego programu httpx, a szybka sonda Reachability programu masscan (Architektura › Uruchomienie i konfiguracja)."
     },
     {
       "id": "/docs#krok-3-0",
       "page": "Wprowadzenie",
       "section": "3. Scan Results: znajdź uruchomienie",
       "href": "/docs#krok-3",
-      "text": "W Scan Results odszukaj uruchomienie po dacie (Started) i sprawdź jego Status. Wiersz zawiera wszystkie dane uruchomienia: cel, czas trwania, liczbę hostów aktywnych i nieaktywnych, usług, technologii i podatności. Aby zobaczyć, co się zmieniło, zestaw je z wcześniejszym uruchomieniem tego samego celu w Compare Scans.\nSzczegóły: Scan Results, Szczegóły uruchomienia, Compare Scans."
+      "text": "W Scan Results odszukaj uruchomienie po dacie (Started) i sprawdź jego Status. Wiersz zawiera typ, cel, czas trwania, liczbę hostów aktywnych i nieaktywnych, usług i alertów, a przycisk Details otwiera podsumowanie uruchomienia z podziałem alertów, celami i najczęstszymi technologiami.\nSzczegóły: Scan Results, Szczegóły uruchomienia."
     },
     {
       "id": "/docs#krok-4-0",
       "page": "Wprowadzenie",
-      "section": "4. Data Explorer: prześledź historię obserwacji",
+      "section": "4. Data Explorer: sprawdź stan hostów",
       "href": "/docs#krok-4",
-      "text": "Z wyniku przejdź do pojedynczych obserwacji. W Data Explorer wpisz w Search events nazwę aplikacji, np. nginx, i odczytaj z kolumn Host i Event Time, gdzie i kiedy ją wykryto. Filtra po tagu i po początkowym znaczniku czasu w obecnej wersji nie ma; obejście opisuje przykład w rozdziale.\nSzczegóły: Data Explorer, Przykład: gdzie wykryto Nginx."
+      "text": "W Data Explorer zobaczysz, co skan zapisał o każdym adresie: status, odpowiedź HTTP, technologie, certyfikat i czasy. Dodaj filtr, np. Technologies contains nginx, i kliknij Apply; okres zmienia lista Timeframe. Filtrowania po tagu hosta w obecnej wersji nie ma; obejście opisuje rozdział o tagach.\nSzczegóły: Filtry, Przykład: gdzie działa Nginx."
     },
     {
       "id": "/docs#krok-5-0",
       "page": "Wprowadzenie",
-      "section": "5. Latest Scan summary: sprawdź skrót",
+      "section": "5. Alerts: potwierdź zmiany",
       "href": "/docs#krok-5",
-      "text": "Na dashboardzie Latest Scan summary odczytaj datę Latest scan, czyli skan, którego dotyczy skrót, oraz kafelki Reachable hosts, Unreachable hosts i Detected services. Selektor okresu zmienia tylko te trzy kafelki.\nSzczegóły: Latest Scan summary."
+      "text": "Po każdym skanie na stronie Alerts pojawiają się nowe hosty, hosty, które przestały odpowiadać, i technologie w wersjach ze znaną podatnością. Przejrzyj zakładkę New i potwierdź alerty, które zostały obsłużone.\nSzczegóły: Reguły alertów, Potwierdzanie."
+    },
+    {
+      "id": "/docs#krok-6-0",
+      "page": "Wprowadzenie",
+      "section": "6. Latest Scan summary: sprawdź skrót",
+      "href": "/docs#krok-6",
+      "text": "Na dashboardzie Latest Scan summary odczytaj datę Latest scan i kafelek Open alerts. Pozostałe kafelki i tabele tego ekranu pokazują dane przykładowe.\nSzczegóły: Latest Scan summary."
     },
     {
       "id": "/docs#mapa-0",
       "page": "Wprowadzenie",
       "section": "Mapa aplikacji",
       "href": "/docs#mapa",
-      "text": "Menu boczne pokazuje tylko ekrany, do których konto ma dostęp (Dostęp i uprawnienia).\n- Ekran w menu: Dashboards › Latest Scan summary; Ścieżka: /dashboards/scan-summary; Zadanie: Skrót najnowszego wyniku; Opis: Latest Scan summary\n- Ekran w menu: Dashboards › Technologies used; Ścieżka: /dashboards/technologies-used; Zadanie: Wykryte technologie i hosty, na których działają; Opis: Technologies used\n- Ekran w menu: Dashboards › Vulnerable versions; Ścieżka: /dashboards/vulnerable-versions; Zadanie: Wykryte wersje z podatnościami (CVE); Opis: Vulnerable versions\n- Ekran w menu: Scanning › Scan Management; Ścieżka: /scanning/management; Zadanie: Uruchomienie, pauza i przerwanie skanu; Opis: Scan Management\n- Ekran w menu: Scanning › Scan Scheduling; Ścieżka: /scanning/policies; Zadanie: Konfiguracje skanów: cele i harmonogram; Opis: Scan Scheduling"
+      "text": "Menu boczne pokazuje tylko ekrany, do których konto ma dostęp (Dostęp i uprawnienia).\n- Ekran w menu: Dashboards › Latest Scan summary; Ścieżka: /dashboards/scan-summary; Zadanie: Skrót najnowszego wyniku; Opis: Latest Scan summary\n- Ekran w menu: Dashboards › Technologies used; Ścieżka: /dashboards/technologies-used; Zadanie: Wykryte technologie i hosty, na których działają; Opis: Technologies used\n- Ekran w menu: Dashboards › Vulnerable versions; Ścieżka: /dashboards/vulnerable-versions; Zadanie: Wykryte wersje z podatnościami (CVE); Opis: Vulnerable versions\n- Ekran w menu: Dashboards › Alerts; Ścieżka: /log-center/alerts; Zadanie: Zmiany wykryte przez skany do potwierdzenia; Opis: Alerty\n- Ekran w menu: Scanning › Scan Management; Ścieżka: /scanning/management; Zadanie: Start, pauza i przerwanie skanu, postęp na żywo; Opis: Scan Management"
     },
     {
       "id": "/docs#mapa-1",
       "page": "Wprowadzenie",
       "section": "Mapa aplikacji",
       "href": "/docs#mapa",
-      "text": "- Ekran w menu: Scanning › Scan Results; Ścieżka: /log-center/scan-history; Zadanie: Lista uruchomień z datą i statusem; Opis: Scan Results\n- Ekran w menu: Scanning › Compare Scans; Ścieżka: /scanning/compare-scans; Zadanie: Zestawienie dwóch uruchomień; Opis: Compare Scans\n- Ekran w menu: Host management; Ścieżka: /host-management; Zadanie: Ewidencja: IP, zakresy, FQDN, grupy, import; Opis: Host management\n- Ekran w menu: Data Explorer; Ścieżka: /log-center/data-explorer; Zadanie: Pojedyncze obserwacje ze skanów; Opis: Data Explorer\n- Ekran w menu: Admin management; Ścieżka: /admin-management; Zadanie: Konta administratorów i role; Opis: Dostęp i uprawnienia\n- Ekran w menu: Settings; Ścieżka: /settings; Zadanie: Motyw interfejsu; Opis: Architektura › Status funkcji"
+      "text": "- Ekran w menu: Scanning › Scan Scheduling; Ścieżka: /scanning/policies; Zadanie: Konfiguracje skanów: typ, cele i harmonogram; Opis: Scan Scheduling\n- Ekran w menu: Scanning › Scan Results; Ścieżka: /log-center/scan-history; Zadanie: Lista uruchomień ze statusem i szczegółami; Opis: Scan Results\n- Ekran w menu: Scanning › Compare Scans; Ścieżka: /scanning/compare-scans; Zadanie: Zestawienie dwóch uruchomień; Opis: Compare Scans\n- Ekran w menu: Host management; Ścieżka: /host-management; Zadanie: Ewidencja: IP, zakresy, FQDN, grupy, import; Opis: Host management\n- Ekran w menu: Data Explorer; Ścieżka: /log-center/data-explorer; Zadanie: Tabela hostów z filtrami; Opis: Data Explorer\n- Ekran w menu: Admin management; Ścieżka: /admin-management; Zadanie: Konta administratorów i role; Opis: Dostęp i uprawnienia"
+    },
+    {
+      "id": "/docs#mapa-2",
+      "page": "Wprowadzenie",
+      "section": "Mapa aplikacji",
+      "href": "/docs#mapa",
+      "text": "- Ekran w menu: Settings; Ścieżka: /settings; Zadanie: Motyw interfejsu; Opis: Architektura › Status funkcji"
     },
     {
       "id": "/docs#konwencje-0",
@@ -93,6 +107,83 @@
       "text": "Przycisk „?” w aplikacji otwiera ten serwis. Adres ustawia zmienna środowiskowa DOCS_URL (Architektura › Uruchomienie i konfiguracja)."
     },
     {
+      "id": "/docs/alerty#start-0",
+      "page": "Alerty",
+      "section": "Wstęp",
+      "href": "/docs/alerty",
+      "text": "Alerts zbiera zmiany wykryte przez skany: nowe hosty, hosty, które przestały odpowiadać, i technologie w wersjach ze znanymi podatnościami. Alert czeka na potwierdzenie przez administratora."
+    },
+    {
+      "id": "/docs/alerty#reguly-0",
+      "page": "Alerty",
+      "section": "Reguły alertów",
+      "href": "/docs/alerty#reguly",
+      "text": "Alerty powstają na końcu każdego skanu (także przerwanego albo zakończonego błędem), przez porównanie wyniku z tym, co aplikacja wiedziała wcześniej. Skan z zerem celów nie startuje, więc nie generuje alertów.\n- Typ (kolumna Type): New host; Waga: Info; Warunek: Host odpowiedział w tym skanie, a jego adresu nie było wcześniej w danych skanera; Treść w Finding: New host discovered in scope\n- Typ (kolumna Type): Host down; Waga: High; Warunek: Host odpowiadał w jednym z wcześniejszych skanów, a w tym skanie nie odpowiedział; Treść w Finding: Host no longer responds to the scan\n- Typ (kolumna Type): New CVE; Waga: z listy referencyjnej: Critical, High albo Medium; Warunek: Wykryta technologia w wersji ze znaną podatnością (zob. niżej); Treść w Finding: Detected <usługa> version matching <CVE> oraz identyfikator CVE pod spodem"
+    },
+    {
+      "id": "/docs/alerty#host-0",
+      "page": "Alerty",
+      "section": "New host i Host down",
+      "href": "/docs/alerty#host",
+      "text": "Pierwszy skan na pustej bazie oznacza wszystkie odpowiadające hosty jako New host. Alerty te informują o nowo zaobserwowanym zasobie, nie o błędzie.\nNew host dotyczy adresu, którego nie było wcześniej w danych skanera. Host, który najpierw został sprawdzony jako Down, a dopiero później odpowiedział, nie wygeneruje tego alertu.\nZnaczenie odpowiedział zależy od typu skanu: skan Full liczy odpowiedź HTTP(S), skan Reachability otwarty port z listy (Skanowanie › Typy skanu). Host z samym SSH będzie więc w skanie Full uznany za niedostępny i da alert Host down, jeśli wcześniej odpowiadał na HTTP."
+    },
+    {
+      "id": "/docs/alerty#cve-0",
+      "page": "Alerty",
+      "section": "New CVE",
+      "href": "/docs/alerty#cve",
+      "text": "Po skanie Full aplikacja porównuje technologie wykryte na hostach z listą znanych wersji z podatnościami (dokument vulnerabilities w app_data). Alert powstaje, gdy:\nnazwa technologii zgadza się z nazwą usługi z listy (bez względu na wielkość liter), np. nginx;\nwykryta wersja nie jest pusta, a wersja z listy zaczyna się od wykrytej wersji (wykryte 1.24 pasuje do 1.24.0).\nLista wersji jest stała i krótka\nLista referencyjna zawiera sześć wpisów: OpenSSH 8.9p1, Apache httpd 2.4.58, nginx 1.24.0, PostgreSQL 15.4, MySQL 8.0.35 i Redis 7.2.3. Aplikacja nie ma ekranu do jej edycji ani zewnętrznego źródła CVE. Ponieważ nazwy technologii pochodzą z rozpoznania httpx, a dopasowanie wymaga identycznej nazwy, w praktyce wyzwala ją głównie nginx."
+    },
+    {
+      "id": "/docs/alerty#cve-1",
+      "page": "Alerty",
+      "section": "New CVE",
+      "href": "/docs/alerty#cve",
+      "text": "Wykryte CVE trafiają do kolumny Vulnerabilities w Data Explorer. Licznik Vulns w Scan Results nie jest dziś na ich podstawie aktualizowany (Wyniki i analiza)."
+    },
+    {
+      "id": "/docs/alerty#duplikaty-0",
+      "page": "Alerty",
+      "section": "Duplikaty",
+      "href": "/docs/alerty#duplikaty",
+      "text": "Alert nie powstaje, jeśli w tabeli istnieje już alert o tym samym typie, hoście i identyfikatorze CVE, także potwierdzony. Skutki:\nkażdy host zgłasza New host i Host down najwyżej raz w historii aplikacji: kolejna awaria tego samego hosta po wcześniejszym powrocie nie wygeneruje nowego alertu;\nto samo CVE na tym samym hoście zgłasza się raz; po potwierdzeniu nie wróci przy następnym skanie."
+    },
+    {
+      "id": "/docs/alerty#ekran-0",
+      "page": "Alerty",
+      "section": "Ekran Alerts",
+      "href": "/docs/alerty#ekran",
+      "text": "Ekran Alerts (w menu: Dashboards › Alerts) pokazuje do 500 ostatnich alertów; niepotwierdzone są na górze.\n- Element: Zakładki New, Acknowledged, All; Zawartość: Filtr po statusie z licznikami; domyślnie New (niepotwierdzone)\n- Element: Search host, finding, severity...; Zawartość: Pole w rzędzie zakładek: dopasowuje fragment tekstu w wierszu i działa razem z zakładką\n- Element: Severity; Zawartość: Info, Medium, High lub Critical\n- Element: Type; Zawartość: New host, Host down lub New CVE\n- Element: Host; Zawartość: Adres, którego dotyczy alert\n- Element: Finding; Zawartość: Opis i, dla New CVE, identyfikator podatności\n- Element: Scan; Zawartość: Etykieta uruchomienia, które wygenerowało alert (Manual scan albo nazwa konfiguracji)\n- Element: Detected; Zawartość: Czas wykrycia (UTC)"
+    },
+    {
+      "id": "/docs/alerty#ekran-1",
+      "page": "Alerty",
+      "section": "Ekran Alerts",
+      "href": "/docs/alerty#ekran",
+      "text": "- Element: Status; Zawartość: New albo Acknowledged; po najechaniu na potwierdzony alert widać, kto go potwierdził\nStopka tabeli pozwala przechodzić między stronami i zmieniać liczbę wierszy."
+    },
+    {
+      "id": "/docs/alerty#potwierdzanie-0",
+      "page": "Alerty",
+      "section": "Potwierdzanie",
+      "href": "/docs/alerty#potwierdzanie",
+      "text": "Potwierdzenie wymaga zapisu do strony Alerts; konta tylko z odczytem (np. Analyst) widzą listę bez pól wyboru i przycisków.\nAcknowledge w wierszu potwierdza jeden alert. Pola wyboru w pierwszej kolumnie i przycisk Acknowledge selected w nagłówku potwierdzają kilka naraz.\nPotwierdzenie zapisuje imię i nazwisko administratora oraz czas. Interfejs nie pozwala cofnąć potwierdzenia.\nPotwierdzenie usuwa alert z licznika Open alerts i z zakładki New, ale go nie kasuje: alert zostaje w zakładkach Acknowledged i All oraz w bazie."
+    },
+    {
+      "id": "/docs/alerty#gdzie-0",
+      "page": "Alerty",
+      "section": "Gdzie widać alerty",
+      "href": "/docs/alerty#gdzie",
+      "text": "- Miejsce: Scan Management; Co pokazuje: Licznik Alerts raised trwającego skanu (uzupełnia się na końcu)\n- Miejsce: Scan Results; Co pokazuje: Kolumna Alerts z liczbą alertów każdego skanu\n- Miejsce: Okno Scan details; Co pokazuje: Podział na New hosts, Hosts down, New CVEs i Still unacknowledged\n- Miejsce: Latest Scan summary; Co pokazuje: Kafelek Open alerts z odnośnikiem Review alerts\n- Miejsce: Data Explorer; Co pokazuje: Kolumna Vulnerabilities"
+    },
+    {
+      "id": "/docs/alerty#ograniczenia-0",
+      "page": "Alerty",
+      "section": "Ograniczenia",
+      "href": "/docs/alerty#ograniczenia",
+      "text": "Alerty nie są wysyłane poza aplikację: nie ma powiadomień e-mail ani webhooków. Źródłem prawdy jest strona Alerts.\nReguł nie można konfigurować ani wyłączać; wagi są stałe.\nDostęp do ekranu i do potwierdzania reguluje klucz alerts (Dostęp i uprawnienia); punkty końcowe opisuje API HTTP › Alerty."
+    },
+    {
       "id": "/docs/api#start-0",
       "page": "API HTTP",
       "section": "Wstęp",
@@ -104,28 +195,56 @@
       "page": "API HTTP",
       "section": "Konwencje",
       "href": "/docs/api#konwencje",
-      "text": "- Zagadnienie: Uwierzytelnianie; Zasada: Ciasteczko sesji (Dostęp i uprawnienia). Brak sesji daje 401\n- Zagadnienie: Uprawnienia; Zasada: Metody inne niż GET wymagają zapisu w odpowiedniej sekcji; brak uprawnień daje 403 (mapowanie ścieżek)\n- Zagadnienie: Format; Zasada: Żądania i odpowiedzi w JSON; nagłówek Content-Type: application/json w żądaniach z ciałem\n- Zagadnienie: Kody; Zasada: 200 z ciałem, 204 bez ciała, 400 niepoprawne dane, 404 brak obiektu, 409 konflikt, 500 błąd zapisu\n- Zagadnienie: Wersjonowanie i stronicowanie; Zasada: Brak. Endpointy nie są wersjonowane, a odczyt dotyczy wyłącznie stanu skanu i wyszukiwarki"
+      "text": "- Zagadnienie: Uwierzytelnianie; Zasada: Ciasteczko sesji (Dostęp i uprawnienia). Brak sesji daje 401\n- Zagadnienie: Uprawnienia; Zasada: Metody inne niż GET wymagają zapisu w odpowiedniej sekcji; brak uprawnień daje 403 (mapowanie ścieżek)\n- Zagadnienie: Format; Zasada: Żądania i odpowiedzi w JSON; nagłówek Content-Type: application/json w żądaniach z ciałem\n- Zagadnienie: Kody; Zasada: 200 z ciałem, 204 bez ciała, 400 niepoprawne dane, 404 brak obiektu, 409 konflikt, 500 błąd zapisu\n- Zagadnienie: Wersjonowanie i stronicowanie; Zasada: Brak. Endpointy nie są wersjonowane ani stronicowane; odczyt JSON dotyczy stanu skanu, szczegółów uruchomienia i wyszukiwarki"
     },
     {
       "id": "/docs/api#scan-0",
       "page": "API HTTP",
       "section": "Skan",
       "href": "/docs/api#scan",
-      "text": "- Metoda: GET; Ścieżka: /api/scan/status; Opis: Bieżący stan skanu\n- Metoda: POST; Ścieżka: /api/scan/start; Opis: Rozpoczyna skan od zera\n- Metoda: POST; Ścieżka: /api/scan/pause; Opis: Przełącza wstrzymanie\n- Metoda: POST; Ścieżka: /api/scan/cancel; Opis: Przerywa skan\nWszystkie zwracają ten sam obiekt; znaczenie pól i przejść opisuje Skanowanie.\nPrzykład kodu (ScanStatus):\n{\n  \"running\": true,\n  \"paused\": false,\n  \"progress\": 34.0,\n  \"targets_done\": 4,\n  \"target_total\": 12,\n  \"hosts_found\": 128,\n  \"current_target\": \"10.0.4.0/24\",\n  \"started_at\": \"November 21, 2026 09:14:02 AM\",\n  \"completed_at\": null\n}"
+      "text": "- Metoda: GET; Ścieżka: /api/scan/status; Opis: Bieżący stan skanu (ScanStatus)\n- Metoda: POST; Ścieżka: /api/scan/run; Opis: Rozpoczyna skan całej ewidencji. Ciało: { \"scan_type\": \"full\" | \"reachability\" }; brak pola lub nieznana wartość oznacza full\n- Metoda: POST; Ścieżka: /api/scan/start; Opis: Skrót: skan Full całej ewidencji, bez ciała\n- Metoda: POST; Ścieżka: /api/scan/pause; Opis: Przełącza wstrzymanie trwającego skanu\n- Metoda: POST; Ścieżka: /api/scan/cancel; Opis: Przerywa skan\n- Metoda: GET; Ścieżka: /api/scans/{id}; Opis: Szczegóły uruchomienia (ScanDetail); 404 dla nieznanego numeru. Wymaga odczytu Scan Management (Dostęp i uprawnienia)\nCztery pierwsze zwracają ten sam obiekt ScanStatus; znaczenie pól i przejść opisuje Skanowanie. run i start zwracają 409 z komunikatem tekstowym, gdy trwa już inny skan albo nie ma żadnego celu do skanowania.\nPrzykład kodu (ScanStatus):\n{"
+    },
+    {
+      "id": "/docs/api#scan-1",
+      "page": "API HTTP",
+      "section": "Skan",
+      "href": "/docs/api#scan",
+      "text": "  \"running\": true,\n  \"paused\": false,\n  \"progress\": 34.0,\n  \"targets_done\": 87,\n  \"target_total\": 256,\n  \"hosts_found\": 41,\n  \"current_target\": \"198.51.100.87\",\n  \"started_at\": \"November 21, 2026 09:14:02 AM\",\n  \"completed_at\": null,\n  \"scan_id\": 12,\n  \"scan_type\": \"full\",\n  \"engine\": \"httpx\",\n  \"alerts_found\": 0\n}\n- Pole: scan_id; Znaczenie: Numer wiersza skanu w tabeli scans: trwającego albo ostatniego; null, dopóki nie uruchomiono żadnego skanu\n- Pole: scan_type; Znaczenie: full lub reachability\n- Pole: engine; Znaczenie: httpx, masscan albo tcp (przełączenie na sondę TCP zmienia wartość w trakcie skanu)\n- Pole: alerts_found; Znaczenie: Liczba alertów skanu; ustawiana po jego zakończeniu\nPrzykład kodu (ScanDetail (skrót)):\n{\n  \"id\": 12,\n  \"label\": \"Produkcja – nocny skan\",\n  \"demo\": false,\n  \"scan_type\": \"full\",\n  \"scan_type_label\": \"Full scan test\",\n  \"engine\": \"httpx\","
+    },
+    {
+      "id": "/docs/api#scan-2",
+      "page": "API HTTP",
+      "section": "Skan",
+      "href": "/docs/api#scan",
+      "text": "  \"trigger\": \"scheduled\",\n  \"status\": \"Completed\",\n  \"started\": \"Nov 21, 2026 1:00 AM\",\n  \"finished\": \"Nov 21, 2026 1:04 AM\",\n  \"duration\": \"4m\",\n  \"targets\": [\"203.0.113.0\", \"203.0.113.1\", \"203.0.113.2\", \"203.0.113.3\", \"+252 more\"],\n  \"hosts_total\": 256, \"alive\": 41, \"down\": 215,\n  \"services\": 41, \"technologies\": 33, \"vulns\": 0,\n  \"alerts\": 3, \"a\nDla wierszy przykładowych id jest ujemne, a demo ma wartość true."
     },
     {
       "id": "/docs/api#harmonogramy-0",
       "page": "API HTTP",
       "section": "Harmonogramy",
       "href": "/docs/api#harmonogramy",
-      "text": "- Metoda: POST; Ścieżka: /api/policies; Odpowiedź: 200, utworzony obiekt; 500 przy błędzie zapisu\n- Metoda: PUT; Ścieżka: /api/policies/{id}; Odpowiedź: 200, zaktualizowany obiekt; 404\n- Metoda: DELETE; Ścieżka: /api/policies/{id}; Odpowiedź: 204 lub 404\nŁadunek ma kształt obiektu Policy z Skanowania (bez id). Pola order, criteria i enabled są opcjonalne; domyślnie pusta lista i true. Brak order lub wartość ≤ 0 przy tworzeniu daje kolejny numer po największym istniejącym, a przy edycji – 1.\n- kind: host group; value: Nazwa grupy; Rola: cel\n- kind: ip address; value: Adres, np. 203.0.113.10; Rola: cel\n- kind: ip range; value: Blok CIDR, np. 198.51.100.0/24; Rola: cel\n- kind: fqdn; value: Nazwa, np. www.example.com; Rola: cel\n- kind: frequency; value: Daily, Weekly, Monthly lub On demand; Rola: harmonogram"
+      "text": "- Metoda: POST; Ścieżka: /api/policies; Odpowiedź: 200, utworzony obiekt; 500 przy błędzie zapisu\n- Metoda: PUT; Ścieżka: /api/policies/{id}; Odpowiedź: 200, zaktualizowany obiekt; 404\n- Metoda: DELETE; Ścieżka: /api/policies/{id}; Odpowiedź: 204 lub 404\n- Metoda: POST; Ścieżka: /api/policies/{id}/run; Odpowiedź: Natychmiast uruchamia skan z celami i typem konfiguracji (Run now); zwraca ScanStatus, 404 dla nieznanej konfiguracji albo 409 (trwa inny skan lub brak rozwiązanych celów)\nŁadunek ma kształt obiektu Policy z Skanowania (bez id). Pola order, criteria i enabled są opcjonalne; domyślnie pusta lista i true. Brak order lub wartość ≤ 0 przy tworzeniu daje kolejny numer po największym istniejącym, a przy edycji – 1.\n- kind: host group; value: Nazwa grupy; Rola: cel\n- kind: ip address; value: Adres, np. 203.0.113.10; Rola: cel"
     },
     {
       "id": "/docs/api#harmonogramy-1",
       "page": "API HTTP",
       "section": "Harmonogramy",
       "href": "/docs/api#harmonogramy",
-      "text": "- kind: when; value: <dzień> <HH:MM>: every 01:00, mon 22:00 … sun, d1 03:30 … d28; bez strefy czasowej; Rola: harmonogram\nSerwer nie waliduje kryteriów: zapisuje każdą parę kind / value. Starszy rodzaj IP to scan jest nadal odczytywany i wyświetlany jako IP address albo IP range. Wymóg co najmniej jednego celu sprawdza tylko formularz."
+      "text": "- kind: ip range; value: Blok CIDR, np. 198.51.100.0/24; Rola: cel\n- kind: fqdn; value: Nazwa, np. www.example.com; Rola: cel\n- kind: type; value: full lub reachability; brak kryterium oznacza full; Rola: typ skanu\n- kind: frequency; value: Daily, Weekly, Monthly lub On demand; Rola: harmonogram\n- kind: when; value: <dzień> <HH:MM>: every 01:00, mon 22:00 … sun, d1 03:30 … d28; bez strefy czasowej; Rola: harmonogram\nSerwer nie waliduje kryteriów: zapisuje każdą parę kind / value. Starszy rodzaj IP to scan jest nadal odczytywany i wyświetlany jako IP address albo IP range. Wymóg co najmniej jednego celu sprawdza tylko formularz. Wartości celów są interpretowane dopiero przy uruchomieniu skanu (Rozwiązywanie celów)."
+    },
+    {
+      "id": "/docs/api#alerty-0",
+      "page": "API HTTP",
+      "section": "Alerty",
+      "href": "/docs/api#alerty",
+      "text": "- Metoda: POST; Ścieżka: /api/alerts/acknowledge; Odpowiedź: Potwierdza wiele alertów. Ciało: { \"ids\": [12, 13] }. Zwraca liczbę zmienionych alertów (liczba JSON)\n- Metoda: POST; Ścieżka: /api/alerts/{id}/acknowledge; Odpowiedź: Potwierdza jeden alert; zwraca 1 albo 0, gdy alert już był potwierdzony lub nie istnieje\nOba wymagają zapisu do strony Alerts. Do potwierdzenia dopisywane są imię i nazwisko administratora oraz czas; cofnięcia nie ma. Lista alertów jest dostępna tylko jako strona HTML (Alerty › Ekran Alerts)."
+    },
+    {
+      "id": "/docs/api#asset-0",
+      "page": "API HTTP",
+      "section": "Hosty z Data Explorer",
+      "href": "/docs/api#asset",
+      "text": "- Metoda: PUT; Ścieżka: /api/assets/{address}; Odpowiedź: 204 po zapisie albo 404, gdy skaner nie zna adresu\nAdres w ścieżce należy zakodować (encodeURIComponent). Wszystkie pola ciała są opcjonalne, a pominięte lub null zostawiają dotychczasową wartość. Wymaga zapisu do strony Data Explorer; skutki opisuje Data Explorer › Tryb edycji.\nPrzykład kodu (Ładunek):\n{\n  \"title\": \"Panel klienta\",\n  \"webserver\": \"nginx\",\n  \"scheme\": \"https\",\n  \"port\": 443,\n  \"status_code\": 200,\n  \"cdn\": \"\",\n  \"cname\": \"\",\n  \"up\": true\n}"
     },
     {
       "id": "/docs/api#administracja-0",
@@ -160,7 +279,7 @@
       "page": "Architektura",
       "section": "Wstęp",
       "href": "/docs/architektura",
-      "text": "Stos technologiczny, podział na moduły, model danych, konfiguracja oraz status poszczególnych funkcji: co jest trwałe, a co symulowane."
+      "text": "Stos technologiczny, podział na moduły, model danych, konfiguracja oraz status poszczególnych funkcji: co działa na prawdziwych danych, a co nadal na przykładowych."
     },
     {
       "id": "/docs/architektura#stos-0",
@@ -174,56 +293,189 @@
       "page": "Architektura",
       "section": "Moduły",
       "href": "/docs/architektura#moduly",
-      "text": "- Plik: src/main.rs; Odpowiedzialność: Routing, warstwa guard, zadanie tykające skan co sekundę, nasłuch na 0.0.0.0:8080\n- Plik: src/auth.rs; Odpowiedzialność: Logowanie, sesje, middleware guard, lista stron uprawnień PERMISSION_PAGES\n- Plik: src/db.rs; Odpowiedzialność: Schemat, dane startowe, wszystkie zapytania SQL, klasyfikacja wpisów importu\n- Plik: src/handlers.rs; Odpowiedzialność: Handlery stron HTML i endpointów JSON\n- Plik: src/state.rs; Odpowiedzialność: Struktury danych i ładunki żądań (DTO)\n- Plik: src/nav.rs; Odpowiedzialność: Definicja menu i indeks wyszukiwarki w górnym pasku\n- Plik: src/mock.rs; Odpowiedzialność: Dane przykładowe zapisywane do tabeli app_data\n- Plik: templates/; Odpowiedzialność: Szablon bazowy base.html, strony w pages/, stopka tabel partials/pager.html"
+      "text": "- Plik: src/main.rs; Odpowiedzialność: Routing, warstwa guard, zadanie sprawdzające harmonogramy co 30 s, nasłuch na 0.0.0.0 i porcie z PORT (domyślnie 8080)\n- Plik: src/auth.rs; Odpowiedzialność: Logowanie, sesje, middleware guard, lista stron uprawnień PERMISSION_PAGES\n- Plik: src/db.rs; Odpowiedzialność: Schemat, dane startowe, wszystkie zapytania SQL, klasyfikacja wpisów importu\n- Plik: src/handlers.rs; Odpowiedzialność: Handlery stron HTML i endpointów JSON\n- Plik: src/scan.rs; Odpowiedzialność: Silnik skanowania: rozwiązywanie celów, httpx, masscan i sonda TCP, alerty, harmonogram (Silnik skanowania)\n- Plik: src/state.rs; Odpowiedzialność: Struktury danych i ładunki żądań (DTO)\n- Plik: src/nav.rs; Odpowiedzialność: Definicja menu i indeks wyszukiwarki w górnym pasku"
+    },
+    {
+      "id": "/docs/architektura#moduly-1",
+      "page": "Architektura",
+      "section": "Moduły",
+      "href": "/docs/architektura#moduly",
+      "text": "- Plik: src/mock.rs; Odpowiedzialność: Dane przykładowe zapisywane do tabeli app_data (historia skanów, dashboardy, lista znanych podatnych wersji)\n- Plik: templates/; Odpowiedzialność: Szablon bazowy base.html, strony w pages/, stopka tabel partials/pager.html"
     },
     {
       "id": "/docs/architektura#zadanie-0",
       "page": "Architektura",
       "section": "Przepływ żądania",
       "href": "/docs/architektura#zadanie",
-      "text": "Publiczne są wyłącznie /login i /static/*. Pliki statyczne mają nagłówek Cache-Control: no-cache, więc zmiana stylu jest widoczna po odświeżeniu.\nPozostałe ścieżki przechodzą przez auth::guard: sesja, rola, macierz uprawnień (Dostęp i uprawnienia).\nStrona HTML jest renderowana z kontekstem Shell: menu przefiltrowane uprawnieniami, nazwa administratora i adres dokumentacji.\nMutacje to wywołania fetch z JSON do /api/* (API HTTP). Po sukcesie strona przeładowuje się; interfejs nie jest aplikacją jednostronicową."
+      "text": "Publiczne są wyłącznie /login i /static/*. Pliki statyczne mają nagłówek Cache-Control: no-cache, więc zmiana stylu jest widoczna po odświeżeniu.\nPozostałe ścieżki przechodzą przez auth::guard: sesja, rola, macierz uprawnień (Dostęp i uprawnienia).\nStrona HTML jest renderowana z kontekstem Shell: menu przefiltrowane uprawnieniami, nazwa administratora i adres dokumentacji.\nMutacje to wywołania fetch z JSON do /api/* (API HTTP). Po sukcesie strona przeładowuje się; interfejs nie jest aplikacją jednostronicową. Wyjątkiem są Scan Management, który co 1,5 s odpytuje /api/scan/status, oraz filtry Data Explorer, działające w przeglądarce na wczytanym zestawie hostów."
+    },
+    {
+      "id": "/docs/architektura#skan-0",
+      "page": "Architektura",
+      "section": "Silnik skanowania",
+      "href": "/docs/architektura#skan",
+      "text": "Skan jest zadaniem w tle tego samego procesu co serwer WWW (tokio::spawn); zewnętrzne programy httpx i masscan uruchamiane są jako procesy potomne. Zasady działania z perspektywy użytkownika opisuje Skanowanie › Uruchomienie skanu; tu zebrano elementy istotne dla wdrożenia.\nJeden slot. Wiersz scan_state (id = 1) pełni rolę blokady: kolejny skan nie wystartuje, dopóki trwa poprzedni (żądanie dostaje 409).\nWyniki. Każdy skan to wiersz w scans; stan hostów trafia do scan_hosts (jedna linia na adres, nadpisywana), a zmiany do alerts (Alerty).\nHarmonogram. Pętla w main.rs co 30 s wywołuje tick_scheduler: uzupełnia terminy next_run_at i startuje wymagalną konfigurację.\nRestart. Przy starcie wiersze skanów w stanie Running dostają status Failed (interrupted by restart), a blokada jest zwalniana. Skan nie wznawia się po restarcie."
+    },
+    {
+      "id": "/docs/architektura#skan-1",
+      "page": "Architektura",
+      "section": "Silnik skanowania",
+      "href": "/docs/architektura#skan",
+      "text": "Lista celów jest zapisywana do pliku tymczasowego, który znika po skanie. Do skanerów trafiają wyłącznie adresy IP: nazwy są rozwiązywane przez DNS, a wpisy, które nie są adresem ani rozwiązywalną nazwą, odpadają, więc dowolny tekst z konfiguracji nie staje się argumentem programu."
     },
     {
       "id": "/docs/architektura#dane-0",
       "page": "Architektura",
       "section": "Model danych",
       "href": "/docs/architektura#dane",
-      "text": "Schemat powstaje przy starcie z instrukcji CREATE TABLE IF NOT EXISTS i ALTER TABLE … ADD COLUMN IF NOT EXISTS (db::init). Nie ma narzędzia migracji. Dane startowe są wstawiane tylko do pustych tabel.\n- Tabela: admins; Zawartość: Konta administratorów: e-mail (UNIQUE), skrót hasła, nazwa roli, status, flaga is_default\n- Tabela: roles; Zawartość: Nazwa roli (UNIQUE) i macierz uprawnień w JSONB\n- Tabela: sessions; Zawartość: Token sesji, administrator, czas wygaśnięcia, flaga „remember”\n- Tabela: policies; Zawartość: Harmonogramy skanów: nazwa, kolejność, status, kryteria w JSONB\n- Tabela: host_ips; Zawartość: Inwentarz hostów, zob. Host management\n- Tabela: host_ranges; Zawartość: jw.\n- Tabela: host_fqdns; Zawartość: jw.\n- Tabela: host_groups; Zawartość: Grupy celów, zob. Host management\n- Tabela: scan_state; Zawartość: Jeden wiersz (id = 1) ze stanem bieżącego skanu"
+      "text": "Schemat powstaje przy starcie z instrukcji CREATE TABLE IF NOT EXISTS i ALTER TABLE … ADD COLUMN IF NOT EXISTS (db::init). Nie ma narzędzia migracji. Dane startowe są wstawiane tylko do pustych tabel.\n- Tabela: admins; Zawartość: Konta administratorów: e-mail (UNIQUE), skrót hasła, nazwa roli, status, flaga is_default\n- Tabela: roles; Zawartość: Nazwa roli (UNIQUE) i macierz uprawnień w JSONB\n- Tabela: sessions; Zawartość: Token sesji, administrator, czas wygaśnięcia, flaga „remember”\n- Tabela: policies; Zawartość: Harmonogramy skanów: nazwa, kolejność, status, kryteria w JSONB oraz last_run_at i next_run_at\n- Tabela: host_ips; Zawartość: Inwentarz hostów, zob. Host management\n- Tabela: host_ranges; Zawartość: jw.\n- Tabela: host_fqdns; Zawartość: jw.\n- Tabela: host_groups; Zawartość: Grupy celów, zob. Host management"
     },
     {
       "id": "/docs/architektura#dane-1",
       "page": "Architektura",
       "section": "Model danych",
       "href": "/docs/architektura#dane",
-      "text": "- Tabela: app_data; Zawartość: Klucz tekstowy i dokument JSONB: dane przykładowe ekranów wynikowych"
+      "text": "- Tabela: scan_state; Zawartość: Jeden wiersz (id = 1) ze stanem bieżącego skanu: postęp, liczniki, typ, silnik, scan_id, liczba alertów\n- Tabela: scans; Zawartość: Jedno uruchomienie: etykieta, typ, silnik, trigger (manual, policy, scheduled), cele, status, czasy, liczniki i komunikat błędu\n- Tabela: scan_hosts; Zawartość: Aktualny stan każdego adresu (address UNIQUE): up, czasy first_seen, last_seen, last_checked, odpowiedź HTTP, TLS, technologie i porty w JSONB, surowy wiersz httpx w raw\n- Tabela: alerts; Zawartość: Alert: typ, waga, host, treść, detail (CVE), dane potwierdzenia, odwołanie do skanu (ON DELETE SET NULL)\n- Tabela: app_data; Zawartość: Klucz tekstowy i dokument JSONB: dane przykładowe ekranów wynikowych oraz lista znanych podatnych wersji"
     },
     {
       "id": "/docs/architektura#seed-0",
       "page": "Architektura",
       "section": "Dane startowe",
       "href": "/docs/architektura#seed",
-      "text": "Przy pustych tabelach powstają: konto domyślne (Dostęp i uprawnienia), trzy role, dwa harmonogramy, dwie grupy hostów, inwentarz z przykładowych adresów, stan skanu w trakcie wykonywania (34%) oraz wszystkie klucze app_data."
+      "text": "Przy pustych tabelach powstają: konto domyślne (Dostęp i uprawnienia), trzy role, dwa harmonogramy, dwie grupy hostów, inwentarz z przykładowych adresów, bezczynny stan skanu oraz klucze app_data z danymi przykładowymi. Tabele scans, scan_hosts i alerts startują puste i wypełniają się dopiero skanami."
     },
     {
       "id": "/docs/architektura#status-0",
       "page": "Architektura",
       "section": "Status funkcji",
       "href": "/docs/architektura#status",
-      "text": "To jedyne miejsce, które określa, czy funkcja działa na prawdziwych danych. Pozostałe strony opisują zachowanie, nie powtarzając tego podziału.\n- Funkcja: Inwentarz hostów, grupy, tagi, import; Stan: trwałe; Źródło danych: Tabele host_*; pełny zapis i odczyt\n- Funkcja: Harmonogramy skanów; Stan: trwałe; Źródło danych: Tabela policies; harmonogramy nie uruchamiają skanów (Skanowanie)\n- Funkcja: Administratorzy, role, sesje; Stan: trwałe; Źródło danych: Tabele admins, roles, sessions\n- Funkcja: Przebieg skanu; Stan: symulowany; Źródło danych: Licznik w scan_state zwiększany co sekundę; stała pula celów, bez związku z ewidencją i harmonogramami; zakończony przebieg nie trafia do Scan Results (Skanowanie)"
+      "text": "To jedyne miejsce, które określa, czy funkcja działa na prawdziwych danych. Pozostałe strony opisują zachowanie, nie powtarzając tego podziału.\n- Funkcja: Inwentarz hostów, grupy, tagi, import; Stan: trwałe; Źródło danych: Tabele host_*; pełny zapis i odczyt\n- Funkcja: Harmonogramy skanów; Stan: działają; Źródło danych: Tabela policies; zadanie w tle uruchamia je w terminie (Skanowanie › Uruchamianie z harmonogramu)\n- Funkcja: Administratorzy, role, sesje; Stan: trwałe; Źródło danych: Tabele admins, roles, sessions\n- Funkcja: Skan Full (httpx) i Reachability (masscan lub TCP); Stan: działa; Źródło danych: Prawdziwe sprawdzenie hostów z ewidencji; wymaga programów z rozdziału Uruchomienie i konfiguracja\n- Funkcja: Scan Results, okno Scan details, Data Explorer, Alerts; Stan: z prawdziwych skanów; Źródło danych: Tabele scans, scan_hosts, alerts (Wyniki i analiza › Źródło danych)"
     },
     {
       "id": "/docs/architektura#status-1",
       "page": "Architektura",
       "section": "Status funkcji",
       "href": "/docs/architektura#status",
-      "text": "- Funkcja: Szczegóły pojedynczego uruchomienia, filtry Data Explorer po tagu i czasie, tag jako cel skanu; Stan: niedostępne; Źródło danych: Opis obecnego zachowania i obejść: Wyniki i analiza, Tagowanie\n- Funkcja: Dashboardy, Data Explorer, Scan Results, Compare Scans; Stan: dane przykładowe; Źródło danych: Dokumenty app_data, tylko do odczytu (Wyniki i analiza)\n- Funkcja: Upcoming scan, Scan queue; Stan: statyczne; Źródło danych: Zapis w danych przykładowych i w szablonie; niezwiązane z harmonogramami\n- Funkcja: Settings: motyw; Stan: działa; Źródło danych: Wybór w localStorage pod kluczem asi.theme, per przeglądarka\n- Funkcja: Settings: głębokość i współbieżność skanowania; Stan: bez zapisu; Źródło danych: Kontrolki nie są podpięte do serwera"
+      "text": "- Funkcja: Upcoming scan; Stan: z harmonogramów; Źródło danych: Najbliższa włączona konfiguracja; bez niej wartości przykładowe\n- Funkcja: Compare Scans, Technologies used, Vulnerable versions, kafelki i tabele Latest Scan summary; Stan: dane przykładowe; Źródło danych: Dokumenty app_data, tylko do odczytu; prawdziwe są jedynie Latest scan i Open alerts (Wyniki i analiza)\n- Funkcja: Scan queue; Stan: statyczne; Źródło danych: Stała zawartość szablonu; aplikacja nie kolejkuje skanów\n- Funkcja: Licznik Vulns w Scan Results; Stan: niewyliczany; Źródło danych: Dla prawdziwych skanów 0; podatności zgłasza New CVE\n- Funkcja: Filtr Data Explorer po tagu hosta, tag jako cel skanu; Stan: niedostępne; Źródło danych: Obejścia: Tagowanie\n- Funkcja: Settings: motyw; Stan: działa; Źródło danych: Wybór w localStorage pod kluczem asi.theme, per przeglądarka"
+    },
+    {
+      "id": "/docs/architektura#status-2",
+      "page": "Architektura",
+      "section": "Status funkcji",
+      "href": "/docs/architektura#status",
+      "text": "- Funkcja: Settings: głębokość i współbieżność skanowania; Stan: bez zapisu; Źródło danych: Kontrolki nie są podpięte do serwera: limity skanera są stałymi w kodzie"
     },
     {
       "id": "/docs/architektura#konfiguracja-0",
       "page": "Architektura",
       "section": "Uruchomienie i konfiguracja",
       "href": "/docs/architektura#konfiguracja",
-      "text": "Przykład kodu (bash):\ncargo run   # http://localhost:8080\n- Ustawienie: DOCS_URL; Miejsce: Zmienna środowiskowa; cel przycisku „?” w aplikacji; Domyślnie: http://localhost:3000/docs\n- Ustawienie: DATABASE_URL; Miejsce: Stała w src/db.rs; Domyślnie: Adres bazy PostgreSQL w kodzie\n- Ustawienie: DEFAULT_ADMIN_EMAIL; Miejsce: Stała w src/db.rs; Domyślnie: admin@hacknation.pl\nAdres bazy jest zapisany w kodzie\nPoświadczenia bazy znajdują się w repozytorium. Przed wdrożeniem przenieś je do zmiennej środowiskowej i zmień hasło bazy.\nDokumentacja jest osobną aplikacją (Next.js, port 3000) w katalogu frontend/docs. Instrukcja jej uruchomienia i odbudowy indeksu asystenta znajduje się w pliku README.md tego katalogu."
+      "text": "Przykład kodu (bash):\ncargo run   # http://localhost:8080\nSkan Full wymaga programu httpx od ProjectDiscovery, a szybka sonda Reachability programu masscan (z uprawnieniami do surowych gniazd). Pliki wykonywalne są szukane w kolejności: ścieżka ze zmiennej HTTPX_BIN / MASSCAN_BIN, /usr/local/bin, ~/.local/bin, ~/go/bin, /usr/bin. Program jest rozpoznawany po wyniku -version: pod nazwą httpx bywa też niezwiązane narzędzie Pythona i jest ono pomijane.\n- Ustawienie: PORT; Miejsce: Zmienna środowiskowa; port nasłuchu; Domyślnie: 8080\n- Ustawienie: DOCS_URL; Miejsce: Zmienna środowiskowa; cel przycisku „?” w aplikacji; Domyślnie: http://localhost:3000/docs\n- Ustawienie: HTTPX_BIN; Miejsce: Zmienna środowiskowa; ścieżka programu httpx; Domyślnie: wyszukiwanie według listy powyżej"
+    },
+    {
+      "id": "/docs/architektura#konfiguracja-1",
+      "page": "Architektura",
+      "section": "Uruchomienie i konfiguracja",
+      "href": "/docs/architektura#konfiguracja",
+      "text": "- Ustawienie: MASSCAN_BIN; Miejsce: Zmienna środowiskowa; ścieżka programu masscan; Domyślnie: wyszukiwanie według listy powyżej\n- Ustawienie: DATABASE_URL; Miejsce: Stała w src/db.rs; Domyślnie: Adres bazy PostgreSQL w kodzie\n- Ustawienie: DEFAULT_ADMIN_EMAIL; Miejsce: Stała w src/db.rs; Domyślnie: admin@hacknation.pl\nAdres bazy jest zapisany w kodzie\nPoświadczenia bazy znajdują się w repozytorium. Przed wdrożeniem przenieś je do zmiennej środowiskowej i zmień hasło bazy.\nDokumentacja jest osobną aplikacją (Next.js, port 3000) w katalogu frontend/docs. Instrukcja jej uruchomienia i odbudowy indeksu asystenta znajduje się w pliku README.md tego katalogu."
+    },
+    {
+      "id": "/docs/data-explorer#start-0",
+      "page": "Data Explorer",
+      "section": "Wstęp",
+      "href": "/docs/data-explorer",
+      "text": "Tabela hostów zapisanych przez skany: jeden wiersz na adres, dwadzieścia kolumn, filtry z operatorami, okres, edycja i odnośniki z dashboardów."
+    },
+    {
+      "id": "/docs/data-explorer#model-0",
+      "page": "Data Explorer",
+      "section": "Co pokazuje ekran",
+      "href": "/docs/data-explorer#model",
+      "text": "Data Explorer (w menu: Data Explorer) czyta tabelę scan_hosts: aktualny stan każdego adresu, który skan kiedykolwiek sprawdził. To nie jest dziennik zdarzeń. Nowy skan nadpisuje pola hosta, a o tym, co się zmieniło, informuje strona Alerts.\nSkan Full zapisuje wszystkie pola; skan Reachability zmienia tylko Status, Last checked, Last seen i Last scan (Typy skanu).\nPrzed pierwszym skanem tabela jest pusta (No hosts match the current filters.). Dane przykładowe nie są tu pokazywane.\nDaty i godziny są wyświetlane w UTC. Okres i filtry działają w przeglądarce na wczytanym zestawie hostów, więc zmieniają wynik od razu, bez przeładowania."
+    },
+    {
+      "id": "/docs/data-explorer#kolumny-0",
+      "page": "Data Explorer",
+      "section": "Kolumny",
+      "href": "/docs/data-explorer#kolumny",
+      "text": "- Kolumna: Host; Typ filtra: tekst; Zawartość: Adres IP skanowanego hosta. Nazwy FQDN są przed skanem zamieniane na adres (Skanowanie › Rozwiązywanie celów)\n- Kolumna: Status; Typ filtra: Up / Down; Zawartość: Up: host odpowiedział w ostatnim skanie. Znaczenie zależy od typu skanu (HTTP(S) albo otwarty port)\n- Kolumna: Scheme; Typ filtra: tekst; Zawartość: http lub https odpowiedzi zapisanej przez httpx\n- Kolumna: Port; Typ filtra: liczba; Zawartość: Port, na którym httpx otrzymał odpowiedź\n- Kolumna: HTTP; Typ filtra: liczba; Zawartość: Kod statusu odpowiedzi HTTP\n- Kolumna: Title; Typ filtra: tekst; Zawartość: Tytuł strony (znacznik title)\n- Kolumna: Server; Typ filtra: tekst; Zawartość: Nagłówek Server serwera WWW\n- Kolumna: Technologies; Typ filtra: lista; Zawartość: Wykryte technologie jako znaczniki nazwa wersja, np. Nginx 1.24.0; bez wersji, gdy jej nie rozpoznano"
+    },
+    {
+      "id": "/docs/data-explorer#kolumny-1",
+      "page": "Data Explorer",
+      "section": "Kolumny",
+      "href": "/docs/data-explorer#kolumny",
+      "text": "- Kolumna: Vulnerabilities; Typ filtra: lista; Zawartość: Identyfikatory CVE z alertów New CVE dla tego hosta, także już potwierdzonych (Alerty › New CVE)\n- Kolumna: Open ports; Typ filtra: tekst; Zawartość: Port i usługa w postaci 443/HTTPS; skan Full zapisuje port, na którym odpowiedział httpx\n- Kolumna: CDN; Typ filtra: tekst; Zawartość: Nazwa sieci CDN rozpoznana przez httpx\n- Kolumna: CNAME; Typ filtra: tekst; Zawartość: Rekord CNAME hosta\n- Kolumna: TLS; Typ filtra: tekst; Zawartość: Wersja TLS i wystawca certyfikatu, np. TLS 1.3 · Example CA\n- Kolumna: Cert expires; Typ filtra: data; Zawartość: Data wygaśnięcia certyfikatu w postaci YYYY-MM-DD\n- Kolumna: Size; Typ filtra: liczba; Zawartość: Długość odpowiedzi (Content-Length) w bajtach\n- Kolumna: Response; Typ filtra: tekst; Zawartość: Czas odpowiedzi zgłoszony przez httpx"
+    },
+    {
+      "id": "/docs/data-explorer#kolumny-2",
+      "page": "Data Explorer",
+      "section": "Kolumny",
+      "href": "/docs/data-explorer#kolumny",
+      "text": "- Kolumna: Last checked; Typ filtra: data; Zawartość: Moment ostatniego sprawdzenia hosta, niezależnie od typu skanu i wyniku\n- Kolumna: Last seen; Typ filtra: data; Zawartość: Ostatni moment, w którym host odpowiedział. Dla hosta w stanie Down pozostaje datą ostatniej odpowiedzi\n- Kolumna: First seen; Typ filtra: data; Zawartość: Moment, w którym host został zapisany po raz pierwszy\n- Kolumna: Last scan; Typ filtra: tekst; Zawartość: Numer ostatniego skanu, który objął host, np. #12"
+    },
+    {
+      "id": "/docs/data-explorer#okres-0",
+      "page": "Data Explorer",
+      "section": "Timeframe",
+      "href": "/docs/data-explorer#okres",
+      "text": "Lista Timeframe w panelu po lewej ogranicza hosty do tych, które sprawdzono w wybranym okresie (według Last checked, a gdy go brak, Last seen i First seen):\n- Wartość: Current day; Zakres: Od północy bieżącego dnia\n- Wartość: Current week; Zakres: Od północy poniedziałku\n- Wartość: Current month; Zakres: Od pierwszego dnia miesiąca, o północy (wartość domyślna)\n- Wartość: Custom; Zakres: Pola From i To (data i godzina; domyślnie ostatnie 7 dni); koniec obejmuje wybraną minutę\nHost nie pojawia się na liście\nGranice okresów wyznacza strefa czasowa przeglądarki. Host sprawdzony ostatnio w poprzednim miesiącu nie mieści się w domyślnym Current month: jeśli spodziewanego hosta brakuje, ustaw Custom z szerszym zakresem. Zmiana okresu działa od razu, bez przycisku Apply."
+    },
+    {
+      "id": "/docs/data-explorer#filtry-0",
+      "page": "Data Explorer",
+      "section": "Filtry",
+      "href": "/docs/data-explorer#filtry",
+      "text": "Kliknij Add filter i wybierz kolumnę z listy (pole Search filters... zawęża listę). W panelu pojawia się filtr z listą operatorów i polem wartości.\nWybierz operator i wpisz wartość. Kolejne filtry dodasz przyciskiem + obok.\nKliknij Apply (przycisk Add filter zmienia się w Apply, gdy istnieje choć jeden filtr). Zmiany w filtrach nie wpływają na tabelę, dopóki ich nie zastosujesz; niezastosowana zmiana jest oznaczona na przycisku.\nWszystkie filtry łączą się spójnikiem i. Każdy można w dowolnej chwili zmienić (operator, wartość) albo usunąć krzyżykiem; Clear all usuwa wszystkie.\nDopasowanie nie rozróżnia wielkości liter. Pod przyciskiem widać liczbę hostów po zastosowaniu okresu i filtrów (N hosts) oraz liczbę filtrów.\nTej samej kolumny można użyć wielokrotnie, np. Technologies contains nginx i Technologies does not contain 1.18. Klawisz Enter w polu wartości też stosuje filtry."
+    },
+    {
+      "id": "/docs/data-explorer#operatory-0",
+      "page": "Data Explorer",
+      "section": "Operatory",
+      "href": "/docs/data-explorer#operatory",
+      "text": "- Typ kolumny: tekst; Operatory: contains, does not contain, equals, starts with, is empty, is not empty\n- Typ kolumny: liczba; Operatory: =, ≠, >, ≥, <, ≤ (wartość jest liczbą; pole puste lub niepoprawne nie pasuje)\n- Typ kolumny: lista (Technologies, Vulnerabilities); Operatory: contains, does not contain, is empty, is not empty; porównanie dotyczy wszystkich elementów listy naraz\n- Typ kolumny: Up / Down (Status); Operatory: is up, is down (bez wartości)\n- Typ kolumny: data; Operatory: after, before\nOperatory after i before dla dat\nW obecnej wersji after i before nie porównują chronologicznie: wpisana fraza jest dopasowywana jako fragment tekstu do wyświetlanej daty. Dla Cert expires (YYYY-MM-DD) fraza 2026-12 znajdzie certyfikaty wygasające w grudniu 2026. Dla pozostałych kolumn dat użyj listy Timeframe."
+    },
+    {
+      "id": "/docs/data-explorer#operatory-1",
+      "page": "Data Explorer",
+      "section": "Operatory",
+      "href": "/docs/data-explorer#operatory",
+      "text": "Wyszukiwanie po tagach hostów nie jest dostępne, bo tag nie jest kolumną (Tagowanie › Data Explorer)."
+    },
+    {
+      "id": "/docs/data-explorer#przyklad-0",
+      "page": "Data Explorer",
+      "section": "Przykład: gdzie działa Nginx",
+      "href": "/docs/data-explorer#przyklad",
+      "text": "Kliknij Add filter, wybierz Technologies, operator contains, wpisz nginx i kliknij Apply.\nZ kolumn Host, Technologies i Last checked odczytaj, gdzie i kiedy sprawdzono hosty z Nginx.\nAby ograniczyć wynik do wersji, wpisz w polu wartości nginx 1.24 (znacznik ma postać nazwa wersja) albo dodaj drugi filtr.\nAby zawęzić do adresów z jednej podsieci, dodaj filtr Host starts with 203.0.113..\nGdy lista jest pusta:\nzwiększ Timeframe (zob. ostrzeżenie wyżej) i sprawdź, czy host w ogóle został objęty skanem Full: skan Reachability nie zapisuje technologii;\nskróć frazę: szukaj nginx zamiast pełnej wersji, bo nazwa technologii pochodzi z odcisku palca httpx i może mieć inną pisownię;\nsprawdź operator: equals wymaga dokładnej, całej wartości."
+    },
+    {
+      "id": "/docs/data-explorer#tabela-0",
+      "page": "Data Explorer",
+      "section": "Tabela i stronicowanie",
+      "href": "/docs/data-explorer#tabela",
+      "text": "Wiersze są posortowane stale: najpierw hosty Up, potem alfabetycznie według adresu. Kolumn nie da się sortować.\nStopka tabeli pokazuje zakres (np. 1–100 of 342) i pozwala wybrać 100 (domyślnie), 500 lub 1000 wierszy na stronę.\nZnaczniki w kolumnach Technologies i Vulnerabilities to oddzielne chipy; pusta wartość to —."
+    },
+    {
+      "id": "/docs/data-explorer#edycja-0",
+      "page": "Data Explorer",
+      "section": "Tryb edycji",
+      "href": "/docs/data-explorer#edycja",
+      "text": "Konta z zapisem do strony Data Explorer widzą w nagłówku panelu przycisk Edit mode. Po włączeniu tabela dostaje kolumnę Actions, a Edit przy hoście otwiera okno Edit host.\n- Pole: Title, Server, Scheme, Port, HTTP status, CDN, CNAME, Status (Up / Down); Można edytować: tak\n- Pole: Technologies, TLS, Open ports, daty i Last scan; Można edytować: nie: to dowody ze skanera; okno przypomina o tym w podpowiedzi\nSave wysyła zmiany (API HTTP › Hosty z Data Explorer) i odświeża stronę; po błędzie wyświetla Could not save this host. Please try again.\nEdycja jest korektą ręczną. Najbliższy skan Full hosta nadpisze pola ręcznie zmienione (w tym Status), a skan Reachability nadpisze tylko Status."
+    },
+    {
+      "id": "/docs/data-explorer#dashboardy-0",
+      "page": "Data Explorer",
+      "section": "Odnośniki z dashboardów",
+      "href": "/docs/data-explorer#dashboardy",
+      "text": "Dashboardy otwierają Data Explorer z już zastosowanymi filtrami. Odnośnik ma postać ?filter=kolumna|operator|wartość; parametr filter można powtarzać, a znaki | koduje się jako %7C. Gdy pominięto operator, użyty jest pierwszy operator typu kolumny; nieznana kolumna jest ignorowana.\n- Odnośnik: filter=up|true|; Filtr: Status is up; Skąd: Reachable hosts, Hosts in Explorer\n- Odnośnik: filter=up|false|; Filtr: Status is down; Skąd: Unreachable hosts\n- Odnośnik: filter=ports|not_empty|; Filtr: Open ports is not empty; Skąd: Detected services\n- Odnośnik: filter=technologies|not_empty|; Filtr: Technologies is not empty; Skąd: Technologies used\n- Odnośnik: filter=vulnerabilities|not_empty|; Filtr: Vulnerabilities is not empty; Skąd: Vulnerable versions\nPrzykład kodu (Własny odnośnik: hosty z nginx, które odpowiadają):"
+    },
+    {
+      "id": "/docs/data-explorer#dashboardy-1",
+      "page": "Data Explorer",
+      "section": "Odnośniki z dashboardów",
+      "href": "/docs/data-explorer#dashboardy",
+      "text": "/log-center/data-explorer?filter=up%7Ctrue%7C&filter=technologies%7Ccontains%7Cnginx\nKlucze kolumn: address, up, scheme, port, status_code, title, webserver, technologies, vulnerabilities, ports, cdn, cname, tls, tls_expires, content_length, response_time, last_checked, last_seen, first_seen, last_scan. Identyfikatory operatorów: contains, not_contains, equals, starts, empty, not_empty, eq, ne, gt, gte, lt, lte, true, false, after, before."
     },
     {
       "id": "/docs/design/components#start-0",
@@ -244,28 +496,49 @@
       "page": "Komponenty aplikacji",
       "section": "Układ strony",
       "href": "/docs/design/components#uklad",
-      "text": "- Klasa: .page-head; Rola: Nagłówek strony: h1, rozpórka .spacer i akcje po prawej (wyszukiwarka, przycisk główny)\n- Klasa: .page-body; Rola: Treść strony pod nagłówkiem\n- Klasa: .card; Rola: Panel z ramką; nagłówek .card-head zawiera h2, rozpórkę i opcjonalną notatkę .card-note\n- Klasa: .tile; Rola: Kafelek z wartością i etykietą; układ kafelków w siatce .bento (Latest Scan summary)\n- Klasa: .tbl; Rola: Tabela w kontenerze .tbl-wrap. Komórki pomocnicze: .strong-cell, .mono, .muted, .empty-cell, wyrównanie .right\n- Klasa: .screen-redesign; Rola: Klasa na body włączająca reguły nowych ekranów ({% block bodyclass %})"
+      "text": "- Klasa: .page-head; Rola: Nagłówek strony: h1, rozpórka .spacer i akcje po prawej (wyszukiwarka, przycisk główny)\n- Klasa: .page-body; Rola: Treść strony pod nagłówkiem\n- Klasa: .card; Rola: Panel z ramką; nagłówek .card-head zawiera h2, rozpórkę i opcjonalną notatkę .card-note\n- Klasa: .tile; Rola: Kafelek z wartością i etykietą; układ kafelków w siatce .bento (Latest Scan summary)\n- Klasa: .tbl; Rola: Tabela w kontenerze .tbl-wrap. Komórki pomocnicze: .strong-cell, .mono, .muted, .empty-cell, wyrównanie .right\n- Klasa: .screen-redesign; Rola: Klasa na body włączająca reguły nowych ekranów ({% block bodyclass %})\n- Klasa: .tab-card; Rola: Karta, której górę zajmuje pasek .vuln-tabs z wyszukiwarką, a pod nim tabela (Vulnerable versions, Alerts)"
+    },
+    {
+      "id": "/docs/design/components#uklad-1",
+      "page": "Komponenty aplikacji",
+      "section": "Układ strony",
+      "href": "/docs/design/components#uklad",
+      "text": "- Klasa: .filter-panel; Rola: Lewy panel Data Explorer: Timeframe, chipy filtrów .filter-chip i przycisk Add filter / Apply; obok .log-panel z tabelą\n- Klasa: .scan-start-row; Rola: Wiersz w karcie Scan activity: lista typu skanu i przycisk Start scan now"
     },
     {
       "id": "/docs/design/components#kontrolki-0",
       "page": "Komponenty aplikacji",
       "section": "Kontrolki",
       "href": "/docs/design/components#kontrolki",
-      "text": "- Klasa: .btn; Rola: Przycisk; warianty .btn.primary (akcja główna, kolor marki) i .btn.danger\n- Klasa: .link-btn; Rola: Akcja tekstowa w wierszu tabeli; .danger-link dla usuwania\n- Klasa: .icon-btn; Rola: Przycisk z samą ikoną; .subtle dla zamknięcia okna\n- Klasa: .search-box; Rola: Pole wyszukiwania z ikoną\n- Klasa: .field; Rola: Pole formularza: .field-label, kontrolka i .field-hint\n- Klasa: .switch; Rola: Przełącznik dwustanowy (np. Enabled)\n- Klasa: .check-list; Rola: Lista pól wyboru z .check-row; z .scroll ma ograniczoną wysokość\n- Klasa: .tag-input; Rola: Pole tagów: wpis, przycisk Add i kontener chipów (Tagowanie › Operacje)"
+      "text": "- Klasa: .btn; Rola: Przycisk; warianty .btn.primary (akcja główna, kolor marki) i .btn.danger\n- Klasa: .link-btn; Rola: Akcja tekstowa w wierszu tabeli; .danger-link dla usuwania\n- Klasa: .icon-btn; Rola: Przycisk z samą ikoną; .subtle dla zamknięcia okna\n- Klasa: .search-box; Rola: Pole wyszukiwania z ikoną\n- Klasa: .field; Rola: Pole formularza: .field-label, kontrolka i .field-hint\n- Klasa: .switch; Rola: Przełącznik dwustanowy (np. Enabled)\n- Klasa: .check-list; Rola: Lista pól wyboru z .check-row; z .scroll ma ograniczoną wysokość\n- Klasa: .tag-input; Rola: Pole tagów: wpis, przycisk Add i kontener chipów (Tagowanie › Operacje)\n- Klasa: .dropzone; Rola: Pole wyboru pliku w oknie Import hosts: kliknięcie otwiera wybór pliku, przeciągnięcie zaznacza stan .is-dragover, a .dropzone-status raportuje wynik analizy"
+    },
+    {
+      "id": "/docs/design/components#kontrolki-1",
+      "page": "Komponenty aplikacji",
+      "section": "Kontrolki",
+      "href": "/docs/design/components#kontrolki",
+      "text": "- Klasa: .pick-box; Rola: Własne pole wyboru wiersza tabeli (Alerts); kolumna .pick-col"
     },
     {
       "id": "/docs/design/components#znaczniki-0",
       "page": "Komponenty aplikacji",
       "section": "Znaczniki i wskaźniki",
       "href": "/docs/design/components#znaczniki",
-      "text": "- Klasa: .badge; Rola: Mała etykieta statusu; .blocked i .warn zmieniają kolor\n- Klasa: .pill; Rola: Wskaźnik stanu sterowany atrybutem data-state (running, paused, idle)\n- Klasa: .severity; Rola: Poziom ważności z wariantem .sev-Critical, .sev-High, .sev-Medium lub .sev-Info\n- Klasa: .host-chip; Rola: Chip w kontenerze .host-chips: adres, wartość grupy lub tag; .chip-x usuwa chip w polu tagów\n- Klasa: .criteria-chip; Rola: Para kind / value kryterium harmonogramu (.criteria-kind)\n- Klasa: .progress; Rola: Pasek postępu; szerokość wypełnienia z własności --p\n- Klasa: .delta-pill; Rola: Różnica w porównaniu skanów, w wariantach delta-better, delta-worse, delta-same\n- Klasa: .mini-bar; Rola: Słupek względnej liczności w tabelach dashboardu"
+      "text": "- Klasa: .badge; Rola: Mała etykieta statusu; .blocked i .warn zmieniają kolor\n- Klasa: .pill; Rola: Wskaźnik stanu sterowany atrybutem data-state (running, paused, idle)\n- Klasa: .severity; Rola: Poziom ważności z wariantem .sev-Critical, .sev-High, .sev-Medium lub .sev-Info\n- Klasa: .host-chip; Rola: Chip w kontenerze .host-chips: adres, wartość grupy lub tag; .chip-x usuwa chip w polu tagów\n- Klasa: .criteria-chip; Rola: Para kind / value kryterium harmonogramu (.criteria-kind)\n- Klasa: .progress; Rola: Pasek postępu; szerokość wypełnienia z własności --p\n- Klasa: .delta-pill; Rola: Różnica w porównaniu skanów, w wariantach delta-better, delta-worse, delta-same\n- Klasa: .mini-bar; Rola: Słupek względnej liczności w tabelach dashboardu\n- Klasa: .demo-badge; Rola: Znacznik Demo przy wierszach przykładowych w Scan Results"
+    },
+    {
+      "id": "/docs/design/components#znaczniki-1",
+      "page": "Komponenty aplikacji",
+      "section": "Znaczniki i wskaźniki",
+      "href": "/docs/design/components#znaczniki",
+      "text": "- Klasa: .kpi-link; Rola: Odnośnik na dole kafelka KPI (Open in Data Explorer, Review alerts)\n- Klasa: .detail-grid; Rola: Siatka liczników w oknie Scan details z kafelkami .detail-tile (wartość .detail-value i etykieta .detail-label)"
     },
     {
       "id": "/docs/design/components#okna-0",
       "page": "Komponenty aplikacji",
       "section": "Zakładki i okna",
       "href": "/docs/design/components#okna",
-      "text": "- Klasa: .tabs-bar; Rola: Pasek zakładek .tab-link (aktywna: .active) z kontekstowymi przyciskami po prawej, za .tab-spacer (Host inventory)\n- Klasa: .vuln-tabs; Rola: Płaski pasek filtrów ważności z licznikami (Vulnerable versions)\n- Klasa: .modal-backdrop; Rola: Tło okna; zawartość w .modal z sekcjami .modal-head, .modal-body, .modal-foot; .modal-wide poszerza okno"
+      "text": "- Klasa: .tabs-bar; Rola: Pasek zakładek .tab-link (aktywna: .active) z kontekstowymi przyciskami po prawej, za .tab-spacer (Host inventory)\n- Klasa: .vuln-tabs; Rola: Płaski pasek filtrów z licznikami: poziomy ważności (Vulnerable versions) albo status (Alerts)\n- Klasa: .modal-backdrop; Rola: Tło okna; zawartość w .modal z sekcjami .modal-head, .modal-body, .modal-foot; .modal-wide poszerza okno, a .modal-full rozciąga je na prawie cały ekran (Scan details)"
     },
     {
       "id": "/docs/design/components#data-0",
@@ -279,7 +552,14 @@
       "page": "Komponenty aplikacji",
       "section": "Atrybuty data-*",
       "href": "/docs/design/components#data",
-      "text": "- Atrybut: data-pager; Efekt: Stopka tabeli sterująca najbliższą tabelą w karcie: rozmiar strony, zakres, nawigacja; współpracuje z filtrem\n- Atrybut: data-sev-filter, data-sev; Efekt: Przyciski filtrujące wiersze po atrybucie data-sev (Vulnerable versions)\n- Atrybut: data-tag-entry, data-tag-add, data-tag-chips; Efekt: Pole, przycisk i kontener chipów pola tagów (Operacje na tagach)\n- Atrybut: data-host-add, data-host-edit, data-host-import; Efekt: Formularze inwentarza; adres endpointu w data-endpoint. Przyciski wierszy: data-edit, data-delete; chipy tagów niosą data-tag\n- Atrybut: data-group-form; Efekt: Formularz nowej grupy hostów\n- Atrybut: data-theme-choice; Efekt: Przycisk motywu (light, dark) na ekranie Settings"
+      "text": "- Atrybut: data-pager; Efekt: Stopka tabeli sterująca najbliższą tabelą w karcie: rozmiar strony, zakres, nawigacja; współpracuje z filtrem\n- Atrybut: data-sev-filter, data-sev; Efekt: Przyciski filtrujące wiersze po atrybucie data-sev (Vulnerable versions)\n- Atrybut: data-attr-filter, data-attr-select, data-attr-value; Efekt: Filtr po atrybucie wiersza: tabela wskazuje nazwę atrybutu (data-attr-filter=\"data-ack\") i grupę przycisków (data-attr-select), a przyciski niosą dopasowywaną wartość (Alerts)\n- Atrybut: data-scan-details, data-policy-run, data-alert-ack, data-alert-pick, data-asset-edit; Efekt: Przyciski wierszy: otwarcie szczegółów skanu, uruchomienie konfiguracji, potwierdzenie alertu, zaznaczenie alertu i edycja hosta w Data Explorer; wartość atrybutu to identyfikator wiersza\n- Atrybut: data-dropzone; Efekt: Pole przeciągania pliku w oknie importu hostów"
+    },
+    {
+      "id": "/docs/design/components#data-2",
+      "page": "Komponenty aplikacji",
+      "section": "Atrybuty data-*",
+      "href": "/docs/design/components#data",
+      "text": "- Atrybut: data-tag-entry, data-tag-add, data-tag-chips; Efekt: Pole, przycisk i kontener chipów pola tagów (Operacje na tagach)\n- Atrybut: data-host-add, data-host-edit, data-host-import; Efekt: Formularze inwentarza; adres endpointu w data-endpoint. Przyciski wierszy: data-edit, data-delete; chipy tagów niosą data-tag\n- Atrybut: data-group-form; Efekt: Formularz nowej grupy hostów\n- Atrybut: data-theme-choice; Efekt: Przycisk motywu (light, dark) na ekranie Settings"
     },
     {
       "id": "/docs/design/components#zasady-0",
@@ -391,35 +671,42 @@
       "page": "Dostęp i uprawnienia",
       "section": "Mapowanie ścieżek",
       "href": "/docs/dostep#sciezki",
-      "text": "- Klucz: dashboards; Etykieta: Dashboards; Ścieżki (prefiks): /dashboards\n- Klucz: scan_management; Etykieta: Scan Management; Ścieżki (prefiks): /scanning/management, /api/scan\n- Klucz: policies; Etykieta: Scan Scheduling; Ścieżki (prefiks): /scanning/policies, /api/policies\n- Klucz: compare; Etykieta: Compare Scans; Ścieżki (prefiks): /scanning/compare-scans\n- Klucz: host_management; Etykieta: Host management; Ścieżki (prefiks): /host-management, /api/host-\n- Klucz: data_explorer; Etykieta: Data Explorer; Ścieżki (prefiks): /log-center/data-explorer\n- Klucz: scan_history; Etykieta: Scan Results; Ścieżki (prefiks): /log-center/scan-history\n- Klucz: admin_management; Etykieta: Admin management; Ścieżki (prefiks): /admin-management, /api/admins, /api/roles\n- Klucz: settings; Etykieta: Settings; Ścieżki (prefiks): /settings"
+      "text": "- Klucz: dashboards; Etykieta: Dashboards; Ścieżki (prefiks): /dashboards\n- Klucz: scan_management; Etykieta: Scan Management; Ścieżki (prefiks): /scanning/management, /api/scan (także /api/scans/{id})\n- Klucz: policies; Etykieta: Scan Scheduling; Ścieżki (prefiks): /scanning/policies, /api/policies\n- Klucz: compare; Etykieta: Compare Scans; Ścieżki (prefiks): /scanning/compare-scans\n- Klucz: host_management; Etykieta: Host management; Ścieżki (prefiks): /host-management, /api/host-\n- Klucz: data_explorer; Etykieta: Data Explorer; Ścieżki (prefiks): /log-center/data-explorer, /api/assets\n- Klucz: scan_history; Etykieta: Scan Results; Ścieżki (prefiks): /log-center/scan-history\n- Klucz: alerts; Etykieta: Alerts; Ścieżki (prefiks): /log-center/alerts, /api/alerts\n- Klucz: admin_management; Etykieta: Admin management; Ścieżki (prefiks): /admin-management, /api/admins, /api/roles"
     },
     {
       "id": "/docs/dostep#sciezki-1",
       "page": "Dostęp i uprawnienia",
       "section": "Mapowanie ścieżek",
       "href": "/docs/dostep#sciezki",
-      "text": "Ścieżki bez klucza (/, /logout, /api/search) wymagają tylko ważnej sesji.\n- Sytuacja: Strona bez wymaganej flagi; Odpowiedź: Przekierowanie na pierwszą dozwoloną stronę; gdy konto nie ma żadnych uprawnień, strona „No access” z kodem 403\n- Sytuacja: Endpoint /api/* bez wymaganej flagi; Odpowiedź: 403\n- Sytuacja: Menu boczne; Odpowiedź: Pokazuje tylko strony, do których konto ma odczyt\n- Sytuacja: Wyszukiwarka w górnym pasku; Odpowiedź: Wyniki są filtrowane tą samą regułą"
+      "text": "- Klucz: settings; Etykieta: Settings; Ścieżki (prefiks): /settings\nŚcieżki bez klucza (/, /logout, /api/search) wymagają tylko ważnej sesji. Kluczy jest dziesięć.\nScan details wymaga Scan Management\nDopasowanie ścieżek działa prefiksem, a /api/scans/{id} zaczyna się od /api/scan. Okno Scan details z ekranu Scan Results wymaga więc odczytu Scan Management, a nie Scan Results. Konto z samym Scan Results, np. Analyst, zobaczy listę uruchomień, ale okno szczegółów się nie załaduje (odpowiedź 403).\n- Sytuacja: Strona bez wymaganej flagi; Odpowiedź: Przekierowanie na pierwszą dozwoloną stronę; gdy konto nie ma żadnych uprawnień, strona „No access” z kodem 403\n- Sytuacja: Endpoint /api/* bez wymaganej flagi; Odpowiedź: 403\n- Sytuacja: Menu boczne; Odpowiedź: Pokazuje tylko strony, do których konto ma odczyt\n- Sytuacja: Wyszukiwarka w górnym pasku; Odpowiedź: Wyniki są filtrowane tą samą regułą"
     },
     {
       "id": "/docs/dostep#role-0",
       "page": "Dostęp i uprawnienia",
       "section": "Role",
       "href": "/docs/dostep#role",
-      "text": "Rola to nazwa i macierz uprawnień (JSONB w tabeli roles). Administrator dziedziczy macierz swojej roli; jest ona odczytywana przy każdym żądaniu, więc zmiana roli działa od razu.\n- Rola: Super Admin; Dostęp: Wszystkie strony; Zapis: tak\n- Rola: Scan Operator; Dostęp: Dashboards, Scan Management, Scan Scheduling, Compare Scans, Host management; Zapis: tak\n- Rola: Analyst; Dostęp: Dashboards, Data Explorer, Scan Results, Host management; Zapis: tylko odczyt\nTo role startowe, tworzone przy pierwszym uruchomieniu na pustej bazie. Administrator z uprawnieniem do Admin management może zmienić ich macierz, dodać własne role albo usunąć nieużywane (Zarządzanie rolami), więc w konkretnej instalacji zakres ról może być inny."
+      "text": "Rola to nazwa i macierz uprawnień (JSONB w tabeli roles). Administrator dziedziczy macierz swojej roli; jest ona odczytywana przy każdym żądaniu, więc zmiana roli działa od razu.\n- Rola: Super Admin; Dostęp: Wszystkie strony; Zapis: tak\n- Rola: Scan Operator; Dostęp: Dashboards, Scan Management, Scan Scheduling, Compare Scans, Host management, Scan Results, Alerts; Zapis: tak\n- Rola: Analyst; Dostęp: Dashboards, Data Explorer, Scan Results, Alerts, Host management; Zapis: tylko odczyt"
+    },
+    {
+      "id": "/docs/dostep#role-1",
+      "page": "Dostęp i uprawnienia",
+      "section": "Role",
+      "href": "/docs/dostep#role",
+      "text": "To role startowe, tworzone przy pierwszym uruchomieniu na pustej bazie. Przy każdym starcie rola startowa dostaje brakujące wbudowane uprawnienia (np. do strony dodanej w nowszej wersji), a uprawnienia zmienione ręcznie nie są nadpisywane. Administrator z uprawnieniem do Admin management może zmienić ich macierz, dodać własne role albo usunąć nieużywane (Zarządzanie rolami), więc w konkretnej instalacji zakres ról może być inny."
     },
     {
       "id": "/docs/dostep#kto-co-0",
       "page": "Dostęp i uprawnienia",
       "section": "Kto może co zrobić",
       "href": "/docs/dostep#kto-co",
-      "text": "Uprawnienia ról startowych przełożone na zadania z tej dokumentacji:\n- Zadanie: Przeglądać ewidencję, grupy i tagi; Super Admin: tak; Scan Operator: tak; Analyst: tak\n- Zadanie: Dodawać, edytować, importować i usuwać wpisy, grupy i tagi; Super Admin: tak; Scan Operator: tak; Analyst: nie\n- Zadanie: Przeglądać i zmieniać konfiguracje w Scan Scheduling; Super Admin: tak; Scan Operator: tak; Analyst: nie\n- Zadanie: Uruchamiać, wstrzymywać i przerywać skan (Scan Management); Super Admin: tak; Scan Operator: tak; Analyst: nie\n- Zadanie: Przeglądać Scan Results; Super Admin: tak; Scan Operator: nie; Analyst: tak\n- Zadanie: Porównywać skany (Compare Scans); Super Admin: tak; Scan Operator: tak; Analyst: nie\n- Zadanie: Przeglądać Data Explorer; Super Admin: tak; Scan Operator: nie; Analyst: tak"
+      "text": "Uprawnienia ról startowych przełożone na zadania z tej dokumentacji:\n- Zadanie: Przeglądać ewidencję, grupy i tagi; Super Admin: tak; Scan Operator: tak; Analyst: tak\n- Zadanie: Dodawać, edytować, importować i usuwać wpisy, grupy i tagi; Super Admin: tak; Scan Operator: tak; Analyst: nie\n- Zadanie: Przeglądać i zmieniać konfiguracje w Scan Scheduling; Super Admin: tak; Scan Operator: tak; Analyst: nie\n- Zadanie: Uruchamiać, wstrzymywać i przerywać skan (Scan Management); Super Admin: tak; Scan Operator: tak; Analyst: nie\n- Zadanie: Uruchamiać skan z konfiguracji (Run now); Super Admin: tak; Scan Operator: tak; Analyst: nie\n- Zadanie: Przeglądać Scan Results; Super Admin: tak; Scan Operator: tak; Analyst: tak\n- Zadanie: Otwierać okno Scan details w Scan Results; Super Admin: tak; Scan Operator: tak; Analyst: nie"
     },
     {
       "id": "/docs/dostep#kto-co-1",
       "page": "Dostęp i uprawnienia",
       "section": "Kto może co zrobić",
       "href": "/docs/dostep#kto-co",
-      "text": "- Zadanie: Przeglądać dashboardy, w tym Latest Scan summary; Super Admin: tak; Scan Operator: tak; Analyst: tak\n- Zadanie: Zarządzać kontami administratorów i rolami; Super Admin: tak; Scan Operator: nie; Analyst: nie\nUprawnienia są sprawdzane po stronie serwera przy każdym żądaniu, nie tylko w menu: konto bez zapisu do strony dostanie błąd przy próbie zapisu, nawet jeśli widzi przycisk."
+      "text": "- Zadanie: Porównywać skany (Compare Scans); Super Admin: tak; Scan Operator: tak; Analyst: nie\n- Zadanie: Przeglądać Data Explorer; Super Admin: tak; Scan Operator: nie; Analyst: tak\n- Zadanie: Edytować hosty w Data Explorer (tryb edycji); Super Admin: tak; Scan Operator: nie; Analyst: nie\n- Zadanie: Przeglądać Alerts; Super Admin: tak; Scan Operator: tak; Analyst: tak\n- Zadanie: Potwierdzać alerty; Super Admin: tak; Scan Operator: tak; Analyst: nie\n- Zadanie: Przeglądać dashboardy, w tym Latest Scan summary; Super Admin: tak; Scan Operator: tak; Analyst: tak\n- Zadanie: Zarządzać kontami administratorów i rolami; Super Admin: tak; Scan Operator: nie; Analyst: nie\nUprawnienia są sprawdzane po stronie serwera przy każdym żądaniu, nie tylko w menu: konto bez zapisu do strony dostanie błąd przy próbie zapisu, nawet jeśli widzi przycisk."
     },
     {
       "id": "/docs/dostep#konta-0",
@@ -496,14 +783,14 @@
       "page": "Host management",
       "section": "Liczniki: ewidencja a skan",
       "href": "/docs/hosty#liczniki",
-      "text": "Ekran Host management liczy wpisy i adresy w ewidencji, a nie hosty wykryte w sieci. Liczby z różnych ekranów oznaczają co innego:\n- Licznik: 1–10 of N w stopce; Gdzie: Każda zakładka Host management; Co liczy: Liczbę wpisów w tej zakładce, po uwzględnieniu filtru wyszukiwania. Zakres CIDR liczy się jako jeden wpis\n- Licznik: Hosts; Gdzie: Zakładka IP ranges; Co liczy: Liczbę adresów w bloku CIDR: 2^(32 − prefiks), łącznie z adresem sieci i rozgłoszeniowym. /24 daje 256, /32 daje 1\n- Licznik: Targets; Gdzie: Zakładka Host groups; Co liczy: Liczbę wpisów w grupie: adresy IP + zakresy + FQDN. Zakres /24 to jeden cel, a nie 256\n- Licznik: Hosts discovered, Alive, Reachable hosts; Gdzie: Scan Management, Scan Results, Latest Scan summary; Co liczy: Hosty zaobserwowane w skanie (Wyniki i analiza), niezależne od wielkości ewidencji"
+      "text": "Ekran Host management liczy wpisy i adresy w ewidencji, a nie hosty wykryte w sieci. Liczby z różnych ekranów oznaczają co innego:\n- Licznik: 1–10 of N w stopce; Gdzie: Każda zakładka Host management; Co liczy: Liczbę wpisów w tej zakładce, po uwzględnieniu filtru wyszukiwania. Zakres CIDR liczy się jako jeden wpis\n- Licznik: Hosts; Gdzie: Zakładka IP ranges; Co liczy: Liczbę adresów w bloku CIDR: 2^(32 − prefiks), łącznie z adresem sieci i rozgłoszeniowym. /24 daje 256, /32 daje 1. Skan rozwija jednak z jednego zakresu najwyżej 1024 adresy (Rozwiązywanie celów)\n- Licznik: Targets; Gdzie: Zakładka Host groups; Co liczy: Liczbę wpisów w grupie: adresy IP + zakresy + FQDN. Zakres /24 to jeden cel, a nie 256"
     },
     {
       "id": "/docs/hosty#liczniki-1",
       "page": "Host management",
       "section": "Liczniki: ewidencja a skan",
       "href": "/docs/hosty#liczniki",
-      "text": "Ewidencja mówi, co wolno skanować; wynik skanu mówi, co podczas konkretnego uruchomienia odpowiedziało. Zakres /24 w ewidencji to 256 adresów do sprawdzenia, ale w wyniku może pojawić się kilka aktywnych hostów albo żaden."
+      "text": "- Licznik: Hosts discovered, Alive, Reachable hosts; Gdzie: Scan Management, Scan Results, Latest Scan summary; Co liczy: Hosty zaobserwowane w skanie (Wyniki i analiza), niezależne od wielkości ewidencji\nEwidencja mówi, co wolno skanować; wynik skanu mówi, co podczas konkretnego uruchomienia odpowiedziało. Zakres /24 w ewidencji to 256 adresów do sprawdzenia, ale w wyniku może pojawić się kilka aktywnych hostów albo żaden."
     },
     {
       "id": "/docs/hosty#edycja-0",
@@ -587,98 +874,161 @@
       "page": "Host management",
       "section": "Grupa a harmonogramy",
       "href": "/docs/hosty#grupa-skutki",
-      "text": "Harmonogram zapisuje grupę jako cel po nazwie (Skanowanie › Cele). Z tego wynika:\nZmiana składu grupy nie wymaga edycji harmonogramu: harmonogram wskazuje grupę, a nie listę jej członków.\nZmiana nazwy lub usunięcie grupy zrywa to powiązanie. Harmonogram nadal pokazuje starą nazwę w kolumnie Targets; otwórz go przez Edit, zaznacz grupę ponownie i zapisz.\nObecna wersja aplikacji nie uruchamia skanów z harmonogramów (Skanowanie › Uruchomienie), więc nie ma momentu, w którym skład grupy byłby odczytywany i utrwalany dla konkretnego uruchomienia. Wyniki w historii nie zapisują składu grupy z chwili skanu.\nDane startowe\nPrzy pustej bazie powstają przykładowe grupy Perimeter DMZ i Core services."
+      "text": "Harmonogram zapisuje grupę jako cel po nazwie (Skanowanie › Cele). Z tego wynika:\nZmiana składu grupy nie wymaga edycji harmonogramu: harmonogram wskazuje grupę, a nie listę jej członków, a skład jest odczytywany w chwili uruchomienia skanu.\nZmiana nazwy lub usunięcie grupy zrywa to powiązanie. Harmonogram nadal pokazuje starą nazwę w kolumnie Targets; otwórz go przez Edit, zaznacz grupę ponownie i zapisz.\nWynik uruchomienia nie zapamiętuje składu grupy: Scan Results i okno Scan details pokazują tylko adresy, które skan rozwiązał (Skanowanie › Rozwiązywanie celów), więc po zmianie grupy nie da się odtworzyć, jakie hosty obejmował wcześniejszy skan.\nDane startowe\nPrzy pustej bazie powstają przykładowe grupy Perimeter DMZ i Core services."
     },
     {
       "id": "/docs/skanowanie#start-0",
       "page": "Skanowanie",
       "section": "Wstęp",
       "href": "/docs/skanowanie",
-      "text": "Konfiguracja skanów i harmonogramów (Scan Scheduling) oraz ręczne uruchamianie i śledzenie bieżącego skanu (Scan Management)."
+      "text": "Konfiguracja skanów i harmonogramów (Scan Scheduling), typy skanów, sposób wyznaczania celów oraz uruchamianie i śledzenie skanu (Scan Management)."
     },
     {
       "id": "/docs/skanowanie#pojecia-0",
       "page": "Skanowanie",
       "section": "Konfiguracja, uruchomienie, wynik",
       "href": "/docs/skanowanie#pojecia",
-      "text": "- Pojęcie: Wpis w ewidencji; Gdzie w aplikacji: Host management; Co to jest: Zasób zadeklarowany przez organizację (Host management)\n- Pojęcie: Cel skanu; Gdzie w aplikacji: Sekcja Targets konfiguracji; Co to jest: Wpis ewidencji lub grupa wybrana do konkretnej konfiguracji\n- Pojęcie: Konfiguracja (harmonogram); Gdzie w aplikacji: Scan Scheduling; Co to jest: Nazwany zestaw celów z informacją, kiedy i jak często skan ma się odbywać\n- Pojęcie: Uruchomienie; Gdzie w aplikacji: Scan Management, Scan Results; Co to jest: Jedno wykonanie skanu z datą rozpoczęcia, zakończenia i statusem\n- Pojęcie: Obserwacja; Gdzie w aplikacji: Scan Results, Data Explorer, dashboardy; Co to jest: Coś, co wykryto podczas uruchomienia: aktywny host, usługa, technologia, podatność (Wyniki i analiza)"
+      "text": "- Pojęcie: Wpis w ewidencji; Gdzie w aplikacji: Host management; Co to jest: Zasób zadeklarowany przez organizację (Host management)\n- Pojęcie: Cel skanu; Gdzie w aplikacji: Sekcja Targets konfiguracji; Co to jest: Wpis ewidencji lub grupa wybrana do konkretnej konfiguracji\n- Pojęcie: Konfiguracja (harmonogram); Gdzie w aplikacji: Scan Scheduling; Co to jest: Nazwany zestaw celów z typem skanu oraz informacją, kiedy i jak często skan ma się odbywać\n- Pojęcie: Uruchomienie; Gdzie w aplikacji: Scan Management, Scan Results; Co to jest: Jedno wykonanie skanu z czasem rozpoczęcia i zakończenia oraz statusem (Wyniki i analiza)\n- Pojęcie: Obserwacja; Gdzie w aplikacji: Data Explorer, Alerts, dashboardy; Co to jest: Stan hosta zapisany przez skan: odpowiedź, usługa, technologia, certyfikat (Data Explorer); zmiana względem poprzednich skanów trafia do Alerts"
     },
     {
       "id": "/docs/skanowanie#harmonogramy-0",
       "page": "Skanowanie",
       "section": "Scan Scheduling",
       "href": "/docs/skanowanie#harmonogramy",
-      "text": "Ekran Scan Scheduling (w menu: Scanning › Scan Scheduling) zawiera listę zapisanych konfiguracji skanów z kolumnami Order, Name, Targets, Schedule, Status i Actions. Lista jest posortowana według Order."
+      "text": "Ekran Scan Scheduling (w menu: Scanning › Scan Scheduling) zawiera listę zapisanych konfiguracji skanów z kolumnami Order, Name, Type, Targets, Schedule, Status i Actions. Lista jest posortowana według Order."
     },
     {
       "id": "/docs/skanowanie#nowy-0",
       "page": "Skanowanie",
       "section": "Tworzenie skanu",
       "href": "/docs/skanowanie#nowy",
-      "text": "Kliknij Add scan. Otworzy się okno New scan.\nWpisz Name, np. Produkcja – nocny skan (pole wymagane).\nOpcjonalnie ustaw Order (pozycja na liście, od 1) i przełącznik Status (Enabled / Disabled).\nW sekcji Targets zaznacz cele (Cele). Licznik N selected pokazuje, ile pozycji wybrano.\nW sekcji Schedule wybierz Frequency i czas (Harmonogram). Pod polami pojawia się opis, np. Runs every Monday at 22:00.\nKliknij Save. Bez zaznaczonego celu aplikacja wyświetli Pick at least one target from host management. i nie zapisze konfiguracji."
+      "text": "Kliknij Add scan. Otworzy się okno New scan.\nWpisz Name, np. Produkcja – nocny skan (pole wymagane).\nOpcjonalnie ustaw Order (pozycja na liście, od 1) i przełącznik Status (Enabled / Disabled).\nW polu Scan type wybierz Full scan test (httpx) (domyślnie) albo Reachability (masscan). Podpowiedź pod polem opisuje różnicę (Typy skanu).\nW sekcji Targets zaznacz cele (Cele). Licznik N selected pokazuje, ile pozycji wybrano.\nW sekcji Schedule wybierz Frequency i czas (Harmonogram). Pod polami pojawia się opis, np. Runs every Monday at 22:00.\nKliknij Save. Bez zaznaczonego celu aplikacja wyświetli Pick at least one target from host management. i nie zapisze konfiguracji."
     },
     {
       "id": "/docs/skanowanie#cele-0",
       "page": "Skanowanie",
       "section": "Cele",
       "href": "/docs/skanowanie#cele",
-      "text": "Cele wybiera się wyłącznie z ewidencji: wpis musi najpierw istnieć w Host management. Sekcja Targets ma cztery listy z polami wyboru, każdą z filtrem:\n- Lista: Host groups; Co zaznaczasz: Grupę hostów; obok nazwy widać liczbę jej celów (N target(s)). Grupa obejmuje wszystko, co zawiera; Etykieta w kolumnie Targets: Host group\n- Lista: IP addresses; Co zaznaczasz: Pojedynczy adres z zakładki IPs; Etykieta w kolumnie Targets: IP address\n- Lista: IP ranges; Co zaznaczasz: Zakres CIDR z zakładki IP ranges; obejmuje wszystkie adresy bloku; Etykieta w kolumnie Targets: IP range\n- Lista: FQDNs; Co zaznaczasz: Nazwę domenową z zakładki FQDNs; Etykieta w kolumnie Targets: FQDN\nTypy celów można łączyć w jednej konfiguracji, np. grupa Produkcja oraz dodatkowo adres 203.0.113.10 i nazwa www.example.com."
+      "text": "Cele wybiera się wyłącznie z ewidencji: wpis musi najpierw istnieć w Host management. Sekcja Targets ma cztery listy z polami wyboru, każdą z filtrem:\n- Lista: Host groups; Co zaznaczasz: Grupę hostów; obok nazwy widać liczbę jej celów (N target(s)). Grupa obejmuje wszystko, co zawiera; Etykieta w kolumnie Targets: Host group\n- Lista: IP addresses; Co zaznaczasz: Pojedynczy adres z zakładki IPs; Etykieta w kolumnie Targets: IP address\n- Lista: IP ranges; Co zaznaczasz: Zakres CIDR z zakładki IP ranges; obejmuje adresy bloku (z limitem opisanym w rozdziale Rozwiązywanie celów); Etykieta w kolumnie Targets: IP range\n- Lista: FQDNs; Co zaznaczasz: Nazwę domenową z zakładki FQDNs; Etykieta w kolumnie Targets: FQDN\nTypy celów można łączyć w jednej konfiguracji, np. grupa Produkcja oraz dodatkowo adres 203.0.113.10 i nazwa www.example.com."
     },
     {
       "id": "/docs/skanowanie#cele-1",
       "page": "Skanowanie",
       "section": "Cele",
       "href": "/docs/skanowanie#cele",
-      "text": "Wyboru po tagu nie ma. Aby objąć harmonogramem hosty z tagiem, zbuduj z nich grupę (Tagowanie › Scan Scheduling).\nCel jest zapisywany jako tekst (nazwa grupy, adres, zakres, nazwa). Zmiana nazwy grupy lub zmiana i usunięcie wpisu w ewidencji nie aktualizują zapisanych celów (Host management › Edycja i usuwanie, Grupa a harmonogramy).\nDo oddzielnego skanowania środowisk utwórz dwie konfiguracje, np. Produkcja – nocny skan z celem w postaci grupy Produkcja i Development – tygodniowy z grupą Development. Wyniki obu będą wtedy porównywalne tylko w obrębie tej samej konfiguracji (Compare Scans)."
+      "text": "Wyboru po tagu nie ma. Aby objąć harmonogramem hosty z tagiem, zbuduj z nich grupę (Tagowanie › Scan Scheduling).\nCel jest zapisywany jako tekst (nazwa grupy, adres, zakres, nazwa), a skan odczytuje go dopiero przy uruchomieniu. Grupa jest rozwijana według bieżącego składu, więc dodanie członka do grupy zmienia cele najbliższego skanu bez edycji konfiguracji. Zmiana nazwy lub usunięcie grupy zrywa powiązanie: skan nie znajdzie grupy o starej nazwie (Host management › Grupa a harmonogramy). Adres, zakres i FQDN są używane tak, jak zapisano, także gdy wpis usunięto z ewidencji (Edycja i usuwanie).\nDo oddzielnego skanowania środowisk utwórz dwie konfiguracje, np. Produkcja – nocny skan z celem w postaci grupy Produkcja i Development – tygodniowy z grupą Development. Etykieta uruchomienia w Scan Results to nazwa konfiguracji, więc wyniki obu łatwo rozdzielić (Scan Results)."
     },
     {
       "id": "/docs/skanowanie#czas-0",
       "page": "Skanowanie",
       "section": "Harmonogram i strefa czasowa",
       "href": "/docs/skanowanie#czas",
-      "text": "- Frequency: Daily; Pola czasu: Hour, Minute; Kolumna Schedule pokazuje: Frequency Daily, When Every day at 01:00\n- Frequency: Weekly; Pola czasu: Day (Monday–Sunday), Hour, Minute; Kolumna Schedule pokazuje: When Mondays at 22:00\n- Frequency: Monthly; Pola czasu: Day (Day 1–Day 28), Hour, Minute; Kolumna Schedule pokazuje: When Day 15 at 03:30\n- Frequency: On demand; Pola czasu: brak; Kolumna Schedule pokazuje: tylko Frequency On demand; podpowiedź w formularzu: This scan only runs when started manually.\nHour ma wartości 00–23, a Minute co 5 minut (00, 05, …, 55). Dla Monthly dostępne są dni 1–28, więc skan miesięczny nie wypada nigdy na nieistniejący dzień miesiąca.\nFormularz nie ma pola strefy czasowej, a godzina jest zapisywana bez strefy (np. mon 22:00). Pozostałe daty w aplikacji, np. Added czy czas rozpoczęcia skanu, pochodzą z zegara serwera."
+      "text": "- Frequency: Daily; Pola czasu: Hour, Minute; Kolumna Schedule pokazuje: Frequency Daily, When Every day at 01:00\n- Frequency: Weekly; Pola czasu: Day (Monday–Sunday), Hour, Minute; Kolumna Schedule pokazuje: When Mondays at 22:00\n- Frequency: Monthly; Pola czasu: Day (Day 1–Day 28), Hour, Minute; Kolumna Schedule pokazuje: When Day 15 at 03:30\n- Frequency: On demand; Pola czasu: brak; Kolumna Schedule pokazuje: tylko Frequency On demand; podpowiedź w formularzu: This scan only runs when started manually.\nHour ma wartości 00–23, a Minute co 5 minut (00, 05, …, 55). Dla Monthly dostępne są dni 1–28, więc skan miesięczny nie wypada nigdy na nieistniejący dzień miesiąca."
     },
     {
       "id": "/docs/skanowanie#czas-1",
       "page": "Skanowanie",
       "section": "Harmonogram i strefa czasowa",
       "href": "/docs/skanowanie#czas",
-      "text": "Harmonogram nie uruchamia jeszcze skanów\nZapisany harmonogram jest dziś konfiguracją i opisem: żaden proces w tle nie odczytuje pól Frequency i czasu ani nie dodaje uruchomień do kolejki. Skan uruchamia się wyłącznie ręcznie (Uruchomienie skanu). Z tego samego powodu nie ma momentu, w którym skład grupy byłby odczytywany dla zaplanowanego uruchomienia.\nPrzykład kodu (Zapisana konfiguracja (dla porównania z kolumnami listy)):\n{\n  \"name\": \"Produkcja – nocny skan\",\n  \"order\": 1,\n  \"enabled\": true,\n  \"criteria\": [\n    { \"kind\": \"host group\", \"value\": \"Produkcja\" },\n    { \"kind\": \"fqdn\", \"value\": \"www.example.com\" },\n    { \"kind\": \"frequency\", \"value\": \"Daily\" },\n    { \"kind\": \"when\", \"value\": \"every 01:00\" }\n  ]\n}"
+      "text": "Formularz nie ma pola strefy czasowej, a godzina jest zapisywana bez strefy (np. mon 22:00). Serwer interpretuje ją w lokalnej strefie systemu, na którym działa aplikacja. Pole Next run w karcie Upcoming scan jest podawane w tej samej strefie, natomiast czasy w Scan Results i Data Explorer są wyświetlane w UTC.\nPrzykład kodu (Zapisana konfiguracja (dla porównania z kolumnami listy)):\n{\n  \"name\": \"Produkcja – nocny skan\",\n  \"order\": 1,\n  \"enabled\": true,\n  \"criteria\": [\n    { \"kind\": \"type\", \"value\": \"full\" },\n    { \"kind\": \"host group\", \"value\": \"Produkcja\" },\n    { \"kind\": \"fqdn\", \"value\": \"www.example.com\" },\n    { \"kind\": \"frequency\", \"value\": \"Daily\" },\n    { \"kind\": \"when\", \"value\": \"every 01:00\" }\n  ]\n}\nKonfiguracje zapisane przed wprowadzeniem typów nie mają kryterium type i są traktowane jak full."
+    },
+    {
+      "id": "/docs/skanowanie#scheduler-0",
+      "page": "Skanowanie",
+      "section": "Uruchamianie z harmonogramu",
+      "href": "/docs/skanowanie#scheduler",
+      "text": "Zadanie w tle sprawdza harmonogramy co 30 sekund. Skan z harmonogramu startuje więc z opóźnieniem do pół minuty względem zapisanej godziny.\nTermin następnego uruchomienia (next_run_at) jest wyliczany przy pierwszym przebiegu zadania po zapisie konfiguracji. Każda edycja konfiguracji zeruje termin i powoduje ponowne wyliczenie, a po uruchomieniu serwer wylicza kolejny.\nSkanuje się wyłącznie konfiguracje o statusie Enabled i częstotliwości innej niż On demand. Gdy kilka jest wymagalnych jednocześnie, pierwsza jest ta z najwcześniejszym terminem (przy remisie decyduje Order).\nJednocześnie działa jeden skan. Jeśli slot jest zajęty albo konfiguracja nie ma żadnego celu do skanowania, termin nie przesuwa się, a próba powtarza się w kolejnym przebiegu."
+    },
+    {
+      "id": "/docs/skanowanie#scheduler-1",
+      "page": "Skanowanie",
+      "section": "Uruchamianie z harmonogramu",
+      "href": "/docs/skanowanie#scheduler",
+      "text": "Zaległe uruchomienia nie są nadrabiane: po przestoju aplikacji wymagalna konfiguracja uruchomi się raz, a następny termin wyliczy się od chwili uruchomienia.\nSkan z harmonogramu ma w Scan Results etykietę równą nazwie konfiguracji i trigger scheduled."
     },
     {
       "id": "/docs/skanowanie#zarzadzanie-0",
       "page": "Skanowanie",
-      "section": "Edycja, wyłączenie, usunięcie",
+      "section": "Edycja, uruchomienie, usunięcie",
       "href": "/docs/skanowanie#zarzadzanie",
-      "text": "- Akcja: Edycja; Jak: Edit w wierszu otwiera okno Edit scan z bieżącymi wartościami; Skutek: Save nadpisuje nazwę, kolejność, status, cele i harmonogram. Cele, których nie ma już w ewidencji, nie są zaznaczone i po zapisie znikają\n- Akcja: Wyłączenie; Jak: Przełącznik Status w oknie edycji, potem Save; Skutek: Kolumna Status pokazuje Disabled. Konfiguracja zostaje na liście\n- Akcja: Usunięcie; Jak: Remove i potwierdzenie Remove this scan? This cannot be undone.; Skutek: Konfiguracja jest usuwana trwale. Historia wyników nie jest kasowana"
+      "text": "- Akcja: Uruchomienie; Jak: Run now w wierszu; Skutek: Natychmiast uruchamia skan z celami i typem tej konfiguracji, także gdy ma status Disabled lub On demand. Po sukcesie następuje przejście do Scan Management (Cztery sposoby uruchomienia)\n- Akcja: Edycja; Jak: Edit w wierszu otwiera okno Edit scan z bieżącymi wartościami; Skutek: Save nadpisuje nazwę, kolejność, status, typ, cele i harmonogram. Cele, których nie ma już w ewidencji, nie są zaznaczone i po zapisie znikają\n- Akcja: Wyłączenie; Jak: Przełącznik Status w oknie edycji, potem Save; Skutek: Kolumna Status pokazuje Disabled, a harmonogram przestaje uruchamiać skany. Konfiguracja zostaje na liście\n- Akcja: Usunięcie; Jak: Remove i potwierdzenie Remove this scan? This cannot be undone.; Skutek: Konfiguracja jest usuwana trwale. Wyniki wcześniejszych uruchomień zostają w Scan Results"
     },
     {
-      "id": "/docs/skanowanie#uruchomienie-0",
+      "id": "/docs/skanowanie#sposoby-0",
       "page": "Skanowanie",
-      "section": "Uruchomienie skanu",
-      "href": "/docs/skanowanie#uruchomienie",
-      "text": "Skan ręczny uruchamia się na ekranie Scan Management, a nie z wiersza harmonogramu: lista Scan Scheduling nie ma akcji uruchomienia. Są dwa przyciski o tym samym działaniu:\nStart scan now w karcie Scan activity, widoczny, gdy żaden skan nie trwa (No scan in progress);\nStart now w karcie Upcoming scan.\nUruchomienie wymaga uprawnienia zapisu do strony Scan Management (Dostęp i uprawnienia).\nPrzebieg skanu jest symulowany\nW obecnej wersji uruchomienie nie korzysta z celów żadnej konfiguracji ani z ewidencji. Skan przechodzi przez stałą pulę 12 bloków 10.0.0.0/24 … 10.0.11.0/24, postęp rośnie o 0,9 punktu procentowego na sekundę (pełny przebieg trwa ok. 2 minuty), a licznik hostów rośnie o kilka na sekundę.\nZakończony przebieg nie dopisuje nowego wiersza w Scan Results (Architektura › Status funkcji)."
+      "section": "Cztery sposoby uruchomienia",
+      "href": "/docs/skanowanie#sposoby",
+      "text": "- Sposób: Start scan now w karcie Scan activity; Cele: Cała ewidencja; Typ: Z listy Scan type obok przycisku (domyślnie Full scan test (httpx)); Etykieta w Scan Results: Manual scan; Trigger: manual\n- Sposób: Start now w karcie Upcoming scan; Cele: Cała ewidencja, nie cele pokazanej konfiguracji; Typ: Z tej samej listy Scan type; Etykieta w Scan Results: Manual scan; Trigger: manual\n- Sposób: Run now w Scan Scheduling; Cele: Cele konfiguracji; Typ: Typ konfiguracji; Etykieta w Scan Results: Nazwa konfiguracji; Trigger: policy\n- Sposób: Harmonogram; Cele: Cele konfiguracji; Typ: Typ konfiguracji; Etykieta w Scan Results: Nazwa konfiguracji; Trigger: scheduled\nSkan z całej ewidencji obejmuje wszystkie adresy IP, zakresy CIDR i nazwy FQDN z Host management."
+    },
+    {
+      "id": "/docs/skanowanie#sposoby-1",
+      "page": "Skanowanie",
+      "section": "Cztery sposoby uruchomienia",
+      "href": "/docs/skanowanie#sposoby",
+      "text": "Uruchamianie, wstrzymywanie i przerywanie wymaga zapisu do strony Scan Management, a Run now – zapisu do Scan Scheduling (Dostęp i uprawnienia).\nW jednej chwili działa jeden skan. Próba uruchomienia drugiego, a także skanu bez żadnego rozwiązanego celu, kończy się komunikatem Could not start the scan. Another scan may already be running. (API zwraca 409; API HTTP › Skan)."
+    },
+    {
+      "id": "/docs/skanowanie#typy-0",
+      "page": "Skanowanie",
+      "section": "Typy skanu",
+      "href": "/docs/skanowanie#typy",
+      "text": "- Silnik; Full scan test: httpx (ProjectDiscovery); Reachability: masscan, a przy braku uprawnień lub programu sonda TCP\n- Co sprawdza; Full scan test: Odpowiedź HTTP(S) hosta: kod statusu, tytuł, serwer, przekierowania, rozmiar, CDN i CNAME, HTTP/2, certyfikat TLS oraz technologie; Reachability: Czy host odpowiada na któryś z portów 80, 443, 22, 445, 3389, 8443\n- Co zapisuje; Full scan test: Wszystkie pola obserwacji (kolumny Data Explorer); Reachability: Tylko status Up/Down i czasy Last checked; pozostałe dane z wcześniejszego skanu Full zostają nietknięte\n- Znaczenie Up / Down; Full scan test: Up: host odpowiedział po HTTP(S). Host, który nasłuchuje tylko na innym protokole, np. SSH, jest w skanie Full oznaczony jako Down; Reachability: Up: otwarty co najmniej jeden z portów z listy"
+    },
+    {
+      "id": "/docs/skanowanie#typy-1",
+      "page": "Skanowanie",
+      "section": "Typy skanu",
+      "href": "/docs/skanowanie#typy",
+      "text": "- Wymagania; Full scan test: Program httpx w wersji ProjectDiscovery; bez niego skan kończy się statusem Failed (Architektura › Konfiguracja); Reachability: masscan wymaga uprawnień do surowych gniazd. Gdy go brakuje, zawodzi albo nie znajdzie żadnego hosta, skan przechodzi na sprawdzenie połączeniem TCP (silnik w Scan Management: TCP probe)\nhttpx działa z limitem czasu 10 s na host, jedną ponowną próbą i 25 wątkami, podąża za przekierowaniami. Informacja o jednym porcie hosta w kolumnie usług pochodzi z odpowiedzi, którą zwrócił httpx (HTTP lub HTTPS).\nmasscan skanuje z szybkością 1000 pakietów na sekundę i obsługuje tylko IPv4. Sonda TCP łączy się z sześcioma portami równolegle (limit czasu 2 s), a host uznaje za dostępny, gdy któryś port przyjmie połączenie; sprawdza jednocześnie 64 hosty."
+    },
+    {
+      "id": "/docs/skanowanie#typy-2",
+      "page": "Skanowanie",
+      "section": "Typy skanu",
+      "href": "/docs/skanowanie#typy",
+      "text": "Skan Full zapisuje stan jednej, bieżącej linii na adres: nowy skan nadpisuje poprzednie pola, a historii zmian dla pojedynczego hosta aplikacja nie przechowuje. O zmianach informuje Alerts."
+    },
+    {
+      "id": "/docs/skanowanie#rozwiazywanie-0",
+      "page": "Skanowanie",
+      "section": "Rozwiązywanie celów",
+      "href": "/docs/skanowanie#rozwiazywanie",
+      "text": "Przed startem serwer zamienia cele konfiguracji (albo całą ewidencję) na listę adresów do sprawdzenia:\nGrupa jest rozwijana do swoich adresów IP, zakresów i nazw FQDN. Skan bez celów (ręczny) bierze wszystkie wpisy ewidencji.\nZakres CIDR jest rozwijany do adresów, łącznie z adresem sieci i rozgłoszeniowym, ale nie więcej niż 1024 adresy z jednego zakresu (od początku bloku). Zakresy IPv6 są pomijane; pojedyncze adresy IPv6 są skanowane.\nNazwy FQDN są zamieniane na pierwszy adres z DNS. Nazwa bez adresu jest pomijana, a skan i jego wyniki dotyczą adresu IP, nie nazwy.\nLista jest deduplikowana i skracana do 2048 adresów.\nSkrócona lista celów"
+    },
+    {
+      "id": "/docs/skanowanie#rozwiazywanie-1",
+      "page": "Skanowanie",
+      "section": "Rozwiązywanie celów",
+      "href": "/docs/skanowanie#rozwiazywanie",
+      "text": "Adresy ponad oba limity nie są skanowane, ale uruchomienie nie kończy się błędem: sumaryczną liczbę pominiętych adresów podaje komunikat Target list truncated: N address(es) beyond the 2048 scan cap were skipped. w oknie Scan details (Wyniki i analiza). Zakres większy niż /22 jest skanowany tylko od początku bloku, a w jednym skanie mieści się najwyżej 2048 adresów. Większe środowisko podziel na kilka konfiguracji."
     },
     {
       "id": "/docs/skanowanie#stan-0",
       "page": "Skanowanie",
       "section": "Scan Management",
       "href": "/docs/skanowanie#stan",
-      "text": "Karta Scan activity pokazuje stan (Running, Paused, Idle), pasek postępu z procentem, bieżący cel (Scanning …) i liczniki Targets scanned, Hosts discovered oraz Started. Dane odświeżają się automatycznie co 1,5 s.\nPause scan / Resume scan wstrzymuje i wznawia trwający skan.\nCancel scan przerywa skan. Po zakończeniu lub przerwaniu karta pokazuje Last scan finished …."
+      "text": "Karta Scan activity pokazuje stan (Running, Paused, Idle), pasek postępu z procentem, bieżący cel (Scanning …), linię z typem i silnikiem (np. Full scan test · httpx) oraz liczniki Targets scanned (wykonane / wszystkie), Hosts discovered, Started i Alerts raised. Dane odświeżają się co 1,5 s.\nPause scan / Resume scan wstrzymuje i wznawia trwający skan; Cancel scan go przerywa.\nGdy nic nie działa, karta pokazuje No scan in progress i Last scan finished … (pierwsze uruchomienie: zachętę do startu), listę Scan type oraz przycisk Start scan now.\nLicznik Alerts raised uzupełnia się dopiero na końcu skanu, kiedy karta przechodzi już w stan bezczynności, więc ostateczną liczbę alertów odczytasz z Scan Results lub strony Alerts (Alerty)."
     },
     {
       "id": "/docs/skanowanie#przejscia-0",
       "page": "Skanowanie",
       "section": "Stany i przejścia",
       "href": "/docs/skanowanie#przejscia",
-      "text": "- Akcja: Start scan now / Start now; Skutek: Zawsze zaczyna od zera: postęp 0%, pierwszy cel z puli, czas rozpoczęcia „teraz”\n- Akcja: Pause scan; Skutek: Wstrzymuje przyrost postępu i liczników; działa tylko na trwającym skanie\n- Akcja: Resume scan; Skutek: Wznawia od miejsca wstrzymania\n- Akcja: Cancel scan; Skutek: Kończy skan, zapisuje czas zakończenia; postęp zostaje na osiągniętej wartości\n- Akcja: Postęp 100%; Skutek: Skan kończy się samoczynnie i zapisuje czas zakończenia"
+      "text": "- Akcja: Start scan now / Start now / Run now; Skutek: Zawsze zaczyna od zera: postęp 0%, nowy wiersz w Scan Results ze statusem Running\n- Akcja: Pause scan; Skutek: Przełącza wstrzymanie trwającego skanu. W skanie Full zatrzymuje odczyt wyników httpx do czasu wznowienia. W skanie Reachability działa tylko do rozpoczęcia sondy: raz uruchomiona sonda dobiega końca\n- Akcja: Resume scan; Skutek: Wznawia od miejsca wstrzymania\n- Akcja: Cancel scan; Skutek: Natychmiast zamyka skan ze statusem Cancelled. Proces httpx jest zatrzymywany, sonda TCP przerywa po bieżącej partii 64 hostów, a uruchomiony już masscan dobiega końca\n- Akcja: Wszystkie cele sprawdzone; Skutek: Skan kończy się statusem Completed; wiersz uzupełnia czas zakończenia, czas trwania i liczniki, a ze zmian względem wcześniejszych skanów powstają alerty"
+    },
+    {
+      "id": "/docs/skanowanie#przejscia-1",
+      "page": "Skanowanie",
+      "section": "Stany i przejścia",
+      "href": "/docs/skanowanie#przejscia",
+      "text": "- Akcja: Błąd silnika; Skutek: Status Failed z komunikatem widocznym w oknie Scan details, np. brak programu httpx\n- Akcja: Restart aplikacji w trakcie skanu; Skutek: Przy starcie wiersz skanu w stanie Running dostaje status Failed z komunikatem interrupted by restart\nAlerty są wyliczane z tego, co skan zdążył zapisać, także gdy zostanie przerwany albo zakończy się błędem."
     },
     {
       "id": "/docs/skanowanie#kolejka-0",
       "page": "Skanowanie",
       "section": "Upcoming scan i Scan queue",
       "href": "/docs/skanowanie#kolejka",
-      "text": "Karta Upcoming scan pokazuje pola Policy, Next run, Schedule, Target i Hosts in scope, a karta Scan queue listę pozycji ze stanem In progress lub Queued. Obie karty mają dziś stałą, przykładową zawartość i nie wynikają z zapisanych harmonogramów; nie traktuj ich jako informacji o najbliższym uruchomieniu."
+      "text": "Karta Upcoming scan pokazuje pola Policy, Next run, Schedule, Target i Hosts in scope. Dane pochodzą z włączonej konfiguracji z najbliższym terminem; Hosts in scope to liczba celów rozwiązana w chwili wyświetlenia strony (według zasad z rozdziału Rozwiązywanie celów). Bez włączonej konfiguracji z harmonogramem karta pokazuje wartości przykładowe.\nStart now nie uruchamia pokazanej konfiguracji\nStart now w karcie Upcoming scan startuje skan całej ewidencji o typie wybranym na liście Scan type. Aby uruchomić konkretną konfigurację, użyj Run now w Scan Scheduling.\nKarta Scan queue ma stałą, przykładową zawartość i nie odzwierciedla żadnej kolejki: aplikacja uruchamia jeden skan naraz i nie kolejkuje następnych."
     },
     {
       "id": "/docs/tagowanie#start-0",
@@ -720,7 +1070,7 @@
       "page": "Tagowanie: przegląd",
       "section": "Trzy zastosowania tagów",
       "href": "/docs/tagowanie#zastosowania",
-      "text": "- Miejsce: Host Management; Zachowanie: Nadawanie tagów przy dodawaniu i imporcie, zmiana i usuwanie przez Edit, wyszukiwanie wpisów po tagu; Stan: dostępne\n- Miejsce: Scan Scheduling; Zachowanie: Wybór hostów oznaczonych tagiem jako celu harmonogramu lub skanu ręcznego; Stan: niedostępne\n- Miejsce: Data Explorer; Zachowanie: Filtrowanie obserwacji po tagu hostów; Stan: niedostępne"
+      "text": "- Miejsce: Host Management; Zachowanie: Nadawanie tagów przy dodawaniu i imporcie, zmiana i usuwanie przez Edit, wyszukiwanie wpisów po tagu; Stan: dostępne\n- Miejsce: Scan Scheduling; Zachowanie: Wybór hostów oznaczonych tagiem jako celu harmonogramu lub skanu ręcznego; Stan: niedostępne\n- Miejsce: Data Explorer; Zachowanie: Filtrowanie tabeli hostów po tagu; Stan: niedostępne"
     },
     {
       "id": "/docs/tagowanie#host-management-0",
@@ -741,7 +1091,7 @@
       "page": "Tagowanie: przegląd",
       "section": "Data Explorer",
       "href": "/docs/tagowanie#data-explorer",
-      "text": "Data Explorer ma jedno pole tekstowe Search events, które przeszukuje kolumny zdarzeń (Wyniki › Data Explorer). Zdarzenia nie zawierają tagów hostów, więc wpisanie tagu nie zawęzi wyników. Pytanie „na których hostach z tagiem serwery-www wykryto Nginx” rozwiązuje się dziś w dwóch krokach:\nW Host management wyszukaj serwery-www i zanotuj adresy.\nW Data Explorer wpisz nginx i porównaj kolumnę Host z listą z pierwszego kroku."
+      "text": "Data Explorer ma filtry z operatorami dla dwudziestu kolumn, ale tag hosta nie jest kolumną: dane skanera nie zawierają tagów z ewidencji (Data Explorer › Filtry). Pytanie „na których hostach z tagiem serwery-www działa Nginx” rozwiązuje się dziś w dwóch krokach:\nW Host management wyszukaj serwery-www i zanotuj adresy.\nW Data Explorer dodaj filtr Technologies contains nginx i porównaj kolumnę Host z listą z pierwszego kroku. Gdy adresy tworzą jedną podsieć, możesz dodać filtr Host starts with."
     },
     {
       "id": "/docs/tagowanie#laczenie-0",
@@ -755,14 +1105,14 @@
       "page": "Tagowanie: przegląd",
       "section": "Kiedy tag jest odczytywany",
       "href": "/docs/tagowanie#odczyt",
-      "text": "- Miejsce: Tabele Host management; Moment odczytu: Przy każdym wyświetleniu strony; Skutek zmiany tagu: Widoczny od razu po zapisie\n- Miejsce: Harmonogramy; Moment odczytu: Nie dotyczy: harmonogram nie odwołuje się do tagów; Skutek zmiany tagu: Zmiana tagu nie zmienia celów żadnego harmonogramu\n- Miejsce: Wyniki, Data Explorer, dashboardy; Moment odczytu: Nie dotyczy: obserwacje nie przechowują tagów hostów; Skutek zmiany tagu: Zmiana tagu nie zmienia wcześniejszych ani przyszłych obserwacji\nAplikacja nie przechowuje historii tagów. Po zmianie tagu nie da się ustalić, jakie tagi wpis miał w chwili wcześniejszego skanu."
+      "text": "- Miejsce: Tabele Host management; Moment odczytu: Przy każdym wyświetleniu strony; Skutek zmiany tagu: Widoczny od razu po zapisie\n- Miejsce: Harmonogramy; Moment odczytu: Nie dotyczy: harmonogram nie odwołuje się do tagów; Skutek zmiany tagu: Zmiana tagu nie zmienia celów żadnego harmonogramu\n- Miejsce: Wyniki, Data Explorer, dashboardy; Moment odczytu: Nie dotyczy: dane skanera (scan_hosts) nie przechowują tagów hostów; Skutek zmiany tagu: Zmiana tagu nie zmienia danych skanera ani wyników\nAplikacja nie przechowuje historii tagów. Po zmianie tagu nie da się ustalić, jakie tagi wpis miał w chwili wcześniejszego skanu."
     },
     {
       "id": "/docs/tagowanie#zakres-0",
       "page": "Tagowanie: przegląd",
       "section": "Zakres implementacji",
       "href": "/docs/tagowanie#zakres",
-      "text": "- Funkcja: Nadawanie tagów przy dodawaniu, imporcie i tworzeniu grupy; Stan: dostępne\n- Funkcja: Zmiana i usuwanie tagów pojedynczego wpisu i grupy (Edit); Stan: dostępne\n- Funkcja: Wyszukiwanie tekstowe po tagach w tabelach Host management; Stan: dostępne\n- Funkcja: Filtrowanie po tagach w SQL; Stan: dostępne\n- Funkcja: Nadanie tagu wielu istniejącym wpisom naraz; Stan: niedostępne\n- Funkcja: Globalna zmiana nazwy lub usunięcie tagu; Stan: niedostępne\n- Funkcja: Tag jako cel harmonogramu lub skanu ręcznego; Stan: niedostępne\n- Funkcja: Filtrowanie Data Explorer, wyników i dashboardów po tagach; Stan: niedostępne\nDo czasu kryterium opartego na tagach\nOdpowiednikiem wyboru „wszystkie hosty z tagiem” jako celu skanu jest grupa zbudowana z wpisów o tym tagu (Scan Scheduling)."
+      "text": "- Funkcja: Nadawanie tagów przy dodawaniu, imporcie i tworzeniu grupy; Stan: dostępne\n- Funkcja: Zmiana i usuwanie tagów pojedynczego wpisu i grupy (Edit); Stan: dostępne\n- Funkcja: Wyszukiwanie tekstowe po tagach w tabelach Host management; Stan: dostępne\n- Funkcja: Filtrowanie po tagach w SQL; Stan: dostępne\n- Funkcja: Nadanie tagu wielu istniejącym wpisom naraz; Stan: niedostępne\n- Funkcja: Globalna zmiana nazwy lub usunięcie tagu; Stan: niedostępne\n- Funkcja: Tag jako cel harmonogramu lub skanu ręcznego; Stan: niedostępne\n- Funkcja: Filtrowanie Data Explorer, wyników i dashboardów po tagach hostów; Stan: niedostępne\nDo czasu kryterium opartego na tagach\nOdpowiednikiem wyboru „wszystkie hosty z tagiem” jako celu skanu jest grupa zbudowana z wpisów o tym tagu (Scan Scheduling)."
     },
     {
       "id": "/docs/tagowanie/api#start-0",
@@ -958,35 +1308,63 @@
       "page": "Wyniki i analiza",
       "section": "Wstęp",
       "href": "/docs/wyniki",
-      "text": "Ekrany do odczytu wyników: lista uruchomień (Scan Results), porównanie dwóch skanów (Compare Scans), historia obserwacji (Data Explorer) i dashboardy z Latest Scan summary.\nDane przykładowe\nWszystkie ekrany tej strony pokazują dziś dane przykładowe zapisane przy pierwszym uruchomieniu aplikacji, a nie wyniki skanów wykonanych w Scan Management (Architektura › Status funkcji). Opis dotyczy układu ekranów, ich sterowania i sposobu czytania danych."
+      "text": "Ekrany do odczytu wyników: lista uruchomień z oknem szczegółów (Scan Results), porównanie dwóch skanów (Compare Scans) i dashboardy. Stan hostów opisuje Data Explorer, a zmiany Alerts."
+    },
+    {
+      "id": "/docs/wyniki#dane-0",
+      "page": "Wyniki i analiza",
+      "section": "Które dane są prawdziwe",
+      "href": "/docs/wyniki#dane",
+      "text": "Skan uruchomiony w aplikacji zapisuje wyniki do własnych tabel, a część ekranów nadal czyta dane przykładowe zapisane przy pierwszym uruchomieniu. Podział dla każdego ekranu jest w tabeli Źródło danych; skrót:\n- Ekran: Scan Results, okno Scan details, Data Explorer, Alerts, kafelki Open alerts i Latest scan; Dane: z prawdziwych skanów\n- Ekran: Compare Scans, Technologies used, Vulnerable versions, pozostałe kafelki i tabele Latest Scan summary; Dane: dane przykładowe\nWiersze przykładowe w Scan Results mają znacznik Demo, aby świeża instalacja nie była pusta."
     },
     {
       "id": "/docs/wyniki#wyniki-0",
       "page": "Wyniki i analiza",
       "section": "Scan Results",
       "href": "/docs/wyniki#wyniki",
-      "text": "Ekran Scan Results (Scanning › Scan Results) to lista wykonanych uruchomień, od najnowszego. Pozwala odszukać konkretne uruchomienie po dacie i sprawdzić jego status.\n- Kolumna: Scan; Znaczenie: Nazwa uruchomienia, np. Scan #57; wyższy numer to późniejsze uruchomienie\n- Kolumna: Started, Finished, Duration; Znaczenie: Czas rozpoczęcia i zakończenia (np. Nov 21, 2026 7:14 AM) oraz czas trwania w minutach\n- Kolumna: Target; Znaczenie: Zakres, którego dotyczyło uruchomienie\n- Kolumna: Alive, Down; Znaczenie: Liczba hostów, które odpowiedziały, i tych, które nie odpowiedziały\n- Kolumna: Services, Tech, Vulns; Znaczenie: Liczba wykrytych usług, technologii i podatności\n- Kolumna: Status; Znaczenie: Completed (zakończone), Partial (zakończone częściowo) albo Failed (nieudane)"
+      "text": "Ekran Scan Results (Scanning › Scan Results) to lista uruchomień: najpierw prawdziwe, od najnowszego, potem wiersze Demo. Prawdziwych wierszy jest najwyżej 200 najnowszych. Ekran pozwala odszukać uruchomienie po dacie i sprawdzić jego status.\n- Kolumna: Scan; Znaczenie: Etykieta uruchomienia: nazwa konfiguracji albo Manual scan dla skanu ręcznego (Cztery sposoby uruchomienia). Wiersze przykładowe mają znacznik Demo\n- Kolumna: Type; Znaczenie: Full scan test albo Reachability (Typy skanu)\n- Kolumna: Started, Finished, Duration; Znaczenie: Czas rozpoczęcia i zakończenia (UTC, np. Nov 21, 2026 7:14 AM) oraz czas trwania w pełnych minutach: skan krótszy niż minuta ma 0m. W trakcie skanu Finished i Duration mają wartość —\n- Kolumna: Target; Znaczenie: Pierwsze cztery adresy skanu i +N more; pełna lista w oknie szczegółów"
     },
     {
       "id": "/docs/wyniki#wyniki-1",
       "page": "Wyniki i analiza",
       "section": "Scan Results",
       "href": "/docs/wyniki#wyniki",
-      "text": "Lista nad tabelą ogranicza okres: Last 24 hours, Last 7 days, Last 14 days, Last 30 days (domyślnie), Last 180 days, Last 365 days, All scans.\nStopka pokazuje liczbę uruchomień w wybranym okresie i pozwala przechodzić między stronami.\nSkan, który właśnie trwa, widać w Scan Management, a nie na tej liście."
+      "text": "- Kolumna: Alive, Down; Znaczenie: Liczba hostów, które odpowiedziały, i tych, które nie odpowiedziały w tym uruchomieniu\n- Kolumna: Services, Tech, Vulns; Znaczenie: Services i Tech liczą hosty, dla których zapisano co najmniej jedną usługę lub technologię (także z wcześniejszego skanu Full, gdy bieżący był typu Reachability). Vulns nie jest dziś wyliczane dla prawdziwych skanów i pokazuje 0; dopasowania do znanych podatności widać w Alerts jako New CVE\n- Kolumna: Alerts; Znaczenie: Liczba alertów, które wygenerował ten skan, jako znaczek; 0 oznacza brak nowych alertów\n- Kolumna: Status; Znaczenie: Running, Completed, Cancelled lub Failed; wiersze przykładowe mogą mieć też Partial\n- Kolumna: Details; Znaczenie: Otwiera okno szczegółów uruchomienia"
+    },
+    {
+      "id": "/docs/wyniki#wyniki-2",
+      "page": "Wyniki i analiza",
+      "section": "Scan Results",
+      "href": "/docs/wyniki#wyniki",
+      "text": "Lista nad tabelą ogranicza okres: Last 24 hours, Last 7 days, Last 14 days, Last 30 days (domyślnie), Last 180 days, Last 365 days, All scans.\nStopka pokazuje liczbę uruchomień w wybranym okresie i pozwala przechodzić między stronami.\nSkan, który właśnie trwa, jest na liście od startu (status Running); jego postęp na żywo widać w Scan Management."
     },
     {
       "id": "/docs/wyniki#szczegoly-0",
       "page": "Wyniki i analiza",
       "section": "Szczegóły uruchomienia",
       "href": "/docs/wyniki#szczegoly",
-      "text": "Wiersze listy nie są dziś klikalne i aplikacja nie ma osobnego widoku szczegółów pojedynczego uruchomienia. Wszystko, co wiadomo o uruchomieniu, jest w jego wierszu. Aby przyjrzeć się uruchomieniu bliżej:\nzestaw je z innym w Compare Scans;\nobejrzyj pojedyncze zdarzenia (hosty, usługi, technologie) w Data Explorer; zdarzenia nie są jednak oznaczone numerem uruchomienia, więc łączy się je z wierszem listy po czasie."
+      "text": "Przycisk Details otwiera okno z podsumowaniem pojedynczego uruchomienia. Nagłówek podaje etykietę oraz typ i silnik (np. Full scan test · httpx).\n- Część okna: Metadane; Zawartość: Status, Trigger (manual, policy albo scheduled), Started, Finished, Duration\n- Część okna: Kafle liczników; Zawartość: Hosts in scope, Reachable, Unreachable, Services, Technologies, Vulnerable matches (jak Vulns w liście, dziś 0)\n- Część okna: Alerts raised; Zawartość: Podział alertów tego skanu: New hosts, Hosts down, New CVEs oraz Still unacknowledged, czyli ile z nich nadal czeka na potwierdzenie (Alerty)\n- Część okna: Targets; Zawartość: Adresy, które skan rozwiązał z celów konfiguracji (pierwsze cztery i licznik pozostałych)\n- Część okna: Top technologies, Top services; Zawartość: Do ośmiu pozycji z liczbą hostów, na których występują"
+    },
+    {
+      "id": "/docs/wyniki#szczegoly-1",
+      "page": "Wyniki i analiza",
+      "section": "Szczegóły uruchomienia",
+      "href": "/docs/wyniki#szczegoly",
+      "text": "- Część okna: Baner; Zawartość: Gdy uruchomienie zakończyło się błędem (Failed) albo lista celów została skrócona, nad licznikami widać komunikat, np. brak programu httpx lub Target list truncated: …\nDla wierszy Demo okno jest syntetyzowane z danych przykładowych i nie zawiera list celów, technologii i usług.\nDane okna pobiera endpoint GET /api/scans/{id}. Jego ścieżka podpada pod prefiks /api/scan, więc wymaga odczytu strony Scan Management, a nie Scan Results (Dostęp i uprawnienia). Konto bez tego uprawnienia, np. rola startowa Analyst, widzi listę, ale Details nie załaduje szczegółów.\nSzczegóły hostów z tego uruchomienia odczytasz w Data Explorer: kolumna Last scan zawiera numer ostatniego skanu, który objął host, ale numer ten nie jest pokazany w liście Scan Results, więc łączy się je po czasie."
     },
     {
       "id": "/docs/wyniki#porownanie-0",
       "page": "Wyniki i analiza",
       "section": "Compare Scans",
       "href": "/docs/wyniki#porownanie",
-      "text": "Ekran zestawia liczniki dwóch uruchomień z listy Scan Results.\nOtwórz Scanning › Compare Scans. Sloty Scan A i Scan B są wstępnie wypełnione dwoma najnowszymi uruchomieniami (A to najnowsze, B poprzednie).\nKliknij Select scan pod slotem A. W oknie Select scan A wpisz w filtr fragment nazwy, daty lub zakresu (np. 10.0.3.0/24) i kliknij uruchomienie, które ma być punktem odniesienia.\nPowtórz to dla slotu B, wybierając uruchomienie, które chcesz ocenić.\nTabela Comparison przelicza się od razu po wyborze.\nDo oceny zmian w jednym środowisku wybierz dwa uruchomienia o tym samym celu (ta sama wartość w kolumnie Target, widoczna pod nazwą w slocie i na liście wyboru) i ze statusem Completed. Porównanie skanów różnych zakresów albo skanu nieudanego pokaże różnicę wynikającą z zakresu, a nie ze zmian w sieci."
+      "text": "Compare Scans czyta tylko dane przykładowe\nSloty Scan A i Scan B oferują wyłącznie uruchomienia przykładowe (Scan #…). Skanów wykonanych w aplikacji tu nie ma, więc do oceny zmian w prawdziwym środowisku użyj Alerts i Data Explorer. Opis poniżej dotyczy sposobu czytania zestawienia.\nEkran zestawia liczniki dwóch uruchomień.\nOtwórz Scanning › Compare Scans. Sloty Scan A i Scan B są wstępnie wypełnione dwoma najnowszymi uruchomieniami (A to najnowsze, B poprzednie).\nKliknij Select scan pod slotem A. W oknie Select scan A wpisz w filtr fragment nazwy, daty lub zakresu (np. 10.0.3.0/24) i kliknij uruchomienie, które ma być punktem odniesienia.\nPowtórz to dla slotu B, wybierając uruchomienie, które chcesz ocenić.\nTabela Comparison przelicza się od razu po wyborze."
+    },
+    {
+      "id": "/docs/wyniki#porownanie-1",
+      "page": "Wyniki i analiza",
+      "section": "Compare Scans",
+      "href": "/docs/wyniki#porownanie",
+      "text": "Do oceny zmian w jednym środowisku wybierz dwa uruchomienia o tym samym celu (ta sama wartość w kolumnie Target, widoczna pod nazwą w slocie i na liście wyboru) i ze statusem Completed. Porównanie skanów różnych zakresów albo skanu nieudanego pokaże różnicę wynikającą z zakresu, a nie ze zmian w sieci."
     },
     {
       "id": "/docs/wyniki#porownanie-czytanie-0",
@@ -1000,63 +1378,56 @@
       "page": "Wyniki i analiza",
       "section": "Jak czytać porównanie",
       "href": "/docs/wyniki#porownanie-czytanie",
-      "text": "Porównanie operuje na sumach. Services +12 oznacza, że w B wykryto o 12 usług więcej niż w A, a nie że pojawiło się 12 nowych: część usług mogła zniknąć, a inne się pojawić. Ekran nie pokazuje listy usług nowo wykrytych ani tych, które zniknęły; pojedyncze obserwacje sprawdzisz w Data Explorer."
-    },
-    {
-      "id": "/docs/wyniki#data-explorer-0",
-      "page": "Wyniki i analiza",
-      "section": "Data Explorer",
-      "href": "/docs/wyniki#data-explorer",
-      "text": "Data Explorer pokazuje pojedyncze obserwacje (zdarzenia) zebrane przez skanowanie: odpowiedzi hostów, otwarte porty, wykryte technologie i podatności. Tu sprawdzisz, na którym hoście i kiedy wykryto np. Nginx, Apache albo WordPress.\n- Element: No.; Zawartość: Numer porządkowy na liście\n- Element: Event Time; Zawartość: Czas obserwacji, czyli moment, w którym skan wykrył zdarzenie, z dokładnością do sekundy, np. Nov 21, 2026 9:11:02 AM. Najnowsze na górze\n- Element: Host; Zawartość: Adres IP, którego dotyczy obserwacja\n- Element: Category; Zawartość: Discovery, Service, Technology lub Vulnerability\n- Element: Event; Zawartość: Opis, np. Detected nginx 1.24.0, TCP port 443 open (HTTPS), Outdated OpenSSH 8.9p1 (CVE-2023-38408)\n- Element: Severity; Zawartość: Info, Medium, High lub Critical"
-    },
-    {
-      "id": "/docs/wyniki#data-explorer-1",
-      "page": "Wyniki i analiza",
-      "section": "Data Explorer",
-      "href": "/docs/wyniki#data-explorer",
-      "text": "- Element: Nagłówek; Zawartość: Okres danych (np. Nov 21, 2026 09:14 AM - now) i łączna liczba zdarzeń (N Events Found)\nJedynym filtrem jest pole Search events w panelu po lewej. Dopasowuje fragment tekstu w całym wierszu (host, opis, kategoria, poziom, czas), bez względu na wielkość liter, i działa w trakcie pisania; Apply filter stosuje filtr ponownie. Liczbę dopasowanych wierszy pokazuje stopka tabeli, a nie licznik Events Found w nagłówku, który zawsze podaje liczbę wszystkich zdarzeń.\nBrak filtrów po tagu i po czasie\nData Explorer nie ma dziś filtra po tagach hostów, pola początkowego znacznika czasu ani wyboru okresu: okres w nagłówku jest stały. Nie da się też łączyć kilku filtrów, bo pole wyszukiwania przyjmuje jedną frazę. Obejście dla tagów opisuje Tagowanie › Data Explorer."
-    },
-    {
-      "id": "/docs/wyniki#data-explorer-przyklad-0",
-      "page": "Wyniki i analiza",
-      "section": "Przykład: gdzie wykryto Nginx",
-      "href": "/docs/wyniki#data-explorer-przyklad",
-      "text": "Otwórz Data Explorer i wpisz w Search events frazę nginx.\nLista zawęzi się do zdarzeń Detected nginx …. Z kolumny Host odczytaj adres, a z Event Time czas wykrycia.\nAby ograniczyć wynik do interesującego okresu, przejrzyj kolumnę Event Time: lista jest posortowana od najnowszych, więc zdarzenia sprzed wybranej chwili są na dalszych stronach.\nAby zawęzić wynik do hostów z tagiem, np. serwery-www, porównaj kolumnę Host z listą adresów o tym tagu z Host management.\nGdy lista jest pusta, poszerz zapytanie:\nskróć frazę: nginx zamiast nginx 1.25, bo wersja w opisie może być inna;\nszukaj samej nazwy produktu, bez słów w rodzaju „serwer”, i sprawdź pisownię (wordpress, apache);\nwyczyść pole, aby zobaczyć wszystkie zdarzenia z okresu w nagłówku, i upewnij się, że host w ogóle ma obserwacje."
+      "text": "Porównanie operuje na sumach. Services +12 oznacza, że w B wykryto o 12 usług więcej niż w A, a nie że pojawiło się 12 nowych: część usług mogła zniknąć, a inne się pojawić. Ekran nie pokazuje listy usług nowo wykrytych ani tych, które zniknęły."
     },
     {
       "id": "/docs/wyniki#latest-0",
       "page": "Wyniki i analiza",
       "section": "Latest Scan summary",
       "href": "/docs/wyniki#latest",
-      "text": "Dashboard Latest Scan summary (Dashboards › Latest Scan summary) to skrót najnowszego wyniku. Pod tytułem widnieje Latest scan z datą i godziną skanu, którego dotyczy skrót, np. November 21, 2026 09:14:02 AM.\n- Element: Reachable hosts; Zawartość: Hosty, które odpowiedziały, i zmiana … since last scan; Zależy od selektora okresu: tak\n- Element: Unreachable hosts; Zawartość: Hosty, które nie odpowiedziały, i zmiana … since last scan; Zależy od selektora okresu: tak\n- Element: Detected services; Zawartość: Liczba wykrytych usług; Zależy od selektora okresu: tak\n- Element: Services by scan range; Zawartość: Słupki liczby usług dla każdego okresu; kliknięcie słupka wybiera ten okres; Zależy od selektora okresu: wyróżnia wybrany słupek\n- Element: Service families; Zawartość: Wykres kołowy usług według rodzin; Zależy od selektora okresu: nie"
+      "text": "Dashboard Latest Scan summary (Dashboards › Latest Scan summary) to skrót najnowszego wyniku. Pod tytułem widnieje Latest scan z datą i godziną rozpoczęcia ostatniego prawdziwego skanu (UTC), np. Nov 21, 2026 7:14 AM. Przed pierwszym skanem wartość to unavailable.\n- Element: Reachable hosts; Zawartość: Hosty, które odpowiedziały, i zmiana … since last scan; odnośnik Open in Data Explorer (filtr: Status is up); Zależy od selektora okresu: tak\n- Element: Unreachable hosts; Zawartość: Hosty, które nie odpowiedziały, i zmiana … since last scan; odnośnik Open in Data Explorer (Status is down); Zależy od selektora okresu: tak\n- Element: Open alerts; Zawartość: Liczba niepotwierdzonych alertów (wartość prawdziwa) i odnośnik Review alerts do strony Alerts; Zależy od selektora okresu: nie"
     },
     {
       "id": "/docs/wyniki#latest-1",
       "page": "Wyniki i analiza",
       "section": "Latest Scan summary",
       "href": "/docs/wyniki#latest",
-      "text": "- Element: Most detected services, Most detected technologies; Zawartość: Najczęściej wykrywane usługi i technologie z wersją i liczbą hostów; Zależy od selektora okresu: nie\nSelektor okresu w prawym górnym rogu (Last 24 hours … Last 365 days, domyślnie Last 7 days) zmienia wyłącznie trzy kafelki liczbowe i wyróżnienie słupka. Nie zmienia daty Latest scan, nie wybiera innego uruchomienia i nie wpływa na wykres rodzin ani tabele.\nOdnośnik Scan history prowadzi do Scan Results i jest widoczny tylko dla kont z dostępem do tego ekranu. All technologies prowadzi do Technologies used. Dashboard nie ma odnośnika do szczegółów konkretnego uruchomienia.\nKtórego uruchomienia dotyczy skrót, ustalisz po dacie Latest scan. W obecnej wersji z danymi przykładowymi ta data nie odpowiada żadnemu wierszowi Scan Results, więc nie da się jednoznacznie powiązać skrótu z uruchomieniem z listy."
+      "text": "- Element: Detected services; Zawartość: Liczba wykrytych usług; odnośnik Open in Data Explorer (Open ports is not empty); Zależy od selektora okresu: tak\n- Element: Services by scan range; Zawartość: Słupki liczby usług dla każdego okresu; kliknięcie słupka wybiera ten okres; Zależy od selektora okresu: wyróżnia wybrany słupek\n- Element: Service families; Zawartość: Wykres kołowy usług według rodzin; Zależy od selektora okresu: nie\n- Element: Most detected services, Most detected technologies; Zawartość: Najczęściej wykrywane usługi i technologie z wersją i liczbą hostów; Zależy od selektora okresu: nie\nKafelki Reachable hosts, Unreachable hosts, Detected services, wykres okresów, Service families i tabele popularności pochodzą z danych przykładowych. Prawdziwe są Latest scan i Open alerts."
+    },
+    {
+      "id": "/docs/wyniki#latest-2",
+      "page": "Wyniki i analiza",
+      "section": "Latest Scan summary",
+      "href": "/docs/wyniki#latest",
+      "text": "Selektor okresu w prawym górnym rogu (Last 24 hours … Last 365 days, domyślnie Last 7 days) zmienia wyłącznie trzy kafelki liczbowe i wyróżnienie słupka. Nie zmienia daty Latest scan ani wykresu rodzin i tabel.\nNagłówek ma odnośniki Hosts in Explorer (do Data Explorer z filtrem hostów dostępnych) i Scan history (do Scan Results). Każdy jest widoczny tylko dla kont z dostępem do docelowego ekranu. All technologies prowadzi do Technologies used."
     },
     {
       "id": "/docs/wyniki#technologies-0",
       "page": "Wyniki i analiza",
       "section": "Technologies used",
       "href": "/docs/wyniki#technologies",
-      "text": "Tabela technologii: Technology, Version(s), Category, Hosts. Przycisk szczegółów otwiera okno z listą hostów, na których technologię wykryto: Host, OS, Port, Service, First seen, Last seen. Kolumny First seen i Last seen pokazują, od kiedy i do kiedy technologia była obserwowana na hoście."
+      "text": "Tabela technologii: Technology, Version(s), Category, Hosts. Przycisk szczegółów otwiera okno z listą hostów, na których technologię wykryto: Host, OS, Port, Service, First seen, Last seen. Przycisk Open in Data Explorer w nagłówku przechodzi do hostów z niepustą kolumną Technologies. Dane tego dashboardu są przykładowe; technologie z prawdziwych skanów oglądasz w Data Explorer."
     },
     {
       "id": "/docs/wyniki#vulnerable-0",
       "page": "Wyniki i analiza",
       "section": "Vulnerable versions",
       "href": "/docs/wyniki#vulnerable",
-      "text": "Tabela wykrytych wersji z podatnościami: Service, Version, CVE (odnośnik do NVD), Severity, Hosts. Przyciski All, Critical, High i Medium filtrują listę po poziomie i pokazują liczność każdego; obok widać liczbę unikalnych hostów, których dotyczą wyniki. Wybrany poziom i pole wyszukiwania (usługa, CVE, host) działają łącznie."
+      "text": "Tabela wykrytych wersji z podatnościami: Service, Version, CVE (odnośnik do NVD), Severity, Hosts. Przyciski All, Critical, High i Medium filtrują listę po poziomie i pokazują liczność każdego; wyszukiwarka (usługa, CVE, host) stoi w tym samym rzędzie co przyciski, a wybrany poziom i fraza działają łącznie. Open in Data Explorer przechodzi do hostów z niepustą kolumną Vulnerabilities. Tabela jest przykładowa; podatności z prawdziwych skanów trafiają do Alerts jako New CVE."
     },
     {
       "id": "/docs/wyniki#zrodlo-0",
       "page": "Wyniki i analiza",
       "section": "Źródło danych",
       "href": "/docs/wyniki#zrodlo",
-      "text": "Dla administratora: ekrany wynikowe czytają dokumenty z tabeli app_data, zapisywane przy pierwszym uruchomieniu i nigdy nienadpisywane.\n- Klucz w app_data: scan_history; Ekran: Scan Results i Compare Scans\n- Klucz w app_data: data_events; Ekran: Data Explorer\n- Klucz w app_data: timeline_points; Ekran: Latest Scan summary: kafelki i wykres okresów\n- Klucz w app_data: latest_scan; Ekran: Latest Scan summary: data Latest scan\n- Klucz w app_data: service_slices; Ekran: Latest Scan summary: Service families\n- Klucz w app_data: popular_services; Ekran: Latest Scan summary: Most detected services\n- Klucz w app_data: popular_technologies; Ekran: Latest Scan summary: Most detected technologies\n- Klucz w app_data: technologies; Ekran: Technologies used\n- Klucz w app_data: detected_vulns; Ekran: Vulnerable versions\n- Klucz w app_data: upcoming_scan; Ekran: Scan Management: karta Upcoming scan"
+      "text": "Dla administratora: skąd każdy ekran czyta dane.\n- Ekran: Scan Results, Scan details; Źródło: Tabele scans, scan_hosts, alerts; do listy dołączane są wiersze scan_history; Charakter: prawdziwe + demo\n- Ekran: Data Explorer; Źródło: Tabela scan_hosts; Charakter: prawdziwe\n- Ekran: Alerts, Open alerts, Latest scan; Źródło: Tabele alerts, scans; Charakter: prawdziwe\n- Ekran: Compare Scans; Źródło: Klucz scan_history w app_data; Charakter: przykładowe\n- Ekran: Latest Scan summary: kafelki, wykres okresów; Źródło: Klucz timeline_points; Charakter: przykładowe\n- Ekran: Latest Scan summary: Service families, tabele popularności; Źródło: Klucze service_slices, popular_services, popular_technologies; Charakter: przykładowe\n- Ekran: Technologies used; Źródło: Klucz technologies; Charakter: przykładowe\n- Ekran: Vulnerable versions; Źródło: Klucz detected_vulns; Charakter: przykładowe"
+    },
+    {
+      "id": "/docs/wyniki#zrodlo-1",
+      "page": "Wyniki i analiza",
+      "section": "Źródło danych",
+      "href": "/docs/wyniki#zrodlo",
+      "text": "- Ekran: Scan Management: Upcoming scan; Źródło: Konfiguracje z tabeli policies; klucz upcoming_scan jako wartości zastępcze; Charakter: prawdziwe\n- Ekran: Dopasowanie podatności w skanie; Źródło: Klucz vulnerabilities: lista znanych wersji z podatnościami (Alerty › New CVE); Charakter: referencyjne\nKlucze data_events i latest_scan są zapisywane przy pierwszym uruchomieniu, ale żaden ekran ich dziś nie czyta. Dokumenty app_data są wstawiane raz i nigdy nie nadpisywane."
     }
   ]
 }

@@ -1,6 +1,6 @@
 # Dokumentacja Visibly
 
-Dokumentacja techniczna aplikacji Visibly (repozytorium `backend/attack-surface-intelligence`): inwentarz hostów, tagowanie, skanowanie, uprawnienia i API. Paleta „Nightshade” jest wspólna z aplikacją (zob. stronę *Design System › Kolory i tokeny*).
+Dokumentacja techniczna aplikacji Visibly (repozytorium `backend/attack-surface-intelligence`): inwentarz hostów, tagowanie, skanowanie (typy skanów, harmonogram), wyniki, Data Explorer, alerty, uprawnienia i API. Paleta „Nightshade” jest wspólna z aplikacją (zob. stronę *Design System › Kolory i tokeny*).
 
 **Stack (wszystko open source):** Next.js 16 · Tailwind CSS v4 · Radix UI (`radix-ui`) · komponenty w konwencji shadcn/ui · lucide-react · Shiki.
 

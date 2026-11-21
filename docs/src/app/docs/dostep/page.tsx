@@ -58,19 +58,23 @@ export default function Page() {
                 head={['Klucz', 'Etykieta', 'Ścieżki (prefiks)']}
                 rows={[
                     [<code key="1">dashboards</code>, 'Dashboards', <code key="1a">/dashboards</code>],
-                    [<code key="2">scan_management</code>, 'Scan Management', <><code>/scanning/management</code>, <code>/api/scan</code></>],
+                    [<code key="2">scan_management</code>, 'Scan Management', <><code>/scanning/management</code>, <code>/api/scan</code> (także <code>/api/scans/{'{id}'}</code>)</>],
                     [<code key="3">policies</code>, 'Scan Scheduling', <><code>/scanning/policies</code>, <code>/api/policies</code></>],
                     [<code key="4">compare</code>, 'Compare Scans', <code key="4a">/scanning/compare-scans</code>],
                     [<code key="5">host_management</code>, 'Host management', <><code>/host-management</code>, <code>/api/host-</code></>],
-                    [<code key="6">data_explorer</code>, 'Data Explorer', <code key="6a">/log-center/data-explorer</code>],
+                    [<code key="6">data_explorer</code>, 'Data Explorer', <><code>/log-center/data-explorer</code>, <code>/api/assets</code></>],
                     [<code key="7">scan_history</code>, 'Scan Results', <code key="7a">/log-center/scan-history</code>],
+                    [<code key="7b">alerts</code>, 'Alerts', <><code>/log-center/alerts</code>, <code>/api/alerts</code></>],
                     [<code key="8">admin_management</code>, 'Admin management', <><code>/admin-management</code>, <code>/api/admins</code>, <code>/api/roles</code></>],
                     [<code key="9">settings</code>, 'Settings', <code key="9a">/settings</code>]
                 ]}
             />
             <p>
-                Ścieżki bez klucza (<code>/</code>, <code>/logout</code>, <code>/api/search</code>) wymagają tylko ważnej sesji.
+                Ścieżki bez klucza (<code>/</code>, <code>/logout</code>, <code>/api/search</code>) wymagają tylko ważnej sesji. Kluczy jest dziesięć.
             </p>
+            <Callout type="note" title="Scan details wymaga Scan Management">
+                Dopasowanie ścieżek działa prefiksem, a <code>/api/scans/{'{id}'}</code> zaczyna się od <code>/api/scan</code>. Okno Scan details z ekranu Scan Results wymaga więc odczytu <code>Scan Management</code>, a nie <code>Scan Results</code>. Konto z samym Scan Results, np. <code>Analyst</code>, zobaczy listę uruchomień, ale okno szczegółów się nie załaduje (odpowiedź 403).
+            </Callout>
             <RefTable
                 head={['Sytuacja', 'Odpowiedź']}
                 rows={[
@@ -89,12 +93,12 @@ export default function Page() {
                 head={['Rola', 'Dostęp', 'Zapis']}
                 rows={[
                     [<code key="a">Super Admin</code>, 'Wszystkie strony', <Badge key="a1" variant="success">tak</Badge>],
-                    [<code key="b">Scan Operator</code>, 'Dashboards, Scan Management, Scan Scheduling, Compare Scans, Host management', <Badge key="b1" variant="success">tak</Badge>],
-                    [<code key="c">Analyst</code>, 'Dashboards, Data Explorer, Scan Results, Host management', <Badge key="c1">tylko odczyt</Badge>]
+                    [<code key="b">Scan Operator</code>, 'Dashboards, Scan Management, Scan Scheduling, Compare Scans, Host management, Scan Results, Alerts', <Badge key="b1" variant="success">tak</Badge>],
+                    [<code key="c">Analyst</code>, 'Dashboards, Data Explorer, Scan Results, Alerts, Host management', <Badge key="c1">tylko odczyt</Badge>]
                 ]}
             />
             <p>
-                To role startowe, tworzone przy pierwszym uruchomieniu na pustej bazie. Administrator z uprawnieniem do Admin management może zmienić ich macierz, dodać własne role albo usunąć nieużywane (<Link href="#role-edycja">Zarządzanie rolami</Link>), więc w konkretnej instalacji zakres ról może być inny.
+                To role startowe, tworzone przy pierwszym uruchomieniu na pustej bazie. Przy każdym starcie rola startowa dostaje brakujące wbudowane uprawnienia (np. do strony dodanej w nowszej wersji), a uprawnienia zmienione ręcznie nie są nadpisywane. Administrator z uprawnieniem do Admin management może zmienić ich macierz, dodać własne role albo usunąć nieużywane (<Link href="#role-edycja">Zarządzanie rolami</Link>), więc w konkretnej instalacji zakres ról może być inny.
             </p>
 
             <H3 id="kto-co">Kto może co zrobić</H3>
@@ -106,9 +110,14 @@ export default function Page() {
                     ['Dodawać, edytować, importować i usuwać wpisy, grupy i tagi', 'tak', 'tak', 'nie'],
                     ['Przeglądać i zmieniać konfiguracje w Scan Scheduling', 'tak', 'tak', 'nie'],
                     ['Uruchamiać, wstrzymywać i przerywać skan (Scan Management)', 'tak', 'tak', 'nie'],
-                    ['Przeglądać Scan Results', 'tak', 'nie', 'tak'],
+                    ['Uruchamiać skan z konfiguracji (Run now)', 'tak', 'tak', 'nie'],
+                    ['Przeglądać Scan Results', 'tak', 'tak', 'tak'],
+                    ['Otwierać okno Scan details w Scan Results', 'tak', 'tak', 'nie'],
                     ['Porównywać skany (Compare Scans)', 'tak', 'tak', 'nie'],
                     ['Przeglądać Data Explorer', 'tak', 'nie', 'tak'],
+                    ['Edytować hosty w Data Explorer (tryb edycji)', 'tak', 'nie', 'nie'],
+                    ['Przeglądać Alerts', 'tak', 'tak', 'tak'],
+                    ['Potwierdzać alerty', 'tak', 'tak', 'nie'],
                     ['Przeglądać dashboardy, w tym Latest Scan summary', 'tak', 'tak', 'tak'],
                     ['Zarządzać kontami administratorów i rolami', 'tak', 'nie', 'nie']
                 ]}

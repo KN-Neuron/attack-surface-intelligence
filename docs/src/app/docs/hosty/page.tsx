@@ -114,7 +114,7 @@ export default function Page() {
                 head={['Licznik', 'Gdzie', 'Co liczy']}
                 rows={[
                     [t('`1–10 of N` w stopce'), 'Każda zakładka Host management', 'Liczbę wpisów w tej zakładce, po uwzględnieniu filtru wyszukiwania. Zakres CIDR liczy się jako jeden wpis'],
-                    [<code key="b">Hosts</code>, t('Zakładka `IP ranges`'), t('Liczbę adresów w bloku CIDR: 2^(32 − prefiks), łącznie z adresem sieci i rozgłoszeniowym. `/24` daje 256, `/32` daje 1')],
+                    [<code key="b">Hosts</code>, t('Zakładka `IP ranges`'), <>Liczbę adresów w bloku CIDR: 2^(32 − prefiks), łącznie z adresem sieci i rozgłoszeniowym. <code>/24</code> daje 256, <code>/32</code> daje 1. Skan rozwija jednak z jednego zakresu najwyżej 1024 adresy (<Link href="/docs/skanowanie#rozwiazywanie">Rozwiązywanie celów</Link>)</>],
                     [<code key="c">Targets</code>, t('Zakładka `Host groups`'), t('Liczbę wpisów w grupie: adresy IP + zakresy + FQDN. Zakres `/24` to jeden cel, a nie 256')],
                     [t('`Hosts discovered`, `Alive`, `Reachable hosts`'), 'Scan Management, Scan Results, Latest Scan summary', <>Hosty zaobserwowane w skanie (<Link key="l" href="/docs/wyniki#wyniki">Wyniki i analiza</Link>), niezależne od wielkości ewidencji</>]
                 ]}
@@ -260,13 +260,13 @@ www.example.com`}
             </p>
             <ul>
                 <li>
-                    Zmiana składu grupy nie wymaga edycji harmonogramu: harmonogram wskazuje grupę, a nie listę jej członków.
+                    Zmiana składu grupy nie wymaga edycji harmonogramu: harmonogram wskazuje grupę, a nie listę jej członków, a skład jest odczytywany w chwili uruchomienia skanu.
                 </li>
                 <li>
                     Zmiana nazwy lub usunięcie grupy <strong>zrywa</strong> to powiązanie. Harmonogram nadal pokazuje starą nazwę w kolumnie <code>Targets</code>; otwórz go przez <code>Edit</code>, zaznacz grupę ponownie i zapisz.
                 </li>
                 <li>
-                    Obecna wersja aplikacji nie uruchamia skanów z harmonogramów (<Link href="/docs/skanowanie#uruchomienie">Skanowanie › Uruchomienie</Link>), więc nie ma momentu, w którym skład grupy byłby odczytywany i utrwalany dla konkretnego uruchomienia. Wyniki w historii nie zapisują składu grupy z chwili skanu.
+                    Wynik uruchomienia nie zapamiętuje składu grupy: Scan Results i okno Scan details pokazują tylko adresy, które skan rozwiązał (<Link href="/docs/skanowanie#rozwiazywanie">Skanowanie › Rozwiązywanie celów</Link>), więc po zmianie grupy nie da się odtworzyć, jakie hosty obejmował wcześniejszy skan.
                 </li>
             </ul>
             <Callout type="note" title="Dane startowe">

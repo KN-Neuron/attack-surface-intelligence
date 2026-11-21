@@ -11,9 +11,9 @@ type Health = { provider: string; label: string; model: string; reachable: boole
 
 const SUGGESTIONS = [
     'Jak nadać tagi importowanym hostom?',
-    'Czym różni się tag od grupy hostów?',
-    'Co robi podgląd importu?',
-    'Jakie uprawnienia potrzebuję do edycji inwentarza?'
+    'Czym różni się skan Full od Reachability?',
+    'Kiedy powstają alerty New host, Host down i New CVE?',
+    'Jak w Data Explorer znaleźć hosty z Nginx?'
 ];
 
 const isSmall = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;

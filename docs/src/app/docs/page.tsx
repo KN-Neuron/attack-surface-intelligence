@@ -21,7 +21,8 @@ export default function Page() {
                 { id: 'krok-2', label: '2. Scan Scheduling', level: 3 },
                 { id: 'krok-3', label: '3. Scan Results', level: 3 },
                 { id: 'krok-4', label: '4. Data Explorer', level: 3 },
-                { id: 'krok-5', label: '5. Latest Scan summary', level: 3 },
+                { id: 'krok-5', label: '5. Alerts', level: 3 },
+                { id: 'krok-6', label: '6. Latest Scan summary', level: 3 },
                 { id: 'mapa', label: 'Mapa aplikacji' },
                 { id: 'konwencje', label: 'Jak czytać dokumentację' }
             ]}
@@ -32,8 +33,8 @@ export default function Page() {
             </p>
             <ul>
                 <li>oddzielne skanowanie środowiska produkcyjnego i deweloperskiego, każde z własną konfiguracją;</li>
-                <li>sprawdzanie, jak zmieniają się usługi wykrywane na hostach między kolejnymi skanami;</li>
-                <li>odtworzenie historii wykryć konkretnej aplikacji, np. na których hostach i kiedy pojawił się Nginx albo WordPress.</li>
+                <li>wykrywanie zmian między skanami: nowych hostów, hostów, które przestały odpowiadać, i technologii w wersjach ze znanymi podatnościami;</li>
+                <li>sprawdzenie, na których hostach działa konkretna aplikacja, np. Nginx albo WordPress, i jak wygląda ich odpowiedź HTTP oraz certyfikat TLS.</li>
             </ul>
 
             <H2 id="pojecia">Ewidencja, cel, uruchomienie, obserwacja</H2>
@@ -44,8 +45,8 @@ export default function Page() {
                     ['Wpis w ewidencji', <><code key="a">198.51.100.0/24</code> dodany w Host management</>, <Link key="l1" href="/docs/hosty">Host management</Link>],
                     ['Cel skanu', 'Ten zakres zaznaczony w sekcji Targets konfiguracji', <Link key="l2" href="/docs/skanowanie#cele">Skanowanie › Cele</Link>],
                     ['Konfiguracja / harmonogram', <><code key="c">Produkcja – nocny skan</code>, codziennie o 01:00</>, <Link key="l3" href="/docs/skanowanie#harmonogramy">Scan Scheduling</Link>],
-                    ['Uruchomienie', <><code key="d">Scan #57</code> z 21 listopada, status Completed</>, <Link key="l4" href="/docs/wyniki#wyniki">Scan Results</Link>],
-                    ['Obserwacja', <><code key="e">Detected nginx 1.24.0</code> na hoście 198.51.100.7</>, <Link key="l5" href="/docs/wyniki#data-explorer">Data Explorer</Link>]
+                    ['Uruchomienie', <><code key="d">Produkcja – nocny skan</code> z 21 listopada, status Completed</>, <Link key="l4" href="/docs/wyniki#wyniki">Scan Results</Link>],
+                    ['Obserwacja', <>Host 198.51.100.7 z technologią <code key="e">Nginx 1.24.0</code></>, <Link key="l5" href="/docs/data-explorer">Data Explorer</Link>]
                 ]}
             />
             <p>
@@ -65,34 +66,45 @@ export default function Page() {
 
             <H3 id="krok-2">2. Scan Scheduling: skonfiguruj skan</H3>
             <p>
-                W <code>Scan Scheduling</code> kliknij <code>Add scan</code>, nadaj konfiguracji nazwę, zaznacz cele z ewidencji (grupy, adresy, zakresy, FQDN) i wybierz częstotliwość: <code>Daily</code>, <code>Weekly</code>, <code>Monthly</code> albo <code>On demand</code>. Skan ręczny uruchamiasz przyciskiem <code>Start scan now</code> w <code>Scan Management</code>.
+                W <code>Scan Scheduling</code> kliknij <code>Add scan</code>, nadaj konfiguracji nazwę, wybierz typ skanu (<code>Full scan test</code> albo <code>Reachability</code>), zaznacz cele z ewidencji (grupy, adresy, zakresy, FQDN) i wybierz częstotliwość: <code>Daily</code>, <code>Weekly</code>, <code>Monthly</code> albo <code>On demand</code>. Włączona konfiguracja uruchamia się sama w wyznaczonym terminie.
             </p>
             <p>
-                Szczegóły: <Link href="/docs/skanowanie#nowy">Tworzenie skanu</Link>, <Link href="/docs/skanowanie#uruchomienie">Uruchomienie skanu</Link>.
+                Skan możesz też uruchomić od razu: <code>Run now</code> przy konfiguracji albo <code>Start scan now</code> w <code>Scan Management</code>, gdzie widać też postęp i można skan wstrzymać lub przerwać.
             </p>
-            <Callout type="warning" title="Stan obecnej wersji">
-                Harmonogramy są zapisywane, ale nie uruchamiają skanów automatycznie, a skan ręczny działa na stałej, przykładowej puli celów (<Link href="/docs/skanowanie#czas">Skanowanie › Harmonogram</Link>).
+            <p>
+                Szczegóły: <Link href="/docs/skanowanie#nowy">Tworzenie skanu</Link>, <Link href="/docs/skanowanie#typy">Typy skanu</Link>, <Link href="/docs/skanowanie#scheduler">Uruchamianie z harmonogramu</Link>, <Link href="/docs/skanowanie#uruchomienie">Uruchomienie skanu</Link>.
+            </p>
+            <Callout type="note" title="Programy skanujące">
+                Skan Full wymaga zainstalowanego programu <code>httpx</code>, a szybka sonda Reachability programu <code>masscan</code> (<Link href="/docs/architektura#konfiguracja">Architektura › Uruchomienie i konfiguracja</Link>).
             </Callout>
 
             <H3 id="krok-3">3. Scan Results: znajdź uruchomienie</H3>
             <p>
-                W <code>Scan Results</code> odszukaj uruchomienie po dacie (<code>Started</code>) i sprawdź jego <code>Status</code>. Wiersz zawiera wszystkie dane uruchomienia: cel, czas trwania, liczbę hostów aktywnych i nieaktywnych, usług, technologii i podatności. Aby zobaczyć, co się zmieniło, zestaw je z wcześniejszym uruchomieniem tego samego celu w <code>Compare Scans</code>.
+                W <code>Scan Results</code> odszukaj uruchomienie po dacie (<code>Started</code>) i sprawdź jego <code>Status</code>. Wiersz zawiera typ, cel, czas trwania, liczbę hostów aktywnych i nieaktywnych, usług i alertów, a przycisk <code>Details</code> otwiera podsumowanie uruchomienia z podziałem alertów, celami i najczęstszymi technologiami.
             </p>
             <p>
-                Szczegóły: <Link href="/docs/wyniki#wyniki">Scan Results</Link>, <Link href="/docs/wyniki#szczegoly">Szczegóły uruchomienia</Link>, <Link href="/docs/wyniki#porownanie">Compare Scans</Link>.
-            </p>
-
-            <H3 id="krok-4">4. Data Explorer: prześledź historię obserwacji</H3>
-            <p>
-                Z wyniku przejdź do pojedynczych obserwacji. W <code>Data Explorer</code> wpisz w <code>Search events</code> nazwę aplikacji, np. <code>nginx</code>, i odczytaj z kolumn <code>Host</code> i <code>Event Time</code>, gdzie i kiedy ją wykryto. Filtra po tagu i po początkowym znaczniku czasu w obecnej wersji nie ma; obejście opisuje przykład w rozdziale.
-            </p>
-            <p>
-                Szczegóły: <Link href="/docs/wyniki#data-explorer">Data Explorer</Link>, <Link href="/docs/wyniki#data-explorer-przyklad">Przykład: gdzie wykryto Nginx</Link>.
+                Szczegóły: <Link href="/docs/wyniki#wyniki">Scan Results</Link>, <Link href="/docs/wyniki#szczegoly">Szczegóły uruchomienia</Link>.
             </p>
 
-            <H3 id="krok-5">5. Latest Scan summary: sprawdź skrót</H3>
+            <H3 id="krok-4">4. Data Explorer: sprawdź stan hostów</H3>
             <p>
-                Na dashboardzie <code>Latest Scan summary</code> odczytaj datę <code>Latest scan</code>, czyli skan, którego dotyczy skrót, oraz kafelki <code>Reachable hosts</code>, <code>Unreachable hosts</code> i <code>Detected services</code>. Selektor okresu zmienia tylko te trzy kafelki.
+                W <code>Data Explorer</code> zobaczysz, co skan zapisał o każdym adresie: status, odpowiedź HTTP, technologie, certyfikat i czasy. Dodaj filtr, np. <code>Technologies contains nginx</code>, i kliknij <code>Apply</code>; okres zmienia lista <code>Timeframe</code>. Filtrowania po tagu hosta w obecnej wersji nie ma; obejście opisuje rozdział o tagach.
+            </p>
+            <p>
+                Szczegóły: <Link href="/docs/data-explorer#filtry">Filtry</Link>, <Link href="/docs/data-explorer#przyklad">Przykład: gdzie działa Nginx</Link>.
+            </p>
+
+            <H3 id="krok-5">5. Alerts: potwierdź zmiany</H3>
+            <p>
+                Po każdym skanie na stronie <code>Alerts</code> pojawiają się nowe hosty, hosty, które przestały odpowiadać, i technologie w wersjach ze znaną podatnością. Przejrzyj zakładkę <code>New</code> i potwierdź alerty, które zostały obsłużone.
+            </p>
+            <p>
+                Szczegóły: <Link href="/docs/alerty#reguly">Reguły alertów</Link>, <Link href="/docs/alerty#potwierdzanie">Potwierdzanie</Link>.
+            </p>
+
+            <H3 id="krok-6">6. Latest Scan summary: sprawdź skrót</H3>
+            <p>
+                Na dashboardzie <code>Latest Scan summary</code> odczytaj datę <code>Latest scan</code> i kafelek <code>Open alerts</code>. Pozostałe kafelki i tabele tego ekranu pokazują dane przykładowe.
             </p>
             <p>
                 Szczegóły: <Link href="/docs/wyniki#latest">Latest Scan summary</Link>.
@@ -106,12 +118,13 @@ export default function Page() {
                     ['Dashboards › Latest Scan summary', <code key="1">/dashboards/scan-summary</code>, 'Skrót najnowszego wyniku', <Link key="d1" href="/docs/wyniki#latest">Latest Scan summary</Link>],
                     ['Dashboards › Technologies used', <code key="2">/dashboards/technologies-used</code>, 'Wykryte technologie i hosty, na których działają', <Link key="d2" href="/docs/wyniki#technologies">Technologies used</Link>],
                     ['Dashboards › Vulnerable versions', <code key="3">/dashboards/vulnerable-versions</code>, 'Wykryte wersje z podatnościami (CVE)', <Link key="d3" href="/docs/wyniki#vulnerable">Vulnerable versions</Link>],
-                    ['Scanning › Scan Management', <code key="4">/scanning/management</code>, 'Uruchomienie, pauza i przerwanie skanu', <Link key="d4" href="/docs/skanowanie#stan">Scan Management</Link>],
-                    ['Scanning › Scan Scheduling', <code key="5">/scanning/policies</code>, 'Konfiguracje skanów: cele i harmonogram', <Link key="d5" href="/docs/skanowanie#harmonogramy">Scan Scheduling</Link>],
-                    ['Scanning › Scan Results', <code key="6">/log-center/scan-history</code>, 'Lista uruchomień z datą i statusem', <Link key="d6" href="/docs/wyniki#wyniki">Scan Results</Link>],
+                    ['Dashboards › Alerts', <code key="3a">/log-center/alerts</code>, 'Zmiany wykryte przez skany do potwierdzenia', <Link key="d3a" href="/docs/alerty">Alerty</Link>],
+                    ['Scanning › Scan Management', <code key="4">/scanning/management</code>, 'Start, pauza i przerwanie skanu, postęp na żywo', <Link key="d4" href="/docs/skanowanie#stan">Scan Management</Link>],
+                    ['Scanning › Scan Scheduling', <code key="5">/scanning/policies</code>, 'Konfiguracje skanów: typ, cele i harmonogram', <Link key="d5" href="/docs/skanowanie#harmonogramy">Scan Scheduling</Link>],
+                    ['Scanning › Scan Results', <code key="6">/log-center/scan-history</code>, 'Lista uruchomień ze statusem i szczegółami', <Link key="d6" href="/docs/wyniki#wyniki">Scan Results</Link>],
                     ['Scanning › Compare Scans', <code key="7">/scanning/compare-scans</code>, 'Zestawienie dwóch uruchomień', <Link key="d7" href="/docs/wyniki#porownanie">Compare Scans</Link>],
                     ['Host management', <code key="8">/host-management</code>, 'Ewidencja: IP, zakresy, FQDN, grupy, import', <Link key="d8" href="/docs/hosty">Host management</Link>],
-                    ['Data Explorer', <code key="9">/log-center/data-explorer</code>, 'Pojedyncze obserwacje ze skanów', <Link key="d9" href="/docs/wyniki#data-explorer">Data Explorer</Link>],
+                    ['Data Explorer', <code key="9">/log-center/data-explorer</code>, 'Tabela hostów z filtrami', <Link key="d9" href="/docs/data-explorer">Data Explorer</Link>],
                     ['Admin management', <code key="10">/admin-management</code>, 'Konta administratorów i role', <Link key="d10" href="/docs/dostep#konta">Dostęp i uprawnienia</Link>],
                     ['Settings', <code key="11">/settings</code>, 'Motyw interfejsu', <Link key="d11" href="/docs/architektura#status">Architektura › Status funkcji</Link>]
                 ]}

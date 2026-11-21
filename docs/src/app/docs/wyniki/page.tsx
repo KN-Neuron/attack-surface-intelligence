@@ -5,6 +5,7 @@ import { DocPage } from '@/components/docs/doc-page';
 import { H2, H3 } from '@/components/docs/headings';
 import { Callout } from '@/components/ui/callout';
 import { RefTable } from '@/components/ui/ref-table';
+import { Badge } from '@/components/ui/badge';
 
 export const metadata: Metadata = { title: 'Wyniki i analiza' };
 
@@ -13,14 +14,13 @@ export default function Page() {
         <DocPage
             href="/docs/wyniki"
             title="Wyniki i analiza"
-            lead="Ekrany do odczytu wyników: lista uruchomień (Scan Results), porównanie dwóch skanów (Compare Scans), historia obserwacji (Data Explorer) i dashboardy z Latest Scan summary."
+            lead="Ekrany do odczytu wyników: lista uruchomień z oknem szczegółów (Scan Results), porównanie dwóch skanów (Compare Scans) i dashboardy. Stan hostów opisuje Data Explorer, a zmiany Alerts."
             toc={[
+                { id: 'dane', label: 'Które dane są prawdziwe' },
                 { id: 'wyniki', label: 'Scan Results' },
                 { id: 'szczegoly', label: 'Szczegóły uruchomienia', level: 3 },
                 { id: 'porownanie', label: 'Compare Scans' },
                 { id: 'porownanie-czytanie', label: 'Jak czytać porównanie', level: 3 },
-                { id: 'data-explorer', label: 'Data Explorer' },
-                { id: 'data-explorer-przyklad', label: 'Przykład: gdzie wykryto Nginx', level: 3 },
                 { id: 'dashboardy', label: 'Dashboardy' },
                 { id: 'latest', label: 'Latest Scan summary', level: 3 },
                 { id: 'technologies', label: 'Technologies used', level: 3 },
@@ -28,23 +28,37 @@ export default function Page() {
                 { id: 'zrodlo', label: 'Źródło danych' }
             ]}
         >
-            <Callout type="note" title="Dane przykładowe">
-                Wszystkie ekrany tej strony pokazują dziś dane przykładowe zapisane przy pierwszym uruchomieniu aplikacji, a nie wyniki skanów wykonanych w Scan Management (<Link href="/docs/architektura#status">Architektura › Status funkcji</Link>). Opis dotyczy układu ekranów, ich sterowania i sposobu czytania danych.
-            </Callout>
+            <H2 id="dane">Które dane są prawdziwe</H2>
+            <p>
+                Skan uruchomiony w aplikacji zapisuje wyniki do własnych tabel, a część ekranów nadal czyta dane przykładowe zapisane przy pierwszym uruchomieniu. Podział dla każdego ekranu jest w tabeli <Link href="#zrodlo">Źródło danych</Link>; skrót:
+            </p>
+            <RefTable
+                head={['Ekran', 'Dane']}
+                rows={[
+                    ['Scan Results, okno Scan details, Data Explorer, Alerts, kafelki Open alerts i Latest scan', <Badge key="1" variant="success">z prawdziwych skanów</Badge>],
+                    ['Compare Scans, Technologies used, Vulnerable versions, pozostałe kafelki i tabele Latest Scan summary', <Badge key="2" variant="warn">dane przykładowe</Badge>]
+                ]}
+            />
+            <p>
+                Wiersze przykładowe w Scan Results mają znacznik <code>Demo</code>, aby świeża instalacja nie była pusta.
+            </p>
 
             <H2 id="wyniki">Scan Results</H2>
             <p>
-                Ekran <code>Scan Results</code> (Scanning › Scan Results) to lista wykonanych uruchomień, od najnowszego. Pozwala odszukać konkretne uruchomienie po dacie i sprawdzić jego status.
+                Ekran <code>Scan Results</code> (Scanning › Scan Results) to lista uruchomień: najpierw prawdziwe, od najnowszego, potem wiersze <code>Demo</code>. Prawdziwych wierszy jest najwyżej 200 najnowszych. Ekran pozwala odszukać uruchomienie po dacie i sprawdzić jego status.
             </p>
             <RefTable
                 head={['Kolumna', 'Znaczenie']}
                 rows={[
-                    [<code key="a">Scan</code>, t('Nazwa uruchomienia, np. `Scan #57`; wyższy numer to późniejsze uruchomienie')],
-                    [t('`Started`, `Finished`, `Duration`'), t('Czas rozpoczęcia i zakończenia (np. `Nov 21, 2026 7:14 AM`) oraz czas trwania w minutach')],
-                    [<code key="c">Target</code>, 'Zakres, którego dotyczyło uruchomienie'],
-                    [t('`Alive`, `Down`'), 'Liczba hostów, które odpowiedziały, i tych, które nie odpowiedziały'],
-                    [t('`Services`, `Tech`, `Vulns`'), 'Liczba wykrytych usług, technologii i podatności'],
-                    [<code key="f">Status</code>, t('`Completed` (zakończone), `Partial` (zakończone częściowo) albo `Failed` (nieudane)')]
+                    [<code key="a">Scan</code>, <>Etykieta uruchomienia: nazwa konfiguracji albo <code>Manual scan</code> dla skanu ręcznego (<Link key="a1" href="/docs/skanowanie#sposoby">Cztery sposoby uruchomienia</Link>). Wiersze przykładowe mają znacznik <code>Demo</code></>],
+                    [<code key="b">Type</code>, <><code>Full scan test</code> albo <code>Reachability</code> (<Link key="b1" href="/docs/skanowanie#typy">Typy skanu</Link>)</>],
+                    [t('`Started`, `Finished`, `Duration`'), t('Czas rozpoczęcia i zakończenia (UTC, np. `Nov 21, 2026 7:14 AM`) oraz czas trwania w pełnych minutach: skan krótszy niż minuta ma `0m`. W trakcie skanu `Finished` i `Duration` mają wartość `—`')],
+                    [<code key="c">Target</code>, t('Pierwsze cztery adresy skanu i `+N more`; pełna lista w oknie szczegółów')],
+                    [t('`Alive`, `Down`'), 'Liczba hostów, które odpowiedziały, i tych, które nie odpowiedziały w tym uruchomieniu'],
+                    [t('`Services`, `Tech`, `Vulns`'), t('`Services` i `Tech` liczą hosty, dla których zapisano co najmniej jedną usługę lub technologię (także z wcześniejszego skanu Full, gdy bieżący był typu Reachability). `Vulns` nie jest dziś wyliczane dla prawdziwych skanów i pokazuje 0; dopasowania do znanych podatności widać w Alerts jako `New CVE`')],
+                    [<code key="e">Alerts</code>, 'Liczba alertów, które wygenerował ten skan, jako znaczek; 0 oznacza brak nowych alertów'],
+                    [<code key="f">Status</code>, t('`Running`, `Completed`, `Cancelled` lub `Failed`; wiersze przykładowe mogą mieć też `Partial`')],
+                    [<code key="g">Details</code>, 'Otwiera okno szczegółów uruchomienia']
                 ]}
             />
             <ul>
@@ -53,25 +67,42 @@ export default function Page() {
                 </li>
                 <li>Stopka pokazuje liczbę uruchomień w wybranym okresie i pozwala przechodzić między stronami.</li>
                 <li>
-                    Skan, który właśnie trwa, widać w <Link href="/docs/skanowanie#stan">Scan Management</Link>, a nie na tej liście.
+                    Skan, który właśnie trwa, jest na liście od startu (status <code>Running</code>); jego postęp na żywo widać w <Link href="/docs/skanowanie#stan">Scan Management</Link>.
                 </li>
             </ul>
 
             <H3 id="szczegoly">Szczegóły uruchomienia</H3>
             <p>
-                Wiersze listy nie są dziś klikalne i aplikacja nie ma osobnego widoku szczegółów pojedynczego uruchomienia. Wszystko, co wiadomo o uruchomieniu, jest w jego wierszu. Aby przyjrzeć się uruchomieniu bliżej:
+                Przycisk <code>Details</code> otwiera okno z podsumowaniem pojedynczego uruchomienia. Nagłówek podaje etykietę oraz typ i silnik (np. <code>Full scan test · httpx</code>).
             </p>
+            <RefTable
+                head={['Część okna', 'Zawartość']}
+                rows={[
+                    ['Metadane', t('`Status`, `Trigger` (`manual`, `policy` albo `scheduled`), `Started`, `Finished`, `Duration`')],
+                    ['Kafle liczników', t('`Hosts in scope`, `Reachable`, `Unreachable`, `Services`, `Technologies`, `Vulnerable matches` (jak `Vulns` w liście, dziś 0)')],
+                    [<code key="a">Alerts raised</code>, <>Podział alertów tego skanu: <code>New hosts</code>, <code>Hosts down</code>, <code>New CVEs</code> oraz <code>Still unacknowledged</code>, czyli ile z nich nadal czeka na potwierdzenie (<Link key="a1" href="/docs/alerty">Alerty</Link>)</>],
+                    [<code key="b">Targets</code>, 'Adresy, które skan rozwiązał z celów konfiguracji (pierwsze cztery i licznik pozostałych)'],
+                    [t('`Top technologies`, `Top services`'), 'Do ośmiu pozycji z liczbą hostów, na których występują'],
+                    ['Baner', t('Gdy uruchomienie zakończyło się błędem (`Failed`) albo lista celów została skrócona, nad licznikami widać komunikat, np. brak programu httpx lub `Target list truncated: …`')]
+                ]}
+            />
             <ul>
                 <li>
-                    zestaw je z innym w <Link href="#porownanie">Compare Scans</Link>;
+                    Dla wierszy <code>Demo</code> okno jest syntetyzowane z danych przykładowych i nie zawiera list celów, technologii i usług.
                 </li>
                 <li>
-                    obejrzyj pojedyncze zdarzenia (hosty, usługi, technologie) w <Link href="#data-explorer">Data Explorer</Link>; zdarzenia nie są jednak oznaczone numerem uruchomienia, więc łączy się je z wierszem listy po czasie.
+                    Dane okna pobiera endpoint <code>GET /api/scans/{'{id}'}</code>. Jego ścieżka podpada pod prefiks <code>/api/scan</code>, więc wymaga <strong>odczytu strony Scan Management</strong>, a nie Scan Results (<Link href="/docs/dostep#sciezki">Dostęp i uprawnienia</Link>). Konto bez tego uprawnienia, np. rola startowa <code>Analyst</code>, widzi listę, ale <code>Details</code> nie załaduje szczegółów.
+                </li>
+                <li>
+                    Szczegóły hostów z tego uruchomienia odczytasz w <Link href="/docs/data-explorer">Data Explorer</Link>: kolumna <code>Last scan</code> zawiera numer ostatniego skanu, który objął host, ale numer ten nie jest pokazany w liście Scan Results, więc łączy się je po czasie.
                 </li>
             </ul>
 
             <H2 id="porownanie">Compare Scans</H2>
-            <p>Ekran zestawia liczniki dwóch uruchomień z listy Scan Results.</p>
+            <Callout type="warning" title="Compare Scans czyta tylko dane przykładowe">
+                Sloty <code>Scan A</code> i <code>Scan B</code> oferują wyłącznie uruchomienia przykładowe (<code>Scan #…</code>). Skanów wykonanych w aplikacji tu nie ma, więc do oceny zmian w prawdziwym środowisku użyj Alerts i Data Explorer. Opis poniżej dotyczy sposobu czytania zestawienia.
+            </Callout>
+            <p>Ekran zestawia liczniki dwóch uruchomień.</p>
             <ol>
                 <li>
                     Otwórz Scanning › <code>Compare Scans</code>. Sloty <code>Scan A</code> i <code>Scan B</code> są wstępnie wypełnione dwoma najnowszymi uruchomieniami (A to najnowsze, B poprzednie).
@@ -107,72 +138,22 @@ export default function Page() {
                     Ponieważ różnica liczy się od A, wstaw do slotu A starsze uruchomienie (bazowe), a do B nowsze. Przy ustawieniu domyślnym (A nowsze) znaki zmian są odwrócone względem upływu czasu.
                 </li>
                 <li>
-                    Porównanie operuje na <strong>sumach</strong>. <code>Services +12</code> oznacza, że w B wykryto o 12 usług więcej niż w A, a nie że pojawiło się 12 nowych: część usług mogła zniknąć, a inne się pojawić. Ekran nie pokazuje listy usług nowo wykrytych ani tych, które zniknęły; pojedyncze obserwacje sprawdzisz w <Link href="#data-explorer">Data Explorer</Link>.
-                </li>
-            </ul>
-
-            <H2 id="data-explorer">Data Explorer</H2>
-            <p>
-                Data Explorer pokazuje pojedyncze obserwacje (zdarzenia) zebrane przez skanowanie: odpowiedzi hostów, otwarte porty, wykryte technologie i podatności. Tu sprawdzisz, na którym hoście i kiedy wykryto np. Nginx, Apache albo WordPress.
-            </p>
-            <RefTable
-                head={['Element', 'Zawartość']}
-                rows={[
-                    [<code key="a">No.</code>, 'Numer porządkowy na liście'],
-                    [<code key="b">Event Time</code>, t('Czas obserwacji, czyli moment, w którym skan wykrył zdarzenie, z dokładnością do sekundy, np. `Nov 21, 2026 9:11:02 AM`. Najnowsze na górze')],
-                    [<code key="c">Host</code>, 'Adres IP, którego dotyczy obserwacja'],
-                    [<code key="d">Category</code>, t('`Discovery`, `Service`, `Technology` lub `Vulnerability`')],
-                    [<code key="e">Event</code>, t('Opis, np. `Detected nginx 1.24.0`, `TCP port 443 open (HTTPS)`, `Outdated OpenSSH 8.9p1 (CVE-2023-38408)`')],
-                    [<code key="f">Severity</code>, t('`Info`, `Medium`, `High` lub `Critical`')],
-                    ['Nagłówek', t('Okres danych (np. `Nov 21, 2026 09:14 AM - now`) i łączna liczba zdarzeń (`N Events Found`)')]
-                ]}
-            />
-            <p>
-                Jedynym filtrem jest pole <code>Search events</code> w panelu po lewej. Dopasowuje fragment tekstu w całym wierszu (host, opis, kategoria, poziom, czas), bez względu na wielkość liter, i działa w trakcie pisania; <code>Apply filter</code> stosuje filtr ponownie. Liczbę dopasowanych wierszy pokazuje stopka tabeli, a nie licznik <code>Events Found</code> w nagłówku, który zawsze podaje liczbę wszystkich zdarzeń.
-            </p>
-            <Callout type="warning" title="Brak filtrów po tagu i po czasie">
-                Data Explorer nie ma dziś filtra po tagach hostów, pola początkowego znacznika czasu ani wyboru okresu: okres w nagłówku jest stały. Nie da się też łączyć kilku filtrów, bo pole wyszukiwania przyjmuje jedną frazę. Obejście dla tagów opisuje <Link href="/docs/tagowanie#data-explorer">Tagowanie › Data Explorer</Link>.
-            </Callout>
-
-            <H3 id="data-explorer-przyklad">Przykład: gdzie wykryto Nginx</H3>
-            <ol>
-                <li>
-                    Otwórz <code>Data Explorer</code> i wpisz w <code>Search events</code> frazę <code>nginx</code>.
-                </li>
-                <li>
-                    Lista zawęzi się do zdarzeń <code>Detected nginx …</code>. Z kolumny <code>Host</code> odczytaj adres, a z <code>Event Time</code> czas wykrycia.
-                </li>
-                <li>
-                    Aby ograniczyć wynik do interesującego okresu, przejrzyj kolumnę <code>Event Time</code>: lista jest posortowana od najnowszych, więc zdarzenia sprzed wybranej chwili są na dalszych stronach.
-                </li>
-                <li>
-                    Aby zawęzić wynik do hostów z tagiem, np. <code>serwery-www</code>, porównaj kolumnę <code>Host</code> z listą adresów o tym tagu z Host management.
-                </li>
-            </ol>
-            <p>Gdy lista jest pusta, poszerz zapytanie:</p>
-            <ul>
-                <li>
-                    skróć frazę: <code>nginx</code> zamiast <code>nginx 1.25</code>, bo wersja w opisie może być inna;
-                </li>
-                <li>
-                    szukaj samej nazwy produktu, bez słów w rodzaju „serwer”, i sprawdź pisownię (<code>wordpress</code>, <code>apache</code>);
-                </li>
-                <li>
-                    wyczyść pole, aby zobaczyć wszystkie zdarzenia z okresu w nagłówku, i upewnij się, że host w ogóle ma obserwacje.
+                    Porównanie operuje na <strong>sumach</strong>. <code>Services +12</code> oznacza, że w B wykryto o 12 usług więcej niż w A, a nie że pojawiło się 12 nowych: część usług mogła zniknąć, a inne się pojawić. Ekran nie pokazuje listy usług nowo wykrytych ani tych, które zniknęły.
                 </li>
             </ul>
 
             <H2 id="dashboardy">Dashboardy</H2>
             <H3 id="latest">Latest Scan summary</H3>
             <p>
-                Dashboard <code>Latest Scan summary</code> (Dashboards › Latest Scan summary) to skrót najnowszego wyniku. Pod tytułem widnieje <code>Latest scan</code> z datą i godziną skanu, którego dotyczy skrót, np. <code>November 21, 2026 09:14:02 AM</code>.
+                Dashboard <code>Latest Scan summary</code> (Dashboards › Latest Scan summary) to skrót najnowszego wyniku. Pod tytułem widnieje <code>Latest scan</code> z datą i godziną rozpoczęcia ostatniego prawdziwego skanu (UTC), np. <code>Nov 21, 2026 7:14 AM</code>. Przed pierwszym skanem wartość to <code>unavailable</code>.
             </p>
             <RefTable
                 head={['Element', 'Zawartość', 'Zależy od selektora okresu']}
                 rows={[
-                    [<code key="a">Reachable hosts</code>, t('Hosty, które odpowiedziały, i zmiana `… since last scan`'), 'tak'],
-                    [<code key="b">Unreachable hosts</code>, t('Hosty, które nie odpowiedziały, i zmiana `… since last scan`'), 'tak'],
-                    [<code key="c">Detected services</code>, 'Liczba wykrytych usług', 'tak'],
+                    [<code key="a">Reachable hosts</code>, t('Hosty, które odpowiedziały, i zmiana `… since last scan`; odnośnik `Open in Data Explorer` (filtr: Status is up)'), 'tak'],
+                    [<code key="b">Unreachable hosts</code>, t('Hosty, które nie odpowiedziały, i zmiana `… since last scan`; odnośnik `Open in Data Explorer` (Status is down)'), 'tak'],
+                    [<code key="o">Open alerts</code>, t('Liczba niepotwierdzonych alertów (wartość prawdziwa) i odnośnik `Review alerts` do strony Alerts'), 'nie'],
+                    [<code key="c">Detected services</code>, t('Liczba wykrytych usług; odnośnik `Open in Data Explorer` (Open ports is not empty)'), 'tak'],
                     [<code key="d">Services by scan range</code>, 'Słupki liczby usług dla każdego okresu; kliknięcie słupka wybiera ten okres', 'wyróżnia wybrany słupek'],
                     [<code key="e">Service families</code>, 'Wykres kołowy usług według rodzin', 'nie'],
                     [t('`Most detected services`, `Most detected technologies`'), 'Najczęściej wykrywane usługi i technologie z wersją i liczbą hostów', 'nie']
@@ -180,42 +161,45 @@ export default function Page() {
             />
             <ul>
                 <li>
-                    Selektor okresu w prawym górnym rogu (<code>Last 24 hours</code> … <code>Last 365 days</code>, domyślnie <code>Last 7 days</code>) zmienia wyłącznie trzy kafelki liczbowe i wyróżnienie słupka. Nie zmienia daty <code>Latest scan</code>, nie wybiera innego uruchomienia i nie wpływa na wykres rodzin ani tabele.
+                    Kafelki <code>Reachable hosts</code>, <code>Unreachable hosts</code>, <code>Detected services</code>, wykres okresów, <code>Service families</code> i tabele popularności pochodzą z danych przykładowych. Prawdziwe są <code>Latest scan</code> i <code>Open alerts</code>.
                 </li>
                 <li>
-                    Odnośnik <code>Scan history</code> prowadzi do <Link href="#wyniki">Scan Results</Link> i jest widoczny tylko dla kont z dostępem do tego ekranu. <code>All technologies</code> prowadzi do <Link href="#technologies">Technologies used</Link>. Dashboard nie ma odnośnika do szczegółów konkretnego uruchomienia.
+                    Selektor okresu w prawym górnym rogu (<code>Last 24 hours</code> … <code>Last 365 days</code>, domyślnie <code>Last 7 days</code>) zmienia wyłącznie trzy kafelki liczbowe i wyróżnienie słupka. Nie zmienia daty <code>Latest scan</code> ani wykresu rodzin i tabel.
                 </li>
                 <li>
-                    Którego uruchomienia dotyczy skrót, ustalisz po dacie <code>Latest scan</code>. W obecnej wersji z danymi przykładowymi ta data nie odpowiada żadnemu wierszowi Scan Results, więc nie da się jednoznacznie powiązać skrótu z uruchomieniem z listy.
+                    Nagłówek ma odnośniki <code>Hosts in Explorer</code> (do <Link href="/docs/data-explorer#dashboardy">Data Explorer</Link> z filtrem hostów dostępnych) i <code>Scan history</code> (do <Link href="#wyniki">Scan Results</Link>). Każdy jest widoczny tylko dla kont z dostępem do docelowego ekranu. <code>All technologies</code> prowadzi do <Link href="#technologies">Technologies used</Link>.
                 </li>
             </ul>
 
             <H3 id="technologies">Technologies used</H3>
             <p>
-                Tabela technologii: <code>Technology</code>, <code>Version(s)</code>, <code>Category</code>, <code>Hosts</code>. Przycisk szczegółów otwiera okno z listą hostów, na których technologię wykryto: <code>Host</code>, <code>OS</code>, <code>Port</code>, <code>Service</code>, <code>First seen</code>, <code>Last seen</code>. Kolumny <code>First seen</code> i <code>Last seen</code> pokazują, od kiedy i do kiedy technologia była obserwowana na hoście.
+                Tabela technologii: <code>Technology</code>, <code>Version(s)</code>, <code>Category</code>, <code>Hosts</code>. Przycisk szczegółów otwiera okno z listą hostów, na których technologię wykryto: <code>Host</code>, <code>OS</code>, <code>Port</code>, <code>Service</code>, <code>First seen</code>, <code>Last seen</code>. Przycisk <code>Open in Data Explorer</code> w nagłówku przechodzi do hostów z niepustą kolumną <code>Technologies</code>. Dane tego dashboardu są przykładowe; technologie z prawdziwych skanów oglądasz w Data Explorer.
             </p>
             <H3 id="vulnerable">Vulnerable versions</H3>
             <p>
-                Tabela wykrytych wersji z podatnościami: <code>Service</code>, <code>Version</code>, <code>CVE</code> (odnośnik do NVD), <code>Severity</code>, <code>Hosts</code>. Przyciski <code>All</code>, <code>Critical</code>, <code>High</code> i <code>Medium</code> filtrują listę po poziomie i pokazują liczność każdego; obok widać liczbę unikalnych hostów, których dotyczą wyniki. Wybrany poziom i pole wyszukiwania (usługa, CVE, host) działają łącznie.
+                Tabela wykrytych wersji z podatnościami: <code>Service</code>, <code>Version</code>, <code>CVE</code> (odnośnik do NVD), <code>Severity</code>, <code>Hosts</code>. Przyciski <code>All</code>, <code>Critical</code>, <code>High</code> i <code>Medium</code> filtrują listę po poziomie i pokazują liczność każdego; wyszukiwarka (usługa, CVE, host) stoi w tym samym rzędzie co przyciski, a wybrany poziom i fraza działają łącznie. <code>Open in Data Explorer</code> przechodzi do hostów z niepustą kolumną <code>Vulnerabilities</code>. Tabela jest przykładowa; podatności z prawdziwych skanów trafiają do <Link href="/docs/alerty">Alerts</Link> jako <code>New CVE</code>.
             </p>
 
             <H2 id="zrodlo">Źródło danych</H2>
-            <p>Dla administratora: ekrany wynikowe czytają dokumenty z tabeli <code>app_data</code>, zapisywane przy pierwszym uruchomieniu i nigdy nienadpisywane.</p>
+            <p>Dla administratora: skąd każdy ekran czyta dane.</p>
             <RefTable
-                head={['Klucz w app_data', 'Ekran']}
+                head={['Ekran', 'Źródło', 'Charakter']}
                 rows={[
-                    [<code key="1">scan_history</code>, 'Scan Results i Compare Scans'],
-                    [<code key="2">data_events</code>, 'Data Explorer'],
-                    [<code key="3">timeline_points</code>, 'Latest Scan summary: kafelki i wykres okresów'],
-                    [<code key="4">latest_scan</code>, 'Latest Scan summary: data Latest scan'],
-                    [<code key="5">service_slices</code>, 'Latest Scan summary: Service families'],
-                    [<code key="6">popular_services</code>, 'Latest Scan summary: Most detected services'],
-                    [<code key="7">popular_technologies</code>, 'Latest Scan summary: Most detected technologies'],
-                    [<code key="8">technologies</code>, 'Technologies used'],
-                    [<code key="9">detected_vulns</code>, 'Vulnerable versions'],
-                    [<code key="10">upcoming_scan</code>, 'Scan Management: karta Upcoming scan']
+                    ['Scan Results, Scan details', <>Tabele <code key="1">scans</code>, <code key="2">scan_hosts</code>, <code key="3">alerts</code>; do listy dołączane są wiersze <code key="4">scan_history</code></>, <Badge key="b1" variant="success">prawdziwe + demo</Badge>],
+                    ['Data Explorer', <>Tabela <code key="5">scan_hosts</code></>, <Badge key="b2" variant="success">prawdziwe</Badge>],
+                    ['Alerts, Open alerts, Latest scan', <>Tabele <code key="6">alerts</code>, <code key="7">scans</code></>, <Badge key="b3" variant="success">prawdziwe</Badge>],
+                    ['Compare Scans', <>Klucz <code key="8">scan_history</code> w <code key="8a">app_data</code></>, <Badge key="b4" variant="warn">przykładowe</Badge>],
+                    ['Latest Scan summary: kafelki, wykres okresów', <>Klucz <code key="9">timeline_points</code></>, <Badge key="b5" variant="warn">przykładowe</Badge>],
+                    ['Latest Scan summary: Service families, tabele popularności', <>Klucze <code key="10">service_slices</code>, <code key="10a">popular_services</code>, <code key="10b">popular_technologies</code></>, <Badge key="b6" variant="warn">przykładowe</Badge>],
+                    ['Technologies used', <>Klucz <code key="11">technologies</code></>, <Badge key="b7" variant="warn">przykładowe</Badge>],
+                    ['Vulnerable versions', <>Klucz <code key="12">detected_vulns</code></>, <Badge key="b8" variant="warn">przykładowe</Badge>],
+                    ['Scan Management: Upcoming scan', <>Konfiguracje z tabeli <code key="13">policies</code>; klucz <code key="13a">upcoming_scan</code> jako wartości zastępcze</>, <Badge key="b9" variant="success">prawdziwe</Badge>],
+                    ['Dopasowanie podatności w skanie', <>Klucz <code key="14">vulnerabilities</code>: lista znanych wersji z podatnościami (<Link key="l" href="/docs/alerty#cve">Alerty › New CVE</Link>)</>, <Badge key="b10">referencyjne</Badge>]
                 ]}
             />
+            <p>
+                Klucze <code>data_events</code> i <code>latest_scan</code> są zapisywane przy pierwszym uruchomieniu, ale żaden ekran ich dziś nie czyta. Dokumenty <code>app_data</code> są wstawiane raz i nigdy nie nadpisywane.
+            </p>
         </DocPage>
     );
 }

@@ -87,7 +87,7 @@ export default function Page() {
                 rows={[
                     ['Host Management', 'Nadawanie tagów przy dodawaniu i imporcie, zmiana i usuwanie przez Edit, wyszukiwanie wpisów po tagu', <Badge key="1" variant="success">dostępne</Badge>],
                     ['Scan Scheduling', 'Wybór hostów oznaczonych tagiem jako celu harmonogramu lub skanu ręcznego', <Badge key="2">niedostępne</Badge>],
-                    ['Data Explorer', 'Filtrowanie obserwacji po tagu hostów', <Badge key="3">niedostępne</Badge>]
+                    ['Data Explorer', 'Filtrowanie tabeli hostów po tagu', <Badge key="3">niedostępne</Badge>]
                 ]}
             />
 
@@ -126,14 +126,14 @@ export default function Page() {
 
             <H3 id="data-explorer">Data Explorer</H3>
             <p>
-                Data Explorer ma jedno pole tekstowe <code>Search events</code>, które przeszukuje kolumny zdarzeń (<Link href="/docs/wyniki#data-explorer">Wyniki › Data Explorer</Link>). Zdarzenia nie zawierają tagów hostów, więc wpisanie tagu nie zawęzi wyników. Pytanie „na których hostach z tagiem serwery-www wykryto Nginx” rozwiązuje się dziś w dwóch krokach:
+                Data Explorer ma filtry z operatorami dla dwudziestu kolumn, ale tag hosta nie jest kolumną: dane skanera nie zawierają tagów z ewidencji (<Link href="/docs/data-explorer#filtry">Data Explorer › Filtry</Link>). Pytanie „na których hostach z tagiem serwery-www działa Nginx” rozwiązuje się dziś w dwóch krokach:
             </p>
             <ol>
                 <li>
                     W Host management wyszukaj <code>serwery-www</code> i zanotuj adresy.
                 </li>
                 <li>
-                    W Data Explorer wpisz <code>nginx</code> i porównaj kolumnę <code>Host</code> z listą z pierwszego kroku.
+                    W Data Explorer dodaj filtr <code>Technologies contains nginx</code> i porównaj kolumnę <code>Host</code> z listą z pierwszego kroku. Gdy adresy tworzą jedną podsieć, możesz dodać filtr <code>Host starts with</code>.
                 </li>
             </ol>
 
@@ -165,7 +165,7 @@ SELECT fqdn FROM host_fqdns WHERE tags @> '["serwery-www", "env:prod"]';`}
                 rows={[
                     ['Tabele Host management', 'Przy każdym wyświetleniu strony', 'Widoczny od razu po zapisie'],
                     ['Harmonogramy', 'Nie dotyczy: harmonogram nie odwołuje się do tagów', 'Zmiana tagu nie zmienia celów żadnego harmonogramu'],
-                    ['Wyniki, Data Explorer, dashboardy', 'Nie dotyczy: obserwacje nie przechowują tagów hostów', 'Zmiana tagu nie zmienia wcześniejszych ani przyszłych obserwacji']
+                    ['Wyniki, Data Explorer, dashboardy', 'Nie dotyczy: dane skanera (scan_hosts) nie przechowują tagów hostów', 'Zmiana tagu nie zmienia danych skanera ani wyników']
                 ]}
             />
             <p>
@@ -183,7 +183,7 @@ SELECT fqdn FROM host_fqdns WHERE tags @> '["serwery-www", "env:prod"]';`}
                     ['Nadanie tagu wielu istniejącym wpisom naraz', <Badge key="5">niedostępne</Badge>],
                     ['Globalna zmiana nazwy lub usunięcie tagu', <Badge key="6">niedostępne</Badge>],
                     ['Tag jako cel harmonogramu lub skanu ręcznego', <Badge key="7">niedostępne</Badge>],
-                    ['Filtrowanie Data Explorer, wyników i dashboardów po tagach', <Badge key="8">niedostępne</Badge>]
+                    ['Filtrowanie Data Explorer, wyników i dashboardów po tagach hostów', <Badge key="8">niedostępne</Badge>]
                 ]}
             />
             <Callout type="tip" title="Do czasu kryterium opartego na tagach">

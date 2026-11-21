@@ -37,7 +37,10 @@ export default function Page() {
                     [<code key="3">.card</code>, t('Panel z ramką; nagłówek `.card-head` zawiera `h2`, rozpórkę i opcjonalną notatkę `.card-note`')],
                     [<code key="4">.tile</code>, t('Kafelek z wartością i etykietą; układ kafelków w siatce `.bento` (Latest Scan summary)')],
                     [<code key="5">.tbl</code>, t('Tabela w kontenerze `.tbl-wrap`. Komórki pomocnicze: `.strong-cell`, `.mono`, `.muted`, `.empty-cell`, wyrównanie `.right`')],
-                    [<code key="6">.screen-redesign</code>, t('Klasa na `body` włączająca reguły nowych ekranów (`{% block bodyclass %}`)')]
+                    [<code key="6">.screen-redesign</code>, t('Klasa na `body` włączająca reguły nowych ekranów (`{% block bodyclass %}`)')],
+                    [<code key="7">.tab-card</code>, t('Karta, której górę zajmuje pasek `.vuln-tabs` z wyszukiwarką, a pod nim tabela (Vulnerable versions, Alerts)')],
+                    [<code key="8">.filter-panel</code>, t('Lewy panel Data Explorer: `Timeframe`, chipy filtrów `.filter-chip` i przycisk `Add filter` / `Apply`; obok `.log-panel` z tabelą')],
+                    [<code key="9">.scan-start-row</code>, t('Wiersz w karcie `Scan activity`: lista typu skanu i przycisk `Start scan now`')]
                 ]}
             />
 
@@ -52,7 +55,9 @@ export default function Page() {
                     [<code key="5">.field</code>, t('Pole formularza: `.field-label`, kontrolka i `.field-hint`')],
                     [<code key="6">.switch</code>, 'Przełącznik dwustanowy (np. Enabled)'],
                     [<code key="7">.check-list</code>, t('Lista pól wyboru z `.check-row`; z `.scroll` ma ograniczoną wysokość')],
-                    [<code key="8">.tag-input</code>, t('Pole tagów: wpis, przycisk `Add` i kontener chipów (`Tagowanie › Operacje`)')]
+                    [<code key="8">.tag-input</code>, t('Pole tagów: wpis, przycisk `Add` i kontener chipów (`Tagowanie › Operacje`)')],
+                    [<code key="9">.dropzone</code>, t('Pole wyboru pliku w oknie `Import hosts`: kliknięcie otwiera wybór pliku, przeciągnięcie zaznacza stan `.is-dragover`, a `.dropzone-status` raportuje wynik analizy')],
+                    [<code key="10">.pick-box</code>, t('Własne pole wyboru wiersza tabeli (Alerts); kolumna `.pick-col`')]
                 ]}
             />
 
@@ -67,7 +72,10 @@ export default function Page() {
                     [<code key="5">.criteria-chip</code>, t('Para `kind` / `value` kryterium harmonogramu (`.criteria-kind`)')],
                     [<code key="6">.progress</code>, t('Pasek postępu; szerokość wypełnienia z własności `--p`')],
                     [<code key="7">.delta-pill</code>, t('Różnica w porównaniu skanów, w wariantach `delta-better`, `delta-worse`, `delta-same`')],
-                    [<code key="8">.mini-bar</code>, 'Słupek względnej liczności w tabelach dashboardu']
+                    [<code key="8">.mini-bar</code>, 'Słupek względnej liczności w tabelach dashboardu'],
+                    [<code key="9">.demo-badge</code>, t('Znacznik `Demo` przy wierszach przykładowych w Scan Results')],
+                    [<code key="10">.kpi-link</code>, t('Odnośnik na dole kafelka KPI (`Open in Data Explorer`, `Review alerts`)')],
+                    [<code key="11">.detail-grid</code>, t('Siatka liczników w oknie Scan details z kafelkami `.detail-tile` (wartość `.detail-value` i etykieta `.detail-label`)')]
                 ]}
             />
 
@@ -76,8 +84,8 @@ export default function Page() {
                 head={['Klasa', 'Rola']}
                 rows={[
                     [<code key="1">.tabs-bar</code>, t('Pasek zakładek `.tab-link` (aktywna: `.active`) z kontekstowymi przyciskami po prawej, za `.tab-spacer` (Host inventory)')],
-                    [<code key="2">.vuln-tabs</code>, 'Płaski pasek filtrów ważności z licznikami (Vulnerable versions)'],
-                    [<code key="3">.modal-backdrop</code>, t('Tło okna; zawartość w `.modal` z sekcjami `.modal-head`, `.modal-body`, `.modal-foot`; `.modal-wide` poszerza okno')]
+                    [<code key="2">.vuln-tabs</code>, 'Płaski pasek filtrów z licznikami: poziomy ważności (Vulnerable versions) albo status (Alerts)'],
+                    [<code key="3">.modal-backdrop</code>, t('Tło okna; zawartość w `.modal` z sekcjami `.modal-head`, `.modal-body`, `.modal-foot`; `.modal-wide` poszerza okno, a `.modal-full` rozciąga je na prawie cały ekran (Scan details)')]
                 ]}
             />
 
@@ -95,6 +103,9 @@ export default function Page() {
                     [<code key="5">data-table-filter=&quot;id tabeli&quot;</code>, 'Na polu wyszukiwania: filtruje wiersze wskazanej tabeli po tekście całego wiersza'],
                     [<code key="6">data-pager</code>, t('Stopka tabeli sterująca najbliższą tabelą w karcie: rozmiar strony, zakres, nawigacja; współpracuje z filtrem')],
                     [<code key="7">data-sev-filter, data-sev</code>, t('Przyciski filtrujące wiersze po atrybucie `data-sev` (Vulnerable versions)')],
+                    [<code key="7a">data-attr-filter, data-attr-select, data-attr-value</code>, t('Filtr po atrybucie wiersza: tabela wskazuje nazwę atrybutu (`data-attr-filter="data-ack"`) i grupę przycisków (`data-attr-select`), a przyciski niosą dopasowywaną wartość (Alerts)')],
+                    [<code key="7b">data-scan-details, data-policy-run, data-alert-ack, data-alert-pick, data-asset-edit</code>, t('Przyciski wierszy: otwarcie szczegółów skanu, uruchomienie konfiguracji, potwierdzenie alertu, zaznaczenie alertu i edycja hosta w Data Explorer; wartość atrybutu to identyfikator wiersza')],
+                    [<code key="7c">data-dropzone</code>, 'Pole przeciągania pliku w oknie importu hostów'],
                     [<code key="8">data-tag-entry, data-tag-add, data-tag-chips</code>, <>Pole, przycisk i kontener chipów pola tagów (<Link href="/docs/tagowanie/operacje#pole">Operacje na tagach</Link>)</>],
                     [<code key="9">data-host-add, data-host-edit, data-host-import</code>, t('Formularze inwentarza; adres endpointu w `data-endpoint`. Przyciski wierszy: `data-edit`, `data-delete`; chipy tagów niosą `data-tag`')],
                     [<code key="10">data-group-form</code>, 'Formularz nowej grupy hostów'],

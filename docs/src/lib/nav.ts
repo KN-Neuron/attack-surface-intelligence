@@ -44,8 +44,10 @@ export const nav: NavSection[] = [
         groups: [
             {
                 items: [
-                    { title: 'Skanowanie', href: '/docs/skanowanie', hint: 'Scan Scheduling, cele, harmonogram, uruchomienie' },
-                    { title: 'Wyniki i analiza', href: '/docs/wyniki', hint: 'Scan Results, Compare Scans, Data Explorer, Latest Scan summary' }
+                    { title: 'Skanowanie', href: '/docs/skanowanie', hint: 'Scan Scheduling, typy skanu, cele, harmonogram w tle, uruchomienie' },
+                    { title: 'Wyniki i analiza', href: '/docs/wyniki', hint: 'Scan Results, szczegóły skanu, Compare Scans, dashboardy, źródła danych' },
+                    { title: 'Data Explorer', href: '/docs/data-explorer', hint: 'Tabela hostów, kolumny, filtry z operatorami, okres, edycja' },
+                    { title: 'Alerty', href: '/docs/alerty', hint: 'Reguły New host, Host down, New CVE, potwierdzanie' }
                 ]
             }
         ]

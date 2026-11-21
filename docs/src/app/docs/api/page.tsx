@@ -18,6 +18,8 @@ export default function Page() {
                 { id: 'konwencje', label: 'Konwencje' },
                 { id: 'scan', label: 'Skan' },
                 { id: 'harmonogramy', label: 'Harmonogramy' },
+                { id: 'alerty', label: 'Alerty' },
+                { id: 'asset', label: 'Hosty z Data Explorer' },
                 { id: 'administracja', label: 'Administratorzy i role' },
                 { id: 'wyszukiwarka', label: 'Wyszukiwarka' },
                 { id: 'inwentarz', label: 'Inwentarz hostów' }
@@ -31,7 +33,7 @@ export default function Page() {
                     ['Uprawnienia', <>Metody inne niż <code>GET</code> wymagają zapisu w odpowiedniej sekcji; brak uprawnień daje 403 (<Link href="/docs/dostep#sciezki">mapowanie ścieżek</Link>)</>],
                     ['Format', t('Żądania i odpowiedzi w JSON; nagłówek `Content-Type: application/json` w żądaniach z ciałem')],
                     ['Kody', '200 z ciałem, 204 bez ciała, 400 niepoprawne dane, 404 brak obiektu, 409 konflikt, 500 błąd zapisu'],
-                    ['Wersjonowanie i stronicowanie', 'Brak. Endpointy nie są wersjonowane, a odczyt dotyczy wyłącznie stanu skanu i wyszukiwarki']
+                    ['Wersjonowanie i stronicowanie', 'Brak. Endpointy nie są wersjonowane ani stronicowane; odczyt JSON dotyczy stanu skanu, szczegółów uruchomienia i wyszukiwarki']
                 ]}
             />
 
@@ -39,14 +41,16 @@ export default function Page() {
             <RefTable
                 head={['Metoda', 'Ścieżka', 'Opis']}
                 rows={[
-                    ['GET', <code key="1">/api/scan/status</code>, 'Bieżący stan skanu'],
-                    ['POST', <code key="2">/api/scan/start</code>, 'Rozpoczyna skan od zera'],
-                    ['POST', <code key="3">/api/scan/pause</code>, 'Przełącza wstrzymanie'],
-                    ['POST', <code key="4">/api/scan/cancel</code>, 'Przerywa skan']
+                    ['GET', <code key="1">/api/scan/status</code>, 'Bieżący stan skanu (ScanStatus)'],
+                    ['POST', <code key="2">/api/scan/run</code>, <>Rozpoczyna skan całej ewidencji. Ciało: <code>{'{ "scan_type": "full" | "reachability" }'}</code>; brak pola lub nieznana wartość oznacza <code>full</code></>],
+                    ['POST', <code key="2b">/api/scan/start</code>, 'Skrót: skan Full całej ewidencji, bez ciała'],
+                    ['POST', <code key="3">/api/scan/pause</code>, 'Przełącza wstrzymanie trwającego skanu'],
+                    ['POST', <code key="4">/api/scan/cancel</code>, 'Przerywa skan'],
+                    ['GET', <code key="5">/api/scans/{'{id}'}</code>, <>Szczegóły uruchomienia (ScanDetail); 404 dla nieznanego numeru. Wymaga odczytu <code>Scan Management</code> (<Link href="/docs/dostep#sciezki">Dostęp i uprawnienia</Link>)</>]
                 ]}
             />
             <p>
-                Wszystkie zwracają ten sam obiekt; znaczenie pól i przejść opisuje <Link href="/docs/skanowanie#przejscia">Skanowanie</Link>.
+                Cztery pierwsze zwracają ten sam obiekt <code>ScanStatus</code>; znaczenie pól i przejść opisuje <Link href="/docs/skanowanie#przejscia">Skanowanie</Link>. <code>run</code> i <code>start</code> zwracają 409 z komunikatem tekstowym, gdy trwa już inny skan albo nie ma żadnego celu do skanowania.
             </p>
             <CodeBlock
                 lang="json"
@@ -55,14 +59,55 @@ export default function Page() {
   "running": true,
   "paused": false,
   "progress": 34.0,
-  "targets_done": 4,
-  "target_total": 12,
-  "hosts_found": 128,
-  "current_target": "10.0.4.0/24",
+  "targets_done": 87,
+  "target_total": 256,
+  "hosts_found": 41,
+  "current_target": "198.51.100.87",
   "started_at": "November 21, 2026 09:14:02 AM",
-  "completed_at": null
+  "completed_at": null,
+  "scan_id": 12,
+  "scan_type": "full",
+  "engine": "httpx",
+  "alerts_found": 0
 }`}
             />
+            <RefTable
+                head={['Pole', 'Znaczenie']}
+                rows={[
+                    [<code key="a">scan_id</code>, 'Numer wiersza skanu w tabeli scans: trwającego albo ostatniego; null, dopóki nie uruchomiono żadnego skanu'],
+                    [<code key="b">scan_type</code>, t('`full` lub `reachability`')],
+                    [<code key="c">engine</code>, t('`httpx`, `masscan` albo `tcp` (przełączenie na sondę TCP zmienia wartość w trakcie skanu)')],
+                    [<code key="d">alerts_found</code>, 'Liczba alertów skanu; ustawiana po jego zakończeniu']
+                ]}
+            />
+            <CodeBlock
+                lang="json"
+                title="ScanDetail (skrót)"
+                code={`{
+  "id": 12,
+  "label": "Produkcja – nocny skan",
+  "demo": false,
+  "scan_type": "full",
+  "scan_type_label": "Full scan test",
+  "engine": "httpx",
+  "trigger": "scheduled",
+  "status": "Completed",
+  "started": "Nov 21, 2026 1:00 AM",
+  "finished": "Nov 21, 2026 1:04 AM",
+  "duration": "4m",
+  "targets": ["203.0.113.0", "203.0.113.1", "203.0.113.2", "203.0.113.3", "+252 more"],
+  "hosts_total": 256, "alive": 41, "down": 215,
+  "services": 41, "technologies": 33, "vulns": 0,
+  "alerts": 3, "alerts_new_host": 2, "alerts_host_down": 0,
+  "alerts_new_cve": 1, "alerts_open": 3,
+  "top_technologies": [{ "name": "Nginx", "hosts": 18 }],
+  "top_services": [{ "label": "HTTPS", "hosts": 36 }],
+  "error": ""
+}`}
+            />
+            <p>
+                Dla wierszy przykładowych <code>id</code> jest ujemne, a <code>demo</code> ma wartość <code>true</code>.
+            </p>
 
             <H2 id="harmonogramy">Harmonogramy</H2>
             <RefTable
@@ -70,7 +115,8 @@ export default function Page() {
                 rows={[
                     ['POST', <code key="1">/api/policies</code>, '200, utworzony obiekt; 500 przy błędzie zapisu'],
                     ['PUT', <code key="2">/api/policies/{'{id}'}</code>, '200, zaktualizowany obiekt; 404'],
-                    ['DELETE', <code key="3">/api/policies/{'{id}'}</code>, '204 lub 404']
+                    ['DELETE', <code key="3">/api/policies/{'{id}'}</code>, '204 lub 404'],
+                    ['POST', <code key="4">/api/policies/{'{id}'}/run</code>, <>Natychmiast uruchamia skan z celami i typem konfiguracji (<code>Run now</code>); zwraca ScanStatus, 404 dla nieznanej konfiguracji albo 409 (trwa inny skan lub brak rozwiązanych celów)</>]
                 ]}
             />
             <p>
@@ -83,13 +129,49 @@ export default function Page() {
                     [<code key="b">ip address</code>, t('Adres, np. `203.0.113.10`'), 'cel'],
                     [<code key="c">ip range</code>, t('Blok CIDR, np. `198.51.100.0/24`'), 'cel'],
                     [<code key="d">fqdn</code>, t('Nazwa, np. `www.example.com`'), 'cel'],
+                    [<code key="t">type</code>, t('`full` lub `reachability`; brak kryterium oznacza `full`'), 'typ skanu'],
                     [<code key="e">frequency</code>, t('`Daily`, `Weekly`, `Monthly` lub `On demand`'), 'harmonogram'],
                     [<code key="f">when</code>, t('`<dzień> <HH:MM>`: `every 01:00`, `mon 22:00` … `sun`, `d1 03:30` … `d28`; bez strefy czasowej'), 'harmonogram']
                 ]}
             />
             <p>
-                Serwer nie waliduje kryteriów: zapisuje każdą parę <code>kind</code> / <code>value</code>. Starszy rodzaj <code>IP to scan</code> jest nadal odczytywany i wyświetlany jako <code>IP address</code> albo <code>IP range</code>. Wymóg co najmniej jednego celu sprawdza tylko formularz.
+                Serwer nie waliduje kryteriów: zapisuje każdą parę <code>kind</code> / <code>value</code>. Starszy rodzaj <code>IP to scan</code> jest nadal odczytywany i wyświetlany jako <code>IP address</code> albo <code>IP range</code>. Wymóg co najmniej jednego celu sprawdza tylko formularz. Wartości celów są interpretowane dopiero przy uruchomieniu skanu (<Link href="/docs/skanowanie#rozwiazywanie">Rozwiązywanie celów</Link>).
             </p>
+
+            <H2 id="alerty">Alerty</H2>
+            <RefTable
+                head={['Metoda', 'Ścieżka', 'Odpowiedź']}
+                rows={[
+                    ['POST', <code key="1">/api/alerts/acknowledge</code>, <>Potwierdza wiele alertów. Ciało: <code>{'{ "ids": [12, 13] }'}</code>. Zwraca liczbę zmienionych alertów (liczba JSON)</>],
+                    ['POST', <code key="2">/api/alerts/{'{id}'}/acknowledge</code>, 'Potwierdza jeden alert; zwraca 1 albo 0, gdy alert już był potwierdzony lub nie istnieje']
+                ]}
+            />
+            <p>
+                Oba wymagają zapisu do strony <code>Alerts</code>. Do potwierdzenia dopisywane są imię i nazwisko administratora oraz czas; cofnięcia nie ma. Lista alertów jest dostępna tylko jako strona HTML (<Link href="/docs/alerty#ekran">Alerty › Ekran Alerts</Link>).
+            </p>
+
+            <H2 id="asset">Hosty z Data Explorer</H2>
+            <RefTable
+                head={['Metoda', 'Ścieżka', 'Odpowiedź']}
+                rows={[['PUT', <code key="1">/api/assets/{'{address}'}</code>, '204 po zapisie albo 404, gdy skaner nie zna adresu']]}
+            />
+            <p>
+                Adres w ścieżce należy zakodować (<code>encodeURIComponent</code>). Wszystkie pola ciała są opcjonalne, a pominięte lub <code>null</code> zostawiają dotychczasową wartość. Wymaga zapisu do strony <code>Data Explorer</code>; skutki opisuje <Link href="/docs/data-explorer#edycja">Data Explorer › Tryb edycji</Link>.
+            </p>
+            <CodeBlock
+                lang="json"
+                title="Ładunek"
+                code={`{
+  "title": "Panel klienta",
+  "webserver": "nginx",
+  "scheme": "https",
+  "port": 443,
+  "status_code": 200,
+  "cdn": "",
+  "cname": "",
+  "up": true
+}`}
+            />
 
             <H2 id="administracja">Administratorzy i role</H2>
             <RefTable
