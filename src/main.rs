@@ -36,6 +36,8 @@ async fn main() -> anyhow::Result<()> {
     // page can load its stylesheet.
     let public: Router<sqlx::PgPool> = Router::new()
         .route("/login", get(auth::login_page).post(auth::login_post))
+        // Liveness probe for Docker / Railway healthchecks.
+        .route("/healthz", get(|| async { "ok" }))
         .nest_service(
             "/static",
             Router::new()
