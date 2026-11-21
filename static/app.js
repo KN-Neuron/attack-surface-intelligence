@@ -183,8 +183,16 @@
       // storage can be unavailable (private mode); fall back to expanded
     }
     applyNavState(stored !== "true");
-    // the pre-paint class has done its job; real state now drives the layout
+
+    // Hand off from the pre-paint class to the real state with no transition,
+    // then restore animation for later user interaction.
     document.documentElement.classList.remove("nav-collapsed");
+    document.documentElement.classList.add("nav-settling");
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(function () {
+        document.documentElement.classList.remove("nav-settling");
+      });
+    });
 
     railToggle.addEventListener("click", function () {
       var pinned = !sidebar.classList.contains("is-pinned");

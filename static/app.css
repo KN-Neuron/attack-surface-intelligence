@@ -319,6 +319,15 @@ button {
    `nav-collapsed` from the stored preference so a folded nav does not flash
    open; app.js then applies the real state and removes the class. */
 
+/* While the remembered state is applied, the width must not animate: the
+   stylesheet's transition would otherwise turn the hand-off from the
+   pre-paint class to the real state into a visible slide. */
+
+html.nav-collapsed .sidebar,
+html.nav-collapsed .shell.has-rail,
+html.nav-settling .sidebar,
+html.nav-settling .shell.has-rail { transition: none !important; }
+
 html.nav-collapsed .shell.has-rail { padding-left: var(--rail-w); }
 html.nav-collapsed .sidebar { width: var(--rail-w); }
 html.nav-collapsed .sidebar .nav-label,
