@@ -3,53 +3,107 @@
 <div class="page-head">
   <h1>{{ title }}</h1>
   <span class="spacer"></span>
-  <div class="search-box">
+  <div class="search-box" data-tab-show="ip">
     <input type="search" placeholder="Search..." aria-label="Search IP ranges" data-table-filter="ip-table">
     {{ crate::icons::icon("search")|safe }}
   </div>
-  <button class="btn primary" type="button" data-open-modal="ip-modal">{{ crate::icons::icon("plus")|safe }} Add IP range</button>
+  <button class="btn primary" type="button" data-tab-show="ip" data-open-modal="ip-modal">{{ crate::icons::icon("plus")|safe }} Add IP range</button>
+  <button class="btn primary" type="button" data-tab-show="groups" data-open-modal="group-modal" hidden>{{ crate::icons::icon("plus")|safe }} Add Group</button>
 </div>
 
 <div class="page-body">
-  <section class="card">
-    <div class="card-head">
-      <h2>IP ranges</h2>
-      <span class="spacer"></span>
-      <span class="card-note">{{ ips.len() }} ranges</span>
-    </div>
-    <div class="tbl-wrap">
-      <table class="tbl" id="ip-table">
-        <thead>
-          <tr>
-            <th class="w-narrow">No.</th>
-            <th>IP range</th>
-            <th>City</th>
-            <th>Managed By</th>
-            <th>Last Modified Time</th>
-            <th>Last Modified By</th>
-            <th>Description</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for ip in ips %}
-          <tr>
-            <td>{{ loop.index }}</td>
-            <td class="strong-cell mono">{{ ip.address }}</td>
-            <td>{{ ip.city }}</td>
-            <td>{{ ip.managed_by }}</td>
-            <td>{{ ip.last_modified }}</td>
-            <td>{{ ip.last_modified_by }}</td>
-            <td>{{ ip.description }}</td>
-          </tr>
-          {% endfor %}
-          {% if ips.is_empty() %}
-          <tr><td colspan="7" class="empty-cell">No IP ranges yet. Add one or import a list.</td></tr>
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
-    {% include "partials/pager.html" %}
-  </section>
+  <div class="tabs-bar" data-tabs="host">
+    <button class="tab-link active" type="button" data-tab="ip">IP ranges</button>
+    <button class="tab-link" type="button" data-tab="groups">Host groups</button>
+  </div>
+
+  <div data-tab-panel="ip">
+    <section class="card">
+      <div class="card-head">
+        <h2>IP ranges</h2>
+        <span class="spacer"></span>
+        <span class="card-note">{{ ips.len() }} ranges</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl" id="ip-table">
+          <thead>
+            <tr>
+              <th class="w-narrow">No.</th>
+              <th>IP range</th>
+              <th>City</th>
+              <th>Managed By</th>
+              <th>Last Modified Time</th>
+              <th>Last Modified By</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ip in ips %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td class="strong-cell mono">{{ ip.address }}</td>
+              <td>{{ ip.city }}</td>
+              <td>{{ ip.managed_by }}</td>
+              <td>{{ ip.last_modified }}</td>
+              <td>{{ ip.last_modified_by }}</td>
+              <td>{{ ip.description }}</td>
+            </tr>
+            {% endfor %}
+            {% if ips.is_empty() %}
+            <tr><td colspan="7" class="empty-cell">No IP ranges yet. Add one or import a list.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      {% include "partials/pager.html" %}
+    </section>
+  </div>
+
+  <div data-tab-panel="groups" hidden>
+    <section class="card">
+      <div class="card-head">
+        <h2>Host groups</h2>
+        <span class="spacer"></span>
+        <span class="card-note">{{ groups.len() }} groups</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>IP ranges</th>
+              <th>Single hosts</th>
+              <th class="right">Targets</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for group in groups %}
+            <tr>
+              <td class="strong-cell">{{ group.name }}</td>
+              <td>
+                <div class="host-chips">
+                  {% for r in group.ranges %}<span class="host-chip">{{ r }}</span>{% endfor %}
+                  {% if group.ranges.is_empty() %}<span class="muted">—</span>{% endif %}
+                </div>
+              </td>
+              <td>
+                <div class="host-chips">
+                  {% for h in group.hosts %}<span class="host-chip">{{ h }}</span>{% endfor %}
+                  {% if group.hosts.is_empty() %}<span class="muted">—</span>{% endif %}
+                </div>
+              </td>
+              <td class="right">{{ group.ranges.len() + group.hosts.len() }}</td>
+            </tr>
+            {% endfor %}
+            {% if groups.is_empty() %}
+            <tr><td colspan="4" class="empty-cell">No host groups yet. Add one to start grouping targets.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      {% include "partials/pager.html" %}
+    </section>
+  </div>
 </div>
 {% endblock %}
 
@@ -89,6 +143,51 @@
             <p class="field-hint">Upload a CSV or text file with one IP or CIDR range per line. Duplicate addresses are skipped.</p>
             <p class="field-hint" id="ip-file-status"></p>
           </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" data-close-modal>Cancel</button>
+        <button class="btn primary" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="group-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="group-modal-title">
+    <div class="modal-head">
+      <h2 id="group-modal-title">Add host group</h2>
+      <button class="icon-btn subtle" type="button" data-close-modal aria-label="Close">{{ crate::icons::icon("close")|safe }}</button>
+    </div>
+    <form id="group-form">
+      <div class="modal-body">
+        <div class="field">
+          <label class="field-label" for="group-name">Group name</label>
+          <input id="group-name" name="name" type="text" placeholder="e.g. Perimeter DMZ" required>
+        </div>
+
+        <div class="field">
+          <span class="field-label">IP ranges</span>
+          <p class="field-hint">Select ranges from the IP ranges tab.</p>
+          <div class="check-list">
+            {% for range in ip_ranges %}
+            <label class="check-row">
+              <input type="checkbox" name="ranges" value="{{ range }}">
+              <span class="check-box">{{ crate::icons::icon("check")|safe }}</span>
+              <span class="check-label">{{ range }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="field-label">Single hosts</span>
+          <p class="field-hint">Add individual host addresses on top of the selected ranges.</p>
+          <div class="tag-input">
+            <input id="group-host-input" type="text" placeholder="e.g. 35.159.0.131" aria-label="Add a single host">
+            <button class="btn" type="button" id="group-host-add">{{ crate::icons::icon("plus")|safe }} Add</button>
+          </div>
+          <div class="host-chips" id="group-host-chips"></div>
         </div>
       </div>
       <div class="modal-foot">

@@ -3,48 +3,99 @@
 <div class="page-head">
   <h1>{{ title }}</h1>
   <span class="spacer"></span>
-  <button class="btn primary" type="button" data-open-modal="admin-modal" data-admin-add>{{ crate::icons::icon("plus")|safe }} Add Admin</button>
+  <button class="btn primary" type="button" data-open-modal="admin-modal" data-admin-add data-tab-show="accounts">{{ crate::icons::icon("plus")|safe }} Add Admin</button>
+  <button class="btn primary" type="button" data-open-modal="role-modal" data-role-add data-tab-show="roles" hidden>{{ crate::icons::icon("plus")|safe }} Add Role</button>
 </div>
 
 <div class="page-body">
-  <section class="card">
-    <div class="card-head">
-      <h2>Portal administrators</h2>
-      <span class="spacer"></span>
-      <span class="card-note">{{ admins.len() }} accounts</span>
-    </div>
-    <div class="tbl-wrap">
-      <table class="tbl">
-        <thead>
-          <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last login</th><th class="right w-actions">Actions</th></tr>
-        </thead>
-        <tbody>
-          {% for admin in admins %}
-          <tr>
-            <td class="strong-cell">{{ admin.name }}{% if admin.is_default %}<span class="tag-default">Default</span>{% endif %}</td>
-            <td>{{ admin.email }}</td>
-            <td>{{ admin.role }}</td>
-            <td>{% if admin.status == "Active" %}<span class="badge">Active</span>{% else %}<span class="badge blocked">Disabled</span>{% endif %}</td>
-            <td>{{ admin.last_login }}</td>
-            <td class="right">
-              <div class="row-actions">
-                {% if admin.is_default %}
-                <button class="link-btn" type="button" disabled title="The default administrator cannot be edited">{{ crate::icons::icon("user-cog")|safe }} Edit</button>
-                {% else %}
-                <button class="link-btn" type="button" data-admin-edit="{{ admin.id }}">{{ crate::icons::icon("user-cog")|safe }} Edit</button>
-                <button class="link-btn" type="button" data-admin-toggle="{{ admin.id }}">
-                  {% if admin.status == "Active" %}Disable{% else %}Enable{% endif %}
-                </button>
-                {% endif %}
-              </div>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% include "partials/pager.html" %}
-  </section>
+  <div class="tabs-bar" data-tabs="admin">
+    <button class="tab-link active" type="button" data-tab="accounts">Accounts</button>
+    <button class="tab-link" type="button" data-tab="roles">Roles</button>
+  </div>
+
+  <div data-tab-panel="accounts">
+    <section class="card">
+      <div class="card-head">
+        <h2>Portal administrators</h2>
+        <span class="spacer"></span>
+        <span class="card-note">{{ admins.len() }} accounts</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last login</th><th class="right w-actions">Actions</th></tr>
+          </thead>
+          <tbody>
+            {% for admin in admins %}
+            <tr>
+              <td class="strong-cell">{{ admin.name }}{% if admin.is_default %}<span class="tag-default">Default</span>{% endif %}</td>
+              <td>{{ admin.email }}</td>
+              <td>{{ admin.role }}</td>
+              <td>{% if admin.status == "Active" %}<span class="badge">Active</span>{% else %}<span class="badge blocked">Disabled</span>{% endif %}</td>
+              <td>{{ admin.last_login }}</td>
+              <td class="right">
+                <div class="row-actions">
+                  {% if admin.is_default %}
+                  <button class="link-btn" type="button" disabled title="The default administrator cannot be edited">{{ crate::icons::icon("user-cog")|safe }} Edit</button>
+                  {% else %}
+                  <button class="link-btn" type="button" data-admin-edit="{{ admin.id }}">{{ crate::icons::icon("user-cog")|safe }} Edit</button>
+                  <button class="link-btn" type="button" data-admin-toggle="{{ admin.id }}">
+                    {% if admin.status == "Active" %}Disable{% else %}Enable{% endif %}
+                  </button>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% include "partials/pager.html" %}
+    </section>
+  </div>
+
+  <div data-tab-panel="roles" hidden>
+    <section class="card">
+      <div class="card-head">
+        <h2>Roles</h2>
+        <span class="spacer"></span>
+        <span class="card-note">{{ roles.len() }} roles</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Role</th><th>Permissions</th><th class="right">Accounts</th><th class="right w-actions">Actions</th></tr>
+          </thead>
+          <tbody>
+            {% for role in roles %}
+            <tr>
+              <td class="strong-cell">{{ role.name }}</td>
+              <td>
+                <div class="criteria-chips">
+                  {% for p in role.perms %}
+                  <span class="criteria-chip"><span class="criteria-kind">{% if p.can_write %}RW{% else %}R{% endif %}</span>{{ p.label }}</span>
+                  {% endfor %}
+                  {% if role.perms.is_empty() %}<span class="muted">No access</span>{% endif %}
+                </div>
+              </td>
+              <td class="right">{{ role.account_count }}</td>
+              <td class="right">
+                <div class="row-actions">
+                  <button class="link-btn" type="button" data-role-edit="{{ role.id }}">{{ crate::icons::icon("sliders")|safe }} Edit</button>
+                  <button class="link-btn danger-link" type="button" data-role-remove="{{ role.id }}" {% if role.account_count > 0 %}disabled title="Reassign accounts before removing this role"{% endif %}>{{ crate::icons::icon("trash")|safe }} Remove</button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+            {% if roles.is_empty() %}
+            <tr><td colspan="4" class="empty-cell">No roles yet. Add one to assign permissions to accounts.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      {% include "partials/pager.html" %}
+    </section>
+  </div>
 </div>
 {% endblock %}
 
@@ -70,11 +121,10 @@
           <label class="field-label" for="admin-role">Role</label>
           <div class="select-wrap">
             <select id="admin-role" name="role">
-              <option>Analyst</option>
-              <option>Scan Operator</option>
-              <option>Super Admin</option>
+              {% for role in roles %}<option value="{{ role.name }}">{{ role.name }}</option>{% endfor %}
             </select>
           </div>
+          <p class="field-hint">The account inherits the permissions of the selected role. Manage roles in the Roles tab.</p>
         </div>
         <div class="field">
           <label class="field-label" for="admin-status">Status</label>
@@ -89,6 +139,28 @@
           <label class="field-label" for="admin-password">Password</label>
           <input id="admin-password" name="password" type="password" placeholder="At least 8 characters" autocomplete="new-password" required>
           <p class="field-hint">Leave blank when editing to keep the current password.</p>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" data-close-modal>Cancel</button>
+        <button class="btn primary" type="submit" id="admin-save">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="role-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="role-modal-title">
+    <div class="modal-head">
+      <h2 id="role-modal-title">Add role</h2>
+      <button class="icon-btn subtle" type="button" data-close-modal aria-label="Close">{{ crate::icons::icon("close")|safe }}</button>
+    </div>
+    <form id="role-form">
+      <input type="hidden" id="role-id" value="">
+      <div class="modal-body">
+        <div class="field">
+          <label class="field-label" for="role-name">Role name</label>
+          <input id="role-name" name="name" type="text" placeholder="e.g. Security Analyst" required>
         </div>
 
         <div class="field">
@@ -116,10 +188,11 @@
       </div>
       <div class="modal-foot">
         <button class="btn" type="button" data-close-modal>Cancel</button>
-        <button class="btn primary" type="submit" id="admin-save">Save</button>
+        <button class="btn primary" type="submit" id="role-save">Save</button>
       </div>
     </form>
   </div>
 </div>
 <script type="application/json" id="admin-data">{{ admins_json|safe }}</script>
+<script type="application/json" id="role-data">{{ roles_json|safe }}</script>
 {% endblock %}

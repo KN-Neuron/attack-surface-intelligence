@@ -48,8 +48,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/dashboards/technologies-used", get(handlers::technologies_used))
         .route("/dashboards/vulnerable-versions", get(handlers::vulnerable_versions))
         // Host management.
-        .route("/host-management/ip-ranges", get(handlers::ip_ranges))
-        .route("/host-management/host-groups", get(handlers::host_groups))
+        .route("/host-management", get(handlers::host_management))
         // Log Center.
         .route("/log-center/data-explorer", get(handlers::data_explorer))
         .route("/log-center/scan-history", get(handlers::scan_history))
@@ -71,6 +70,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/admins", post(handlers::create_admin))
         .route("/api/admins/{id}", put(handlers::update_admin))
         .route("/api/admins/{id}/toggle", post(handlers::toggle_admin))
+        .route("/api/roles", post(handlers::create_role))
+        .route("/api/roles/{id}", put(handlers::update_role).delete(handlers::delete_role))
         .route("/api/search", get(handlers::search))
         .layer(middleware::from_fn_with_state(pool.clone(), auth::guard));
 

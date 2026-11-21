@@ -25,13 +25,12 @@ pub struct PermissionPage {
     pub label: &'static str,
 }
 
-pub const PERMISSION_PAGES: [PermissionPage; 10] = [
+pub const PERMISSION_PAGES: [PermissionPage; 9] = [
     PermissionPage { key: "dashboards", label: "Dashboards" },
     PermissionPage { key: "scan_management", label: "Scan Management" },
     PermissionPage { key: "policies", label: "Scan Policies" },
     PermissionPage { key: "compare", label: "Compare Scans" },
-    PermissionPage { key: "ip_ranges", label: "IP ranges" },
-    PermissionPage { key: "host_groups", label: "Host groups" },
+    PermissionPage { key: "host_management", label: "Host management" },
     PermissionPage { key: "data_explorer", label: "Data Explorer" },
     PermissionPage { key: "scan_history", label: "Scan History" },
     PermissionPage { key: "admin_management", label: "Admin management" },
@@ -80,10 +79,8 @@ pub fn nav_permission(href: &str) -> Option<&'static str> {
         Some("policies")
     } else if href.starts_with("/scanning/compare-scans") {
         Some("compare")
-    } else if href.starts_with("/host-management/ip-ranges") {
-        Some("ip_ranges")
-    } else if href.starts_with("/host-management/host-groups") {
-        Some("host_groups")
+    } else if href.starts_with("/host-management") {
+        Some("host_management")
     } else if href.starts_with("/log-center/data-explorer") {
         Some("data_explorer")
     } else if href.starts_with("/log-center/scan-history") {
@@ -107,15 +104,19 @@ pub fn page_for_path(path: &str) -> Option<&'static str> {
         Some("policies")
     } else if path.starts_with("/scanning/compare-scans") {
         Some("compare")
-    } else if path.starts_with("/host-management/ip-ranges") || path.starts_with("/api/ip-ranges") {
-        Some("ip_ranges")
-    } else if path.starts_with("/host-management/host-groups") || path.starts_with("/api/host-groups") {
-        Some("host_groups")
+    } else if path.starts_with("/host-management")
+        || path.starts_with("/api/ip-ranges")
+        || path.starts_with("/api/host-groups")
+    {
+        Some("host_management")
     } else if path.starts_with("/log-center/data-explorer") {
         Some("data_explorer")
     } else if path.starts_with("/log-center/scan-history") {
         Some("scan_history")
-    } else if path.starts_with("/admin-management") || path.starts_with("/api/admins") {
+    } else if path.starts_with("/admin-management")
+        || path.starts_with("/api/admins")
+        || path.starts_with("/api/roles")
+    {
         Some("admin_management")
     } else if path.starts_with("/settings") {
         Some("settings")
@@ -124,13 +125,12 @@ pub fn page_for_path(path: &str) -> Option<&'static str> {
     }
 }
 
-const PAGE_PATHS: [(&str, &str); 10] = [
+const PAGE_PATHS: [(&str, &str); 9] = [
     ("dashboards", nav::SCAN_SUMMARY),
     ("scan_management", nav::SCANNING_MANAGEMENT),
     ("policies", nav::SCANNING_POLICIES),
     ("compare", nav::SCAN_COMPARE),
-    ("ip_ranges", nav::IP_RANGES),
-    ("host_groups", nav::HOST_GROUPS),
+    ("host_management", nav::HOST_MANAGEMENT),
     ("data_explorer", nav::DATA_EXPLORER),
     ("scan_history", nav::SCAN_HISTORY),
     ("admin_management", nav::ADMIN_MANAGEMENT),

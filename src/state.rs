@@ -44,6 +44,16 @@ pub struct Permission {
     pub can_write: bool,
 }
 
+/// A named RBAC role. Administrators inherit the permissions of their role.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Role {
+    pub id: i64,
+    pub name: String,
+    pub permissions: Vec<Permission>,
+    #[serde(default)]
+    pub account_count: i64,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Admin {
     pub id: i64,
@@ -129,8 +139,6 @@ pub struct NewAdmin {
     pub status: String,
     #[serde(default)]
     pub password: String,
-    #[serde(default)]
-    pub permissions: Vec<Permission>,
 }
 
 #[derive(Deserialize)]
@@ -143,6 +151,11 @@ pub struct UpdateAdmin {
     pub status: String,
     #[serde(default)]
     pub password: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct RolePayload {
+    pub name: String,
     #[serde(default)]
     pub permissions: Vec<Permission>,
 }

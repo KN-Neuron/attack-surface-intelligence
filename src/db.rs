@@ -7,7 +7,8 @@ use sqlx::{PgPool, Row};
 use crate::auth::PERMISSION_PAGES;
 use crate::mock;
 use crate::state::{
-    Admin, Criterion, HostGroup, IpRange, Permission, Policy, ScanStatus, SCAN_TARGETS, now_label,
+    Admin, Criterion, HostGroup, IpRange, Permission, Policy, Role, ScanStatus, SCAN_TARGETS,
+    now_label,
 };
 
 /// Hardcoded Railway Postgres connection (per project requirement).
@@ -29,12 +30,10 @@ CREATE TABLE IF NOT EXISTS admins (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS admin_permissions (
-    admin_id BIGINT NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
-    page TEXT NOT NULL,
-    can_read BOOLEAN NOT NULL DEFAULT FALSE,
-    can_write BOOLEAN NOT NULL DEFAULT FALSE,
-    PRIMARY KEY (admin_id, page)
+CREATE TABLE IF NOT EXISTS roles (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    permissions JSONB NOT NULL DEFAULT '[]'::jsonb
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -123,11 +122,13 @@ async fn seed(pool: &PgPool) -> anyhow::Result<()> {
     let admins: i64 = sqlx::query_scalar("SELECT count(*) FROM admins")
         .fetch_one(pool)
         .await?;
+    seed_roles(pool).await?;
+
     if admins == 0 {
         let hash = bcrypt::hash(DEFAULT_ADMIN_PASSWORD, bcrypt::DEFAULT_COST)?;
-        let id: i64 = sqlx::query_scalar(
+        sqlx::query(
             "INSERT INTO admins (name, email, password_hash, role, status, last_login, is_default)
-             VALUES ($1, $2, $3, $4, $5, $6, TRUE) RETURNING id",
+             VALUES ($1, $2, $3, $4, $5, $6, TRUE)",
         )
         .bind("Default Administrator")
         .bind(DEFAULT_ADMIN_EMAIL)
@@ -135,19 +136,8 @@ async fn seed(pool: &PgPool) -> anyhow::Result<()> {
         .bind("Super Admin")
         .bind("Active")
         .bind("Never")
-        .fetch_one(pool)
+        .execute(pool)
         .await?;
-
-        for page in PERMISSION_PAGES.iter() {
-            sqlx::query(
-                "INSERT INTO admin_permissions (admin_id, page, can_read, can_write)
-                 VALUES ($1, $2, TRUE, TRUE) ON CONFLICT DO NOTHING",
-            )
-            .bind(id)
-            .bind(page.key)
-            .execute(pool)
-            .await?;
-        }
     }
 
     let policies: i64 = sqlx::query_scalar("SELECT count(*) FROM policies")
@@ -234,6 +224,48 @@ async fn seed(pool: &PgPool) -> anyhow::Result<()> {
     seed_json(pool, "upcoming_scan", &mock::upcoming_scan()).await;
     seed_json(pool, "latest_scan", &mock::LATEST_SCAN).await;
 
+    Ok(())
+}
+
+/// Seeds the three built-in roles on first run. Each role carries its own
+/// permission matrix, which administrators assigned to it inherit.
+async fn seed_roles(pool: &PgPool) -> anyhow::Result<()> {
+    fn allow(keys: &[&str], write: bool) -> Vec<Permission> {
+        keys.iter()
+            .map(|page| Permission {
+                page: (*page).to_string(),
+                can_read: true,
+                can_write: write,
+            })
+            .collect()
+    }
+
+    let all: Vec<&str> = PERMISSION_PAGES.iter().map(|p| p.key).collect();
+
+    let seeds: [(&str, Vec<Permission>); 3] = [
+        ("Super Admin", allow(&all, true)),
+        (
+            "Scan Operator",
+            allow(
+                &["dashboards", "scan_management", "policies", "compare", "host_management"],
+                true,
+            ),
+        ),
+        (
+            "Analyst",
+            allow(&["dashboards", "data_explorer", "scan_history", "host_management"], false),
+        ),
+    ];
+
+    for (name, permissions) in seeds {
+        sqlx::query(
+            "INSERT INTO roles (name, permissions) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING",
+        )
+        .bind(name)
+        .bind(permissions_json(&permissions))
+        .execute(pool)
+        .await?;
+    }
     Ok(())
 }
 
@@ -501,21 +533,124 @@ pub async fn ip_addresses(pool: &PgPool) -> Vec<String> {
         .unwrap_or_default()
 }
 
+// ---------------------------------------------------------------- roles
+
+fn row_to_role(row: &PgRow, account_count: i64) -> Role {
+    let permissions = serde_json::from_value(row.get::<Value, _>("permissions"))
+        .unwrap_or_default();
+    Role {
+        id: row.get("id"),
+        name: row.get("name"),
+        permissions,
+        account_count,
+    }
+}
+
+pub async fn list_roles(pool: &PgPool) -> Vec<Role> {
+    sqlx::query(
+        "SELECT r.id, r.name, r.permissions,
+                (SELECT count(*) FROM admins a WHERE a.role = r.name) AS account_count
+         FROM roles r ORDER BY r.name",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(|row| row_to_role(row, row.get("account_count")))
+    .collect()
+}
+
+async fn fetch_role(pool: &PgPool, id: i64) -> Option<Role> {
+    let row = sqlx::query(
+        "SELECT r.id, r.name, r.permissions,
+                (SELECT count(*) FROM admins a WHERE a.role = r.name) AS account_count
+         FROM roles r WHERE r.id = $1",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()?;
+    Some(row_to_role(&row, row.get("account_count")))
+}
+
+fn permissions_json(permissions: &[Permission]) -> Value {
+    serde_json::to_value(permissions).unwrap_or(Value::Array(vec![]))
+}
+
+pub async fn create_role(pool: &PgPool, name: String, permissions: Vec<Permission>) -> Option<Role> {
+    let row = sqlx::query(
+        "INSERT INTO roles (name, permissions) VALUES ($1, $2)
+         RETURNING id, name, permissions",
+    )
+    .bind(name)
+    .bind(permissions_json(&permissions))
+    .fetch_one(pool)
+    .await
+    .ok()?;
+    Some(row_to_role(&row, 0))
+}
+
+pub async fn update_role(
+    pool: &PgPool,
+    id: i64,
+    name: String,
+    permissions: Vec<Permission>,
+) -> Option<Role> {
+    let previous: String = sqlx::query_scalar("SELECT name FROM roles WHERE id = $1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten()?;
+
+    let mut tx = pool.begin().await.ok()?;
+    sqlx::query("UPDATE roles SET name = $2, permissions = $3 WHERE id = $1")
+        .bind(id)
+        .bind(&name)
+        .bind(permissions_json(&permissions))
+        .execute(&mut *tx)
+        .await
+        .ok()?;
+    // Administrators store their role by name, so a rename must follow through.
+    if previous != name {
+        sqlx::query("UPDATE admins SET role = $2 WHERE role = $1")
+            .bind(&previous)
+            .bind(&name)
+            .execute(&mut *tx)
+            .await
+            .ok()?;
+    }
+    tx.commit().await.ok()?;
+    fetch_role(pool, id).await
+}
+
+pub async fn delete_role(pool: &PgPool, id: i64) -> bool {
+    sqlx::query(
+        "DELETE FROM roles r WHERE r.id = $1
+         AND NOT EXISTS (SELECT 1 FROM admins a WHERE a.role = r.name)",
+    )
+    .bind(id)
+    .execute(pool)
+    .await
+    .map(|r| r.rows_affected() > 0)
+    .unwrap_or(false)
+}
+
 // ---------------------------------------------------------------- administrators
 
-async fn load_permissions(pool: &PgPool, admin_id: i64) -> Vec<Permission> {
-    sqlx::query("SELECT page, can_read, can_write FROM admin_permissions WHERE admin_id = $1")
-        .bind(admin_id)
-        .fetch_all(pool)
-        .await
+/// An administrator inherits the permission matrix of their assigned role.
+async fn load_permissions(pool: &PgPool, role: &str) -> Vec<Permission> {
+    let value: Option<Value> =
+        sqlx::query_scalar("SELECT permissions FROM roles WHERE name = $1")
+            .bind(role)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
+    value
+        .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default()
-        .iter()
-        .map(|row| Permission {
-            page: row.get("page"),
-            can_read: row.get("can_read"),
-            can_write: row.get("can_write"),
-        })
-        .collect()
 }
 
 fn row_to_admin(row: &PgRow, permissions: Vec<Permission>) -> Admin {
@@ -543,8 +678,8 @@ pub async fn list_admins(pool: &PgPool) -> Vec<Admin> {
 
     let mut admins = Vec::with_capacity(rows.len());
     for row in &rows {
-        let id: i64 = row.get("id");
-        let permissions = load_permissions(pool, id).await;
+        let role: String = row.get("role");
+        let permissions = load_permissions(pool, &role).await;
         admins.push(row_to_admin(row, permissions));
     }
     admins
@@ -559,7 +694,8 @@ async fn fetch_admin(pool: &PgPool, id: i64) -> Option<Admin> {
     .await
     .ok()
     .flatten()?;
-    let permissions = load_permissions(pool, id).await;
+    let role: String = row.get("role");
+    let permissions = load_permissions(pool, &role).await;
     Some(row_to_admin(&row, permissions))
 }
 
@@ -572,8 +708,8 @@ pub async fn admin_for_login(pool: &PgPool, email: &str) -> Option<(Admin, Strin
     .await
     .ok()
     .flatten()?;
-    let id: i64 = row.get("id");
-    let permissions = load_permissions(pool, id).await;
+    let role: String = row.get("role");
+    let permissions = load_permissions(pool, &role).await;
     let hash: String = row.get("password_hash");
     Some((row_to_admin(&row, permissions), hash))
 }
@@ -585,7 +721,6 @@ pub async fn create_admin(
     role: String,
     status: String,
     password_hash: String,
-    permissions: Vec<Permission>,
 ) -> Option<Admin> {
     let id: i64 = sqlx::query_scalar(
         "INSERT INTO admins (name, email, password_hash, role, status, last_login, is_default)
@@ -599,7 +734,6 @@ pub async fn create_admin(
     .fetch_one(pool)
     .await
     .ok()?;
-    set_permissions(pool, id, &permissions).await;
     fetch_admin(pool, id).await
 }
 
@@ -611,7 +745,6 @@ pub async fn update_admin(
     role: String,
     status: String,
     password_hash: Option<String>,
-    permissions: Vec<Permission>,
 ) -> Option<Admin> {
     if is_default_admin(pool, id).await {
         return None;
@@ -645,28 +778,7 @@ pub async fn update_admin(
         }
     };
     result.ok()?;
-    set_permissions(pool, id, &permissions).await;
     fetch_admin(pool, id).await
-}
-
-async fn set_permissions(pool: &PgPool, admin_id: i64, permissions: &[Permission]) {
-    let _ = sqlx::query("DELETE FROM admin_permissions WHERE admin_id = $1")
-        .bind(admin_id)
-        .execute(pool)
-        .await;
-    for perm in permissions {
-        let _ = sqlx::query(
-            "INSERT INTO admin_permissions (admin_id, page, can_read, can_write)
-             VALUES ($1, $2, $3, $4) ON CONFLICT (admin_id, page) DO UPDATE
-             SET can_read = EXCLUDED.can_read, can_write = EXCLUDED.can_write",
-        )
-        .bind(admin_id)
-        .bind(&perm.page)
-        .bind(perm.can_read)
-        .bind(perm.can_write)
-        .execute(pool)
-        .await;
-    }
 }
 
 pub async fn toggle_admin(pool: &PgPool, id: i64) -> Option<Admin> {
@@ -738,8 +850,8 @@ pub async fn session_admin(pool: &PgPool, token: &str) -> Option<Admin> {
     .await
     .ok()
     .flatten()?;
-    let id: i64 = row.get("id");
-    let permissions = load_permissions(pool, id).await;
+    let role: String = row.get("role");
+    let permissions = load_permissions(pool, &role).await;
     Some(row_to_admin(&row, permissions))
 }
 

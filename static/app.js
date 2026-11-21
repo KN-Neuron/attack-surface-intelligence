@@ -264,6 +264,43 @@
     });
   });
 
+  // ---- page tabs (switch in-place panels and tab-scoped actions) -------------
+  // A `[data-tabs]` bar holds `[data-tab]` buttons; the matching
+  // `[data-tab-panel]` containers are shown one at a time. Elements carrying
+  // `data-tab-show="<name>"` are only visible while that tab is active.
+  document.querySelectorAll("[data-tabs]").forEach(function (bar) {
+    var buttons = Array.prototype.slice.call(bar.querySelectorAll("[data-tab]"));
+    var panels = bar.parentElement.querySelectorAll("[data-tab-panel]");
+    var scoped = document.querySelectorAll("[data-tab-show]");
+
+    function activate(name) {
+      buttons.forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-tab") === name);
+      });
+      panels.forEach(function (panel) {
+        panel.hidden = panel.getAttribute("data-tab-panel") !== name;
+      });
+      scoped.forEach(function (el) {
+        el.hidden = el.getAttribute("data-tab-show") !== name;
+      });
+      try {
+        var key = "asi.tab." + (bar.getAttribute("data-tabs") || "");
+        window.sessionStorage.setItem(key, name);
+      } catch (_) {}
+    }
+
+    buttons.forEach(function (btn) {
+      btn.addEventListener("click", function () { activate(btn.getAttribute("data-tab")); });
+    });
+
+    var stored = null;
+    try {
+      stored = window.sessionStorage.getItem("asi.tab." + (bar.getAttribute("data-tabs") || ""));
+    } catch (_) {}
+    var names = buttons.map(function (b) { return b.getAttribute("data-tab"); });
+    activate(names.indexOf(stored) !== -1 ? stored : (names[0] || ""));
+  });
+
   // ---- generic client-side table filter --------------------------------------
   document.querySelectorAll("[data-table-filter]").forEach(function (input) {
     var table = document.getElementById(input.getAttribute("data-table-filter"));
@@ -845,7 +882,7 @@
   }
 
   // ==========================================================================
-  // Admin management — submit
+  // Admin management — accounts (role-based) + roles
   // ==========================================================================
   var adminForm = document.getElementById("admin-form");
   if (adminForm) {
@@ -856,55 +893,9 @@
     var adminIdInput = document.getElementById("admin-id");
     var adminTitle = document.getElementById("admin-modal-title");
     var adminStatus = document.getElementById("admin-status");
+    var adminRole = document.getElementById("admin-role");
     var adminPassword = document.getElementById("admin-password");
     var editingAdminId = null;
-
-    function permRows() {
-      return adminForm.querySelectorAll("[data-perm]");
-    }
-
-    function syncPermRow(row) {
-      var read = row.querySelector("[data-perm-read]");
-      var write = row.querySelector("[data-perm-write]");
-      if (!read || !write) return;
-      if (!read.checked) {
-        write.checked = false;
-        write.disabled = true;
-      } else {
-        write.disabled = false;
-      }
-    }
-
-    permRows().forEach(function (row) {
-      var read = row.querySelector("[data-perm-read]");
-      if (read) read.addEventListener("change", function () { syncPermRow(row); });
-    });
-
-    function clearPermissions() {
-      permRows().forEach(function (row) {
-        var read = row.querySelector("[data-perm-read]");
-        var write = row.querySelector("[data-perm-write]");
-        if (read) read.checked = false;
-        if (write) { write.checked = false; write.disabled = true; }
-      });
-    }
-
-    function collectPermissions() {
-      var out = [];
-      permRows().forEach(function (row) {
-        var key = row.getAttribute("data-perm");
-        var read = row.querySelector("[data-perm-read]");
-        var write = row.querySelector("[data-perm-write]");
-        if (read && (read.checked || (write && write.checked))) {
-          out.push({
-            page: key,
-            can_read: read.checked,
-            can_write: !!(write && write.checked)
-          });
-        }
-      });
-      return out;
-    }
 
     function resetAdminForm() {
       editingAdminId = null;
@@ -913,7 +904,6 @@
       if (adminStatus) adminStatus.value = "Active";
       if (adminTitle) adminTitle.textContent = "Add administrator";
       if (adminPassword) { adminPassword.required = true; adminPassword.value = ""; }
-      clearPermissions();
     }
 
     function openAdminEditor(admin) {
@@ -921,22 +911,10 @@
       if (adminIdInput) adminIdInput.value = String(admin.id);
       adminForm.querySelector("[name=name]").value = admin.name;
       adminForm.querySelector("[name=email]").value = admin.email;
-      adminForm.querySelector("[name=role]").value = admin.role;
+      if (adminRole) adminRole.value = admin.role;
       if (adminStatus) adminStatus.value = admin.status;
       if (adminTitle) adminTitle.textContent = "Edit administrator";
       if (adminPassword) { adminPassword.required = false; adminPassword.value = ""; }
-      clearPermissions();
-      (admin.permissions || []).forEach(function (perm) {
-        var row = adminForm.querySelector('[data-perm="' + perm.page + '"]');
-        if (!row) return;
-        var read = row.querySelector("[data-perm-read]");
-        var write = row.querySelector("[data-perm-write]");
-        if (read) read.checked = !!perm.can_read;
-        if (write) {
-          write.checked = !!perm.can_write;
-          write.disabled = !perm.can_read;
-        }
-      });
       openModal("admin-modal");
     }
 
@@ -966,10 +944,9 @@
       var payload = {
         name: adminForm.querySelector("[name=name]").value,
         email: adminForm.querySelector("[name=email]").value,
-        role: adminForm.querySelector("[name=role]").value,
+        role: adminRole ? adminRole.value : "",
         status: adminStatus ? adminStatus.value : "Active",
-        password: adminPassword ? adminPassword.value : "",
-        permissions: collectPermissions()
+        password: adminPassword ? adminPassword.value : ""
       };
       var url = editingAdminId ? "/api/admins/" + editingAdminId : "/api/admins";
       var method = editingAdminId ? "PUT" : "POST";
@@ -981,6 +958,136 @@
         .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
         .then(function () { window.location.reload(); })
         .catch(function () { window.alert("Could not save the administrator. Please try again."); });
+    });
+  }
+
+  // ==========================================================================
+  // Admin management — roles
+  // ==========================================================================
+  var roleForm = document.getElementById("role-form");
+  if (roleForm) {
+    var roleDataEl = document.getElementById("role-data");
+    var roleData = [];
+    try { roleData = JSON.parse(roleDataEl.textContent || "[]"); } catch (_) {}
+
+    var roleIdInput = document.getElementById("role-id");
+    var roleTitle = document.getElementById("role-modal-title");
+    var editingRoleId = null;
+
+    function rolePermRows() {
+      return roleForm.querySelectorAll("[data-perm]");
+    }
+
+    function syncPermRow(row) {
+      var read = row.querySelector("[data-perm-read]");
+      var write = row.querySelector("[data-perm-write]");
+      if (!read || !write) return;
+      if (!read.checked) {
+        write.checked = false;
+        write.disabled = true;
+      } else {
+        write.disabled = false;
+      }
+    }
+
+    rolePermRows().forEach(function (row) {
+      var read = row.querySelector("[data-perm-read]");
+      if (read) read.addEventListener("change", function () { syncPermRow(row); });
+    });
+
+    function clearPermissions() {
+      rolePermRows().forEach(function (row) {
+        var read = row.querySelector("[data-perm-read]");
+        var write = row.querySelector("[data-perm-write]");
+        if (read) read.checked = false;
+        if (write) { write.checked = false; write.disabled = true; }
+      });
+    }
+
+    function collectPermissions() {
+      var out = [];
+      rolePermRows().forEach(function (row) {
+        var key = row.getAttribute("data-perm");
+        var read = row.querySelector("[data-perm-read]");
+        var write = row.querySelector("[data-perm-write]");
+        if (read && (read.checked || (write && write.checked))) {
+          out.push({
+            page: key,
+            can_read: read.checked,
+            can_write: !!(write && write.checked)
+          });
+        }
+      });
+      return out;
+    }
+
+    function resetRoleForm() {
+      editingRoleId = null;
+      roleForm.reset();
+      if (roleIdInput) roleIdInput.value = "";
+      if (roleTitle) roleTitle.textContent = "Add role";
+      clearPermissions();
+    }
+
+    function openRoleEditor(role) {
+      editingRoleId = role.id;
+      if (roleIdInput) roleIdInput.value = String(role.id);
+      roleForm.querySelector("[name=name]").value = role.name;
+      if (roleTitle) roleTitle.textContent = "Edit role";
+      clearPermissions();
+      (role.permissions || []).forEach(function (perm) {
+        var row = roleForm.querySelector('[data-perm="' + perm.page + '"]');
+        if (!row) return;
+        var read = row.querySelector("[data-perm-read]");
+        var write = row.querySelector("[data-perm-write]");
+        if (read) read.checked = !!perm.can_read;
+        if (write) {
+          write.checked = !!perm.can_write;
+          write.disabled = !perm.can_read;
+        }
+      });
+      openModal("role-modal");
+    }
+
+    var addRoleBtn = document.querySelector("[data-role-add]");
+    if (addRoleBtn) addRoleBtn.addEventListener("click", resetRoleForm);
+
+    document.querySelectorAll("[data-role-edit]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = Number(btn.getAttribute("data-role-edit"));
+        var role = roleData.filter(function (r) { return r.id === id; })[0];
+        if (role) openRoleEditor(role);
+      });
+    });
+
+    document.querySelectorAll("[data-role-remove]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (btn.disabled) return;
+        var id = btn.getAttribute("data-role-remove");
+        if (!window.confirm("Remove this role? This cannot be undone.")) return;
+        fetch("/api/roles/" + id, { method: "DELETE" })
+          .then(function (r) { if (!r.ok) throw new Error(); })
+          .then(function () { window.location.reload(); })
+          .catch(function () { window.alert("Could not remove the role. Reassign its accounts first."); });
+      });
+    });
+
+    roleForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var payload = {
+        name: roleForm.querySelector("[name=name]").value,
+        permissions: collectPermissions()
+      };
+      var url = editingRoleId ? "/api/roles/" + editingRoleId : "/api/roles";
+      var method = editingRoleId ? "PUT" : "POST";
+      fetch(url, {
+        method: method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+        .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+        .then(function () { window.location.reload(); })
+        .catch(function () { window.alert("Could not save the role. Please try again."); });
     });
   }
 
