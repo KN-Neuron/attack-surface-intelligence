@@ -645,6 +645,63 @@
   syncThemeButtons(document.documentElement.getAttribute("data-theme") || "dark");
 
   // ==========================================================================
+  // Settings — HTTP scanner tuning
+  // ==========================================================================
+  var scanRate = document.getElementById("scan-rate-limit");
+  var scanThreads = document.getElementById("scan-threads");
+  var scanMulti = document.getElementById("scan-multithreaded");
+  var scanSave = document.getElementById("scan-settings-save");
+  if (scanRate && scanThreads && scanMulti) {
+    var threadsRow = document.getElementById("scan-threads-row");
+    var multiText = document.getElementById("scan-multithreaded-text");
+    var savedNote = document.getElementById("settings-saved");
+    var savedTimer = 0;
+
+    // Threads only make sense while multithreading is on; the server forces the
+    // count to 1 when it is off, so the field is disabled to match. The save
+    // button only renders for accounts that may write, so its absence means
+    // every control stays read-only.
+    var readOnly = !scanSave;
+    function syncThreadsField() {
+      var on = scanMulti.checked;
+      scanThreads.disabled = readOnly || !on;
+      if (multiText) multiText.textContent = on ? "On" : "Off";
+      if (threadsRow) threadsRow.classList.toggle("is-disabled", !on);
+    }
+    scanMulti.addEventListener("change", syncThreadsField);
+    syncThreadsField();
+
+    function flashSaved() {
+      if (!savedNote) return;
+      savedNote.hidden = false;
+      window.clearTimeout(savedTimer);
+      savedTimer = window.setTimeout(function () { savedNote.hidden = true; }, 2500);
+    }
+
+    if (scanSave) {
+      scanSave.addEventListener("click", function () {
+        var payload = {
+          max_requests_per_second: Number(scanRate.value) || 1,
+          threads: Number(scanThreads.value) || 1,
+          multithreaded: scanMulti.checked
+        };
+        scanSave.disabled = true;
+        fetch("/api/settings/scan", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        })
+          .then(function (response) {
+            if (!response.ok) throw new Error();
+            flashSaved();
+          })
+          .catch(function () { window.alert("Could not save scanner settings."); })
+          .then(function () { scanSave.disabled = false; });
+      });
+    }
+  }
+
+  // ==========================================================================
   // Scan management — live status
   // ==========================================================================
   var scanActive = document.querySelector("[data-scan-active]");

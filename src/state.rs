@@ -444,6 +444,54 @@ pub struct AssetRow {
     pub tag_text: String,
 }
 
+/// Scanner tuning, persisted in `app_data` and applied to every httpx run.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ScanSettings {
+    /// Maximum HTTP requests httpx sends per second (`-rate-limit`).
+    pub max_requests_per_second: u32,
+    /// Worker threads httpx uses per run (`-threads`). More threads finish a
+    /// scan faster but hit the target harder.
+    pub threads: u32,
+    /// Whether to scanner runs concurrently at all: when off, threads are forced
+    /// to 1 so requests go out one at a time.
+    pub multithreaded: bool,
+}
+
+impl Default for ScanSettings {
+    fn default() -> Self {
+        // httpx ships with 50 threads and a 150 req/s ceiling. A single-threaded
+        // sweep is unnecessarily slow for that ceiling, so multithreading is on
+        // by default while the rate limit keeps the load predictable.
+        Self {
+            max_requests_per_second: 150,
+            threads: 50,
+            multithreaded: true,
+        }
+    }
+}
+
+impl ScanSettings {
+    /// Clamped so a bad stored value or payload can never wedge a scan: threads
+    /// stay in 1..=500 and the rate limit in 1..=10000 req/s.
+    pub fn sanitized(mut self) -> Self {
+        self.max_requests_per_second = self.max_requests_per_second.clamp(1, 10_000);
+        self.threads = self.threads.clamp(1, 500);
+        if !self.multithreaded {
+            self.threads = 1;
+        }
+        self
+    }
+
+    /// The thread count actually handed to httpx.
+    pub fn effective_threads(&self) -> u32 {
+        if self.multithreaded {
+            self.threads.max(1)
+        } else {
+            1
+        }
+    }
+}
+
 /// Everything one httpx probe reported about a host, ready to persist. The
 /// scanner fills this in, so the storage layer never has to know httpx's shape.
 #[derive(Clone, Default)]

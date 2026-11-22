@@ -20,7 +20,7 @@ use crate::state::{
     AckPayload, Admin, AlertRow, Criterion, EditAsset, EditHostEntry, HostFqdn, HostGroup,
     HostIp, HostRange, ImportHosts, ImportPreview, ImportSummary, NewAdmin, NewGroup,
     NewHostEntries, NewPolicy, Policy, Role, RolePayload, RunScan, ScanDetail, ScanRowView,
-    ScanStatus, ScanType, UpdateAdmin,
+    ScanSettings, ScanStatus, ScanType, UpdateAdmin,
 };
 
 const PRODUCT: &str = "Visibly";
@@ -1090,17 +1090,39 @@ pub async fn toggle_admin(
 struct SettingsPage {
     shell: Shell,
     title: &'static str,
+    max_requests_per_second: u32,
+    threads: u32,
+    multithreaded: bool,
+    can_edit: bool,
 }
 
 pub async fn settings(
     State(pool): State<PgPool>,
     Extension(admin): Extension<CurrentAdmin>,
 ) -> Html<String> {
+    let scan = db::scan_settings(&pool).await;
     let page = SettingsPage {
         shell: build_shell(&pool, nav::SETTINGS, &admin).await,
         title: "Settings",
+        max_requests_per_second: scan.max_requests_per_second,
+        threads: scan.threads,
+        multithreaded: scan.multithreaded,
+        can_edit: admin.can_write("settings"),
     };
     render(&page)
+}
+
+/// Saves scanner tuning. Gated on the `settings` write permission by the
+/// router's RBAC guard.
+pub async fn save_scan_settings(
+    State(pool): State<PgPool>,
+    Json(payload): Json<ScanSettings>,
+) -> StatusCode {
+    if db::save_scan_settings(&pool, &payload).await {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::INTERNAL_SERVER_ERROR
+    }
 }
 
 // ---------------------------------------------------------------- root + api

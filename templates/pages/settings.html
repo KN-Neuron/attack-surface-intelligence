@@ -55,5 +55,59 @@
       </div>
     </div>
   </section>
+
+  <section class="card settings-card">
+    <div class="card-head">
+      <h2>HTTP scanner</h2>
+      <span class="spacer"></span>
+      <span class="settings-saved" id="settings-saved" role="status" aria-live="polite" hidden>Saved</span>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-copy">
+        <div class="settings-title">Max requests per second</div>
+        <div class="settings-desc">Ceiling on how many HTTP requests the scanner sends each second. Lower it to go easier on slow or sensitive targets.</div>
+      </div>
+      <div class="settings-field">
+        <input type="number" id="scan-rate-limit" min="1" max="10000" step="1"
+               value="{{ max_requests_per_second }}" aria-label="Max requests per second"
+               {% if !can_edit %}disabled{% endif %}>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-copy">
+        <div class="settings-title">Multithreaded scanning</div>
+        <div class="settings-desc">Scan several hosts in parallel. Turning this off sends one request at a time, which is slower but gentlest on the network.</div>
+      </div>
+      <div class="settings-field">
+        <label class="switch">
+          <input type="checkbox" id="scan-multithreaded" {% if multithreaded %}checked{% endif %}
+                 {% if !can_edit %}disabled{% endif %}>
+          <span class="switch-track"></span>
+          <span class="switch-text" id="scan-multithreaded-text">{% if multithreaded %}On{% else %}Off{% endif %}</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="settings-row" id="scan-threads-row">
+      <div class="settings-copy">
+        <div class="settings-title">Threads</div>
+        <div class="settings-desc">Parallel workers per scan. More threads finish faster; pair it with the rate limit above to keep the load predictable.</div>
+      </div>
+      <div class="settings-field">
+        <input type="number" id="scan-threads" min="1" max="500" step="1"
+               value="{{ threads }}" aria-label="Scanner threads"
+               {% if !multithreaded %}disabled{% endif %}
+               {% if !can_edit %}disabled{% endif %}>
+      </div>
+    </div>
+
+    {% if can_edit %}
+    <div class="settings-foot">
+      <button class="btn primary" type="button" id="scan-settings-save">Save scanner settings</button>
+    </div>
+    {% endif %}
+  </section>
 </div>
 {% endblock %}

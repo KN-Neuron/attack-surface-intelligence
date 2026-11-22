@@ -422,6 +422,12 @@ async fn run_httpx(
             "httpx (ProjectDiscovery) was not found. Install it or set HTTPX_BIN.".to_string()
         })?;
 
+    // Operator tuning from Settings. `threads` is already forced to 1 when
+    // multithreading is off, so both controls hold here.
+    let settings = db::scan_settings(pool).await;
+    let threads = settings.effective_threads().to_string();
+    let rate_limit = settings.max_requests_per_second.to_string();
+
     let mut child = Command::new(&binary)
         .arg("-l")
         .arg(list_path)
@@ -459,7 +465,9 @@ async fn run_httpx(
             "-retries",
             "1",
             "-threads",
-            "25",
+            &threads,
+            "-rate-limit",
+            &rate_limit,
         ])
         .stdout(Stdio::piped())
         .stderr(Stdio::null())

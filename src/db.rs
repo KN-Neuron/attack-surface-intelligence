@@ -9,7 +9,7 @@ use crate::mock;
 use crate::state::{
     Admin, AlertRow, AssetRow, Criterion, EditAsset, HostCapture, HostFqdn, HostGroup, HostIp,
     HostRange, ImportPreview, ImportSummary, Permission, Policy, Role, ScanDetail, ScanRowView,
-    ScanServiceCount, ScanStatus, ScanTechCount, ScanType, now_label,
+    ScanServiceCount, ScanSettings, ScanStatus, ScanTechCount, ScanType, now_label,
 };
 
 /// Hardcoded Railway Postgres connection (per project requirement).
@@ -554,6 +554,25 @@ where
     value
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default()
+}
+
+/// Scanner tuning. Falls back to the built-in defaults when nothing is stored.
+pub async fn scan_settings(pool: &PgPool) -> ScanSettings {
+    get_data::<ScanSettings>(pool, "scan_settings")
+        .await
+        .sanitized()
+}
+
+pub async fn save_scan_settings(pool: &PgPool, settings: &ScanSettings) -> bool {
+    let data = serde_json::to_value(settings.clone().sanitized()).unwrap_or(Value::Null);
+    sqlx::query(
+        "INSERT INTO app_data (key, data) VALUES ('scan_settings', $1)
+         ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data",
+    )
+    .bind(data)
+    .execute(pool)
+    .await
+    .is_ok()
 }
 
 // ---------------------------------------------------------------- policies

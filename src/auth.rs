@@ -122,7 +122,7 @@ pub fn page_for_path(path: &str) -> Option<&'static str> {
         || path.starts_with("/api/roles")
     {
         Some("admin_management")
-    } else if path.starts_with("/settings") {
+    } else if path.starts_with("/settings") || path.starts_with("/api/settings") {
         Some("settings")
     } else {
         None
