@@ -3,6 +3,7 @@ import { t } from '@/components/docs/inline';
 import Link from 'next/link';
 import { DocPage } from '@/components/docs/doc-page';
 import { H2 } from '@/components/docs/headings';
+import { Callout } from '@/components/ui/callout';
 import { CodeBlock } from '@/components/ui/code-block';
 import { RefTable } from '@/components/ui/ref-table';
 
@@ -20,6 +21,9 @@ export default function Page() {
                 { id: 'harmonogramy', label: 'Harmonogramy' },
                 { id: 'alerty', label: 'Alerty' },
                 { id: 'asset', label: 'Hosty z Data Explorer' },
+                { id: 'sygnatury', label: 'Sygnatury' },
+                { id: 'ustawienia', label: 'Ustawienia skanera' },
+                { id: 'defectdojo', label: 'DefectDojo' },
                 { id: 'administracja', label: 'Administratorzy i role' },
                 { id: 'wyszukiwarka', label: 'Wyszukiwarka' },
                 { id: 'inwentarz', label: 'Inwentarz hostów' }
@@ -68,7 +72,8 @@ export default function Page() {
   "scan_id": 12,
   "scan_type": "full",
   "engine": "httpx",
-  "alerts_found": 0
+  "alerts_found": 0,
+  "status": "Completed"
 }`}
             />
             <RefTable
@@ -129,6 +134,7 @@ export default function Page() {
                     [<code key="b">ip address</code>, t('Adres, np. `203.0.113.10`'), 'cel'],
                     [<code key="c">ip range</code>, t('Blok CIDR, np. `198.51.100.0/24`'), 'cel'],
                     [<code key="d">fqdn</code>, t('Nazwa, np. `www.example.com`'), 'cel'],
+                    [<code key="tag">tag</code>, 'Tag z ewidencji; obejmuje wpisy IP, zakresów i FQDN z tym tagiem (dokładne dopasowanie, wielkość liter znacząca)', 'cel'],
                     [<code key="t">type</code>, t('`full` lub `reachability`; brak kryterium oznacza `full`'), 'typ skanu'],
                     [<code key="e">frequency</code>, t('`Daily`, `Weekly`, `Monthly` lub `On demand`'), 'harmonogram'],
                     [<code key="f">when</code>, t('`<dzień> <HH:MM>`: `every 01:00`, `mon 22:00` … `sun`, `d1 03:30` … `d28`; bez strefy czasowej'), 'harmonogram']
@@ -153,14 +159,20 @@ export default function Page() {
             <H2 id="asset">Hosty z Data Explorer</H2>
             <RefTable
                 head={['Metoda', 'Ścieżka', 'Odpowiedź']}
-                rows={[['PUT', <code key="1">/api/assets/{'{address}'}</code>, '204 po zapisie albo 404, gdy skaner nie zna adresu']]}
+                rows={[
+                    ['PUT', <code key="1">/api/scans/{'{scan_id}'}/assets/{'{address}'}</code>, '204 po zapisie albo 404, gdy ten skan nie ma wiersza dla adresu'],
+                    ['POST', <code key="2">/api/assets/import</code>, <>200, <code>{'{ imported, skipped, scan_id }'}</code>; tworzy nowy skan importu</>]
+                ]}
             />
             <p>
-                Adres w ścieżce należy zakodować (<code>encodeURIComponent</code>). Wszystkie pola ciała są opcjonalne, a pominięte lub <code>null</code> zostawiają dotychczasową wartość. Wymaga zapisu do strony <code>Data Explorer</code>; skutki opisuje <Link href="/docs/data-explorer#edycja">Data Explorer › Tryb edycji</Link>.
+                Adres w ścieżce należy zakodować (<code>encodeURIComponent</code>). Wszystkie pola ciała edycji są opcjonalne, a pominięte lub <code>null</code> zostawiają dotychczasową wartość. Edycja obejmuje wiersz historii wskazanego skanu (<code>scan_host_captures</code>) oraz bieżący stan hosta (<code>scan_hosts</code>).
             </p>
+            <Callout type="warning" title="Uprawnienie do zapisu">
+                Ścieżka <code>/api/scans/…</code> jest chroniona kluczem <code>scan_management</code>, mimo że przycisk edycji w interfejsie zależy od zapisu do <code>data_explorer</code>. Import CSV (<code>/api/assets/import</code>) należy do <code>data_explorer</code>. Szczegóły: <Link href="/docs/dostep#sciezki">Dostęp i uprawnienia</Link>.
+            </Callout>
             <CodeBlock
                 lang="json"
-                title="Ładunek"
+                title="PUT /api/scans/{scan_id}/assets/{address}"
                 code={`{
   "title": "Panel klienta",
   "webserver": "nginx",
@@ -172,6 +184,79 @@ export default function Page() {
   "up": true
 }`}
             />
+            <CodeBlock
+                lang="json"
+                title="POST /api/assets/import"
+                code={`{
+  "rows": [
+    { "Host": "203.0.113.10", "HTTP": "200", "Title": "Panel", "Tags": "env:prod; role:edge" }
+  ]
+}`}
+            />
+            <p>
+                Import przyjmuje wiersze z nagłówkami etykiet eksportu CSV; wymagana jest kolumna <code>Host</code>. Wiersze bez niej są pomijane i liczone w <code>skipped</code>. Listy rozdziela średnik. Skutki opisuje <Link href="/docs/data-explorer#csv">Data Explorer › CSV</Link>.
+            </p>
+
+            <H2 id="sygnatury">Sygnatury</H2>
+            <RefTable
+                head={['Metoda', 'Ścieżka', 'Odpowiedź']}
+                rows={[
+                    ['POST', <code key="1">/api/signatures</code>, '200, utworzona sygnatura; 400 przy błędzie zapisu'],
+                    ['PUT', <code key="2">/api/signatures/{'{id}'}</code>, '200, zaktualizowana sygnatura; 404'],
+                    ['DELETE', <code key="3">/api/signatures/{'{id}'}</code>, '204; 404; 409 dla sygnatury predefiniowanej']
+                ]}
+            />
+            <CodeBlock
+                lang="json"
+                title="Ładunek POST / PUT"
+                code={`{
+  "name": "Exposed debug header",
+  "description": "Flags a response that leaks a debug token",
+  "severity": "High",
+  "enabled": true,
+  "match_mode": "all",
+  "criteria": [
+    { "source": "http_header", "operator": "not_empty", "name": "x-debug-token", "value": "" },
+    { "source": "status_code", "operator": "eq", "name": "", "value": "200" }
+  ]
+}`}
+            />
+            <p>
+                Pola <code>description</code>, <code>severity</code>, <code>enabled</code>, <code>match_mode</code> i <code>criteria</code> są opcjonalne; ważność domyślnie <code>Medium</code>, stan <code>true</code>, tryb <code>all</code>. Kryterium ma <code>source</code> (<code>http_header</code>, <code>cookie</code>, <code>cookie_name</code>, <code>title</code>, <code>server</code>, <code>technology</code>, <code>url</code>, <code>status_code</code>), <code>operator</code>, <code>name</code> i <code>value</code>. Nieznane źródła i źródła nazwane bez nazwy są odrzucane. Dla sygnatury predefiniowanej aktualizacja zmienia tylko nazwę, opis, ważność i stan. Szczegóły: <Link href="/docs/sygnatury">Custom Signatures</Link>.
+            </p>
+
+            <H2 id="ustawienia">Ustawienia skanera</H2>
+            <RefTable
+                head={['Metoda', 'Ścieżka', 'Odpowiedź']}
+                rows={[['PUT', <code key="1">/api/settings/scan</code>, '204 po zapisie albo 500 przy błędzie bazy']]}
+            />
+            <CodeBlock
+                lang="json"
+                title="Ładunek"
+                code={`{
+  "max_requests_per_second": 150,
+  "threads": 50,
+  "multithreaded": true,
+  "retries": 2
+}`}
+            />
+            <p>
+                Wartości są przycinane do zakresów: 1–10 000 req/s, 1–500 wątków, 0–10 ponowień; przy wyłączonym trybie wielowątkowym wątki są wymuszane na 1. Wymaga zapisu do <code>settings</code>.
+            </p>
+
+            <H2 id="defectdojo">DefectDojo</H2>
+            <RefTable
+                head={['Metoda', 'Ścieżka', 'Odpowiedź']}
+                rows={[
+                    ['PUT', <code key="1">/api/defectdojo/settings</code>, <>200, <code>{'{ ok, message, has_token, token_hint }'}</code></>],
+                    ['POST', <code key="2">/api/defectdojo/test</code>, <>200, <code>{'{ ok, message }'}</code>; test jest zapisywany w historii synchronizacji</>],
+                    ['POST', <code key="3">/api/defectdojo/sync</code>, <>200, wynik pushu; ciało <code>{'{ "scan_id": 12 }'}</code> opcjonalne; 502 przy błędzie DefectDojo</>],
+                    ['POST', <code key="4">/api/defectdojo/pull</code>, '200, wynik pullu; 502 przy błędzie DefectDojo']
+                ]}
+            />
+            <p>
+                Wszystkie wymagają zapisu do <code>defectdojo</code>. Ładunek ustawień ma postać <code>DefectDojoSettingsPayload</code>: <code>enabled</code>, <code>base_url</code>, <code>api_token</code>, <code>clear_token</code>, <code>product_type_name</code>, <code>default_product_name</code>, <code>auto_sync</code>, <code>close_old_findings</code>, <code>minimum_severity</code>, <code>verify_tls</code>, <code>push_cves</code> i <code>push_signatures</code>. Pusty token zachowuje zapisany; <code>clear_token</code> go usuwa. Bez <code>scan_id</code> push wybiera najnowszy zakończony skan Full. Opis zachowania: <Link href="/docs/defectdojo">DefectDojo</Link>.
+            </p>
 
             <H2 id="administracja">Administratorzy i role</H2>
             <RefTable

@@ -59,7 +59,8 @@ export default function Page() {
             <RefTable
                 head={['Potrzeba', 'Użyj', 'Powód']}
                 rows={[
-                    ['Wskazać zbiór celów w harmonogramie skanowania', 'Grupy', <>Cele harmonogramu to grupy, adresy, zakresy i FQDN, a nie tagi (<Link href="/docs/skanowanie#cele">Skanowanie › Cele</Link>)</>],
+                    ['Wskazać stały zbiór celów w harmonogramie skanowania', 'Grupy', <>Grupa ma ręcznie wybrany skład, którego nie zmienia nadanie tagu (<Link href="/docs/skanowanie#cele">Skanowanie › Cele</Link>)</>],
+                    ['Skanować wszystko, co ma daną cechę', 'Tagi', <>Kryterium <code>tag</code> obejmuje bieżące wpisy z tym tagiem, także dodane później (<Link href="/docs/tagowanie#scheduling">Tagowanie › Scan Scheduling</Link>)</>],
                     ['Opisać cel kilkoma niezależnymi cechami', 'Tagi', 'Grupa wymagałaby osobnego zbioru dla każdej kombinacji cech'],
                     ['Wyszukać wpisy po cesze', 'Tagi', 'Filtr tabeli i SQL obejmują tagi; listy członków grupy ich nie pokazują'],
                     ['Oznaczyć pochodzenie importu', 'Tagi', 'Import nadaje jeden zestaw tagów całej partii'],

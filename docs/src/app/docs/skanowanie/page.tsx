@@ -76,7 +76,7 @@ export default function Page() {
 
             <H3 id="cele">Cele</H3>
             <p>
-                Cele wybiera się wyłącznie z ewidencji: wpis musi najpierw istnieć w Host management. Sekcja <code>Targets</code> ma cztery listy z polami wyboru, każdą z filtrem:
+                Cele wybiera się wyłącznie z ewidencji: wpis musi najpierw istnieć w Host management. Sekcja <code>Targets</code> ma pięć list z polami wyboru, każdą z filtrem:
             </p>
             <RefTable
                 head={['Lista', 'Co zaznaczasz', 'Etykieta w kolumnie Targets']}
@@ -84,15 +84,16 @@ export default function Page() {
                     [<code key="a">Host groups</code>, t('Grupę hostów; obok nazwy widać liczbę jej celów (`N target(s)`). Grupa obejmuje wszystko, co zawiera'), <code key="a2">Host group</code>],
                     [<code key="b">IP addresses</code>, 'Pojedynczy adres z zakładki IPs', <code key="b2">IP address</code>],
                     [<code key="c">IP ranges</code>, 'Zakres CIDR z zakładki IP ranges; obejmuje adresy bloku (z limitem opisanym w rozdziale Rozwiązywanie celów)', <code key="c2">IP range</code>],
-                    [<code key="d">FQDNs</code>, 'Nazwę domenową z zakładki FQDNs', <code key="d2">FQDN</code>]
+                    [<code key="d">FQDNs</code>, 'Nazwę domenową z zakładki FQDNs', <code key="d2">FQDN</code>],
+                    [<code key="t">Tags</code>, t('Tag obecny w ewidencji; wybiera wszystkie wpisy IP, zakresów i FQDN noszące ten tag'), <code key="t2">Tag</code>]
                 ]}
             />
             <ul>
                 <li>
-                    Typy celów można łączyć w jednej konfiguracji, np. grupa <code>Produkcja</code> oraz dodatkowo adres <code>203.0.113.10</code> i nazwa <code>www.example.com</code>.
+                    Typy celów można łączyć w jednej konfiguracji, np. grupa <code>Produkcja</code> oraz dodatkowo adres <code>203.0.113.10</code>, nazwa <code>www.example.com</code> i tag <code>env:prod</code>.
                 </li>
                 <li>
-                    Wyboru po tagu nie ma. Aby objąć harmonogramem hosty z tagiem, zbuduj z nich grupę (<Link href="/docs/tagowanie#scheduling">Tagowanie › Scan Scheduling</Link>).
+                    Wybór tagu rozwijany jest przy uruchomieniu na wpisy ewidencji z tym tagiem. Tag przypisany do <strong>grupy</strong> nie wciąga jej członków: tag grupy opisuje tylko samą grupę. Dopasowanie tagu jest dokładne i rozróżnia wielkość liter.
                 </li>
                 <li>
                     Cel jest zapisywany jako tekst (nazwa grupy, adres, zakres, nazwa), a skan odczytuje go dopiero przy uruchomieniu. Grupa jest rozwijana według <strong>bieżącego</strong> składu, więc dodanie członka do grupy zmienia cele najbliższego skanu bez edycji konfiguracji. Zmiana nazwy lub usunięcie grupy zrywa powiązanie: skan nie znajdzie grupy o starej nazwie (<Link href="/docs/hosty#grupa-skutki">Host management › Grupa a harmonogramy</Link>). Adres, zakres i FQDN są używane tak, jak zapisano, także gdy wpis usunięto z ewidencji (<Link href="/docs/hosty#edycja">Edycja i usuwanie</Link>).
@@ -131,6 +132,7 @@ export default function Page() {
     { "kind": "type", "value": "full" },
     { "kind": "host group", "value": "Produkcja" },
     { "kind": "fqdn", "value": "www.example.com" },
+    { "kind": "tag", "value": "env:prod" },
     { "kind": "frequency", "value": "Daily" },
     { "kind": "when", "value": "every 01:00" }
   ]
@@ -209,13 +211,16 @@ export default function Page() {
             />
             <ul>
                 <li>
-                    <code>httpx</code> działa z limitem czasu 10 s na host, jedną ponowną próbą i 25 wątkami, podąża za przekierowaniami. Informacja o jednym porcie hosta w kolumnie usług pochodzi z odpowiedzi, którą zwrócił httpx (<code>HTTP</code> lub <code>HTTPS</code>).
+                    <code>httpx</code> działa z limitem czasu 10 s na host i podąża za przekierowaniami. Liczbę wątków, limit żądań na sekundę i liczbę ponowień ustawia się w <Link href="/docs/ustawienia#skaner">Settings › HTTP scanner</Link>; domyślnie to 50 wątków, 150 req/s i 2 ponowienia. Informacja o porcie hosta w kolumnie usług pochodzi z odpowiedzi, którą zwrócił httpx (<code>HTTP</code> lub <code>HTTPS</code>).
                 </li>
                 <li>
                     masscan skanuje z szybkością 1000 pakietów na sekundę i obsługuje tylko IPv4. Sonda TCP łączy się z sześcioma portami równolegle (limit czasu 2 s), a host uznaje za dostępny, gdy któryś port przyjmie połączenie; sprawdza jednocześnie 64 hosty.
                 </li>
                 <li>
-                    Skan Full zapisuje stan jednej, bieżącej linii na adres: nowy skan nadpisuje poprzednie pola, a historii zmian dla pojedynczego hosta aplikacja nie przechowuje. O zmianach informuje <Link href="/docs/alerty">Alerts</Link>.
+                    Skan Full zachowuje nazwy FQDN jako cele, dzięki czemu httpx wysyła właściwy <code>Host</code> i SNI. Skan Reachability działa na adresach: nazwa jest zamieniana na pierwszy adres z DNS.
+                </li>
+                <li>
+                    Skan Full zapisuje dwa miejsca: bieżący stan hosta w <code>scan_hosts</code> (nowy skan nadpisuje pola) oraz niezmienny wiersz historii w <code>scan_host_captures</code> (jeden na host i skan), z którego korzysta Data Explorer. O zmianach między skanami informuje <Link href="/docs/alerty">Alerts</Link>.
                 </li>
             </ul>
 
@@ -223,16 +228,16 @@ export default function Page() {
             <p>Przed startem serwer zamienia cele konfiguracji (albo całą ewidencję) na listę adresów do sprawdzenia:</p>
             <ol>
                 <li>
-                    Grupa jest rozwijana do swoich adresów IP, zakresów i nazw FQDN. Skan bez celów (ręczny) bierze wszystkie wpisy ewidencji.
+                    Grupa jest rozwijana do swoich adresów IP, zakresów i nazw FQDN. Tag jest rozwijany do wszystkich wpisów ewidencji (IP, zakresów, FQDN) noszących ten tag; tag samej grupy nie dodaje jej członków. Skan bez celów (ręczny) bierze wszystkie wpisy ewidencji.
                 </li>
                 <li>
                     Zakres CIDR jest rozwijany do adresów, <strong>łącznie z adresem sieci i rozgłoszeniowym</strong>, ale nie więcej niż <strong>1024 adresy z jednego zakresu</strong> (od początku bloku). Zakresy IPv6 są pomijane; pojedyncze adresy IPv6 są skanowane.
                 </li>
                 <li>
-                    Nazwy FQDN są zamieniane na pierwszy adres z DNS. Nazwa bez adresu jest pomijana, a skan i jego wyniki dotyczą <strong>adresu IP</strong>, nie nazwy.
+                    Rozwiązywanie nazw FQDN zależy od typu skanu. <strong>Full</strong> zostawia nazwę jako cel, żeby httpx wysłał właściwy nagłówek <code>Host</code> i SNI — dzięki temu osobne wirtualne hosty odpowiadają swoją treścią, a nie domyślną stroną adresu. <strong>Reachability</strong> zamienia nazwę na pierwszy adres z DNS, bo pracuje na warstwie IP. Nazwa, której nie da się rozwiązać, jest pomijana.
                 </li>
                 <li>
-                    Lista jest deduplikowana i skracana do <strong>2048 adresów</strong>.
+                    Lista jest deduplikowana i skracana do <strong>2048 adresów</strong> (dla skanu Full licznik obejmuje nazwy FQDN).
                 </li>
             </ol>
             <Callout type="warning" title="Skrócona lista celów">
@@ -269,7 +274,7 @@ export default function Page() {
                 ]}
             />
             <p>
-                Alerty są wyliczane z tego, co skan zdążył zapisać, także gdy zostanie przerwany albo zakończy się błędem.
+                Alerty są wyliczane z tego, co skan zdążył zapisać, także gdy zostanie przerwany albo zakończy się błędem. Oprócz zmian hostów i dopasowań CVE uruchamiane są wtedy włączone <Link href="/docs/sygnatury">Custom Signatures</Link>, a ich trafienia zwiększają licznik alertów skanu.
             </p>
 
             <H3 id="kolejka">Upcoming scan i Scan queue</H3>

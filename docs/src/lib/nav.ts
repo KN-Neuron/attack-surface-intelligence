@@ -45,10 +45,11 @@ export const nav: NavSection[] = [
             {
                 items: [
                     { title: 'Skanowanie', href: '/docs/skanowanie', hint: 'Scan Scheduling, typy skanu, cele, harmonogram w tle, uruchomienie' },
+                    { title: 'Custom Signatures', href: '/docs/sygnatury', hint: 'Własne reguły na nagłówki, cookies, tytuł, technologie i status HTTP' },
                     { title: 'Wyniki i analiza', href: '/docs/wyniki', hint: 'Scan Results, szczegóły skanu, Compare Scans, dashboardy, źródła danych' },
-                    { title: 'Data Explorer', href: '/docs/data-explorer', hint: 'Tabela hostów, kolumny, filtry z operatorami, okres, edycja' },
+                    { title: 'Data Explorer', href: '/docs/data-explorer', hint: 'Historia hostów, 45 kolumn z tagami, filtry, CSV, edycja' },
                     { title: 'DefectDojo', href: '/docs/defectdojo', hint: 'Push findingów, pull dashboardu, mapowanie produktów, historia synchronizacji' },
-                    { title: 'Alerty', href: '/docs/alerty', hint: 'Reguły New host, Host down, New CVE, potwierdzanie' }
+                    { title: 'Alerty', href: '/docs/alerty', hint: 'Reguły New host, Host down, New CVE, Signature match, potwierdzanie' }
                 ]
             }
         ]
@@ -57,7 +58,14 @@ export const nav: NavSection[] = [
         id: 'access',
         title: 'Administracja',
         icon: 'shield',
-        groups: [{ items: [{ title: 'Dostęp i uprawnienia', href: '/docs/dostep', hint: 'Role, kto może co zrobić, Admin management' }] }]
+        groups: [
+            {
+                items: [
+                    { title: 'Dostęp i uprawnienia', href: '/docs/dostep', hint: 'Role, kto może co zrobić, Admin management' },
+                    { title: 'Settings', href: '/docs/ustawienia', hint: 'Motyw oraz strojenie skanera httpx: limit, wątki i ponowienia' }
+                ]
+            }
+        ]
     },
     {
         id: 'reference',

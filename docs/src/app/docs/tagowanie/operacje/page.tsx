@@ -89,7 +89,7 @@ export default function Page() {
                 Okna <code>New host group</code> i <code>Edit host group</code> mają to samo pole tagów. Tagi grupy opisują samą grupę (np. strefę sieci), są widoczne w kolumnie <code>Tags</code> zakładki <code>Host groups</code> i można je zmienić przez <code>Edit</code> grupy. Nie są przekazywane członkom ani przejmowane od nich.
             </p>
             <p>
-                Listy wyboru członków w oknie grupy pokazują tylko wartości, bez tagów, a ich filtr dopasowuje wyłącznie tekst wartości. Jak zbudować grupę z wpisów o danym tagu, opisuje <Link href="/docs/tagowanie#scheduling">Przegląd › Scan Scheduling</Link>.
+                Listy wyboru członków w oknie grupy pokazują tylko wartości, bez tagów, a ich filtr dopasowuje wyłącznie tekst wartości. Jeśli celem ma być zbiór wpisów o danym tagu, nie musisz budować grupy: w Scan Scheduling wybierz tag z listy <code>Tags</code> (<Link href="/docs/tagowanie#scheduling">Przegląd › Scan Scheduling</Link>).
             </p>
 
             <H2 id="wyszukiwanie">Wyszukiwanie po tagach</H2>

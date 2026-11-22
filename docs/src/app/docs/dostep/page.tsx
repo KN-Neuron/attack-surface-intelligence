@@ -58,22 +58,26 @@ export default function Page() {
                 head={['Klucz', 'Etykieta', 'Ścieżki (prefiks)']}
                 rows={[
                     [<code key="1">dashboards</code>, 'Dashboards', <code key="1a">/dashboards</code>],
-                    [<code key="2">scan_management</code>, 'Scan Status', <><code>/scanning/management</code>, <code>/api/scan</code> (także <code>/api/scans/{'{id}'}</code>)</>],
+                    [<code key="2">scan_management</code>, 'Scan Status', <><code>/scanning/management</code>, <code>/api/scan</code> (także <code>/api/scans/{'{id}'}</code> i <code>/api/scans/{'{scan_id}'}/assets/{'{address}'}</code>)</>],
                     [<code key="3">policies</code>, 'Scan Scheduling', <><code>/scanning/policies</code>, <code>/api/policies</code></>],
-                    [<code key="4">compare</code>, 'Compare Scans', <code key="4a">/scanning/compare-scans</code>],
+                    [<code key="4">signatures</code>, 'Custom Signatures', <><code>/scanning/signatures</code>, <code>/api/signatures</code></>],
+                    [<code key="4a">compare</code>, 'Compare Scans', <code key="4b">/scanning/compare-scans</code>],
                     [<code key="5">host_management</code>, 'Host management', <><code>/host-management</code>, <code>/api/host-</code></>],
                     [<code key="6">data_explorer</code>, 'Data Explorer', <><code>/log-center/data-explorer</code>, <code>/api/assets</code></>],
                     [<code key="7">scan_history</code>, 'Scan Results', <code key="7a">/log-center/scan-history</code>],
                     [<code key="7b">alerts</code>, 'Alerts', <><code>/log-center/alerts</code>, <code>/api/alerts</code></>],
                     [<code key="8">admin_management</code>, 'Admin management', <><code>/admin-management</code>, <code>/api/admins</code>, <code>/api/roles</code></>],
-                    [<code key="9">settings</code>, 'Settings', <code key="9a">/settings</code>]
+                    [<code key="9">settings</code>, 'Settings', <><code>/settings</code>, <code>/api/settings</code></>]
                 ]}
             />
             <p>
-                Ścieżki bez klucza (<code>/</code>, <code>/logout</code>, <code>/api/search</code>) wymagają tylko ważnej sesji. Kluczy jest dziesięć.
+                Ścieżki bez klucza (<code>/</code>, <code>/logout</code>, <code>/api/search</code>) wymagają tylko ważnej sesji. Kluczy jest dwanaście.
             </p>
             <Callout type="note" title="Scan details wymaga Scan Status">
-                Dopasowanie ścieżek działa prefiksem, a <code>/api/scans/{'{id}'}</code> zaczyna się od <code>/api/scan</code>. Okno Scan details z ekranu Scan Results wymaga więc odczytu <code>Scan Status</code>, a nie <code>Scan Results</code>. Konto z samym Scan Results, np. <code>Analyst</code>, zobaczy listę uruchomień, ale okno szczegółów się nie załaduje (odpowiedź 403).
+                Dopasowanie ścieżek działa prefiksem, a <code>/api/scans/{'{id}'}</code> zaczyna się od <code>/api/scan</code>. Okno Scan details z ekranu Scan Results wymaga więc odczytu <code>Scan Status</code>, a nie <code>Scan Results</code>. Konto z samym Scan Results, np. rola startowa <code>Analyst</code>, zobaczy listę uruchomień, ale okno szczegółów się nie załaduje (odpowiedź 403).
+            </Callout>
+            <Callout type="warning" title="Zapis edycji w Data Explorer wymaga Scan Status">
+                Zapis pojedynczego hosta trafia do <code>PUT /api/scans/{'{scan_id}'}/assets/{'{address}'}</code>. Ta ścieżka podpada pod prefiks <code>/api/scan</code>, więc wymaga <strong>zapisu do Scan Status</strong>, mimo że przycisk <code>Edit mode</code> pokazuje się na podstawie zapisu do Data Explorer. Konto z zapisem tylko do Data Explorer zobaczy tryb edycji, ale zapis dostanie 403.
             </Callout>
             <RefTable
                 head={['Sytuacja', 'Odpowiedź']}
@@ -93,12 +97,15 @@ export default function Page() {
                 head={['Rola', 'Dostęp', 'Zapis']}
                 rows={[
                     [<code key="a">Super Admin</code>, 'Wszystkie strony', <Badge key="a1" variant="success">tak</Badge>],
-                    [<code key="b">Scan Operator</code>, 'Dashboards, Scan Status, Scan Scheduling, Compare Scans, Host management, Scan Results, Alerts', <Badge key="b1" variant="success">tak</Badge>],
-                    [<code key="c">Analyst</code>, 'Dashboards, Data Explorer, Scan Results, Alerts, Host management', <Badge key="c1">tylko odczyt</Badge>]
+                    [<code key="b">Scan Operator</code>, 'Dashboards, Scan Status, Scan Scheduling, Compare Scans, Host management, DefectDojo, Scan Results, Alerts', <Badge key="b1" variant="success">tak</Badge>],
+                    [<code key="c">Analyst</code>, 'Dashboards, Data Explorer, DefectDojo, Scan Results, Alerts, Host management', <Badge key="c1">tylko odczyt</Badge>]
                 ]}
             />
             <p>
                 To role startowe, tworzone przy pierwszym uruchomieniu na pustej bazie. Przy każdym starcie rola startowa dostaje brakujące wbudowane uprawnienia (np. do strony dodanej w nowszej wersji), a uprawnienia zmienione ręcznie nie są nadpisywane. Administrator z uprawnieniem do Admin management może zmienić ich macierz, dodać własne role albo usunąć nieużywane (<Link href="#role-edycja">Zarządzanie rolami</Link>), więc w konkretnej instalacji zakres ról może być inny.
+            </p>
+            <p>
+                Dwie strony nie należą do ról <strong>Scan Operator</strong> ani <strong>Analyst</strong>: <code>Custom Signatures</code> i <code>Settings</code> ma domyślnie tylko <strong>Super Admin</strong>. Aby dać do nich dostęp, zmień macierz roli w Admin management.
             </p>
 
             <H3 id="kto-co">Kto może co zrobić</H3>
@@ -109,6 +116,7 @@ export default function Page() {
                     ['Przeglądać ewidencję, grupy i tagi', 'tak', 'tak', 'tak'],
                     ['Dodawać, edytować, importować i usuwać wpisy, grupy i tagi', 'tak', 'tak', 'nie'],
                     ['Przeglądać i zmieniać konfiguracje w Scan Scheduling', 'tak', 'tak', 'nie'],
+                    ['Zarządzać Custom Signatures', 'tak', 'nie', 'nie'],
                     ['Uruchamiać, wstrzymywać i przerywać skan (Scan Status)', 'tak', 'tak', 'nie'],
                     ['Uruchamiać skan z konfiguracji (Run now)', 'tak', 'tak', 'nie'],
                     ['Przeglądać Scan Results', 'tak', 'tak', 'tak'],
@@ -119,6 +127,7 @@ export default function Page() {
                     ['Przeglądać Alerts', 'tak', 'tak', 'tak'],
                     ['Potwierdzać alerty', 'tak', 'tak', 'nie'],
                     ['Przeglądać dashboardy, w tym Latest Scan summary', 'tak', 'tak', 'tak'],
+                    ['Zmieniać motyw i strojenie skanera (Settings)', 'tak', 'nie', 'nie'],
                     ['Zarządzać kontami administratorów i rolami', 'tak', 'nie', 'nie']
                 ]}
             />

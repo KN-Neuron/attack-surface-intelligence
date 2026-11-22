@@ -38,8 +38,8 @@ export default function Page() {
                     ['Czym jest', 'Nazwanym zestawem wpisów, które użytkownik wybrał ręcznie z ewidencji', 'Etykietą przypisaną do konkretnego wpisu; zbiór „hostów z tagiem X” powstaje z wszystkich wpisów, które ją mają'],
                     ['Jak przybywa członków', t('Trzeba otworzyć grupę (`Edit`) i zaznaczyć nowy wpis'), 'Wystarczy nadać tag nowemu wpisowi, np. przy dodawaniu albo imporcie'],
                     ['Ile naraz', 'Wpis może należeć do wielu grup', 'Wpis może mieć wiele tagów'],
-                    ['Wybór jako cel skanu', <Badge key="g" variant="success">dostępny</Badge>, <Badge key="t">niedostępny</Badge>],
-                    ['Wyszukiwanie w tabelach', 'Po nazwie grupy w zakładce Host groups', 'Po fragmencie tagu w każdej tabeli ewidencji']
+                    ['Wybór jako cel skanu', <Badge key="g" variant="success">dostępny</Badge>, <Badge key="t" variant="success">dostępny</Badge>],
+                    ['Wyszukiwanie w tabelach', 'Po nazwie grupy w zakładce Host groups', 'Po fragmencie tagu w każdej tabeli ewidencji i w kolumnie Tags w Data Explorer']
                 ]}
             />
             <p>
@@ -86,8 +86,8 @@ export default function Page() {
                 head={['Miejsce', 'Zachowanie', 'Stan']}
                 rows={[
                     ['Host Management', 'Nadawanie tagów przy dodawaniu i imporcie, zmiana i usuwanie przez Edit, wyszukiwanie wpisów po tagu', <Badge key="1" variant="success">dostępne</Badge>],
-                    ['Scan Scheduling', 'Wybór hostów oznaczonych tagiem jako celu harmonogramu lub skanu ręcznego', <Badge key="2">niedostępne</Badge>],
-                    ['Data Explorer', 'Filtrowanie tabeli hostów po tagu', <Badge key="3">niedostępne</Badge>]
+                    ['Scan Scheduling', 'Wybór wpisów oznaczonych tagiem jako celu harmonogramu lub skanu ręcznego', <Badge key="2" variant="success">dostępne</Badge>],
+                    ['Data Explorer', 'Kolumna Tags i filtrowanie przechwyceń po tagu hosta', <Badge key="3" variant="success">dostępne</Badge>]
                 ]}
             />
 
@@ -109,39 +109,27 @@ export default function Page() {
 
             <H3 id="scheduling">Scan Scheduling</H3>
             <p>
-                Formularz harmonogramu pozwala wybrać jako cel grupę, adres IP, zakres albo FQDN, ale <strong>nie tag</strong> (<Link href="/docs/skanowanie#cele">Skanowanie › Cele</Link>). Aby objąć odrębnym harmonogramem hosty z tagiem, np. <code>serwery-www</code>:
+                Formularz harmonogramu pozwala wybrać jako cel grupę, adres IP, zakres, FQDN albo <strong>tag</strong> (<Link href="/docs/skanowanie#cele">Skanowanie › Cele</Link>). Lista <code>Tags</code> w sekcji <code>Targets</code> pokazuje wszystkie tagi użyte w ewidencji. Zaznaczenie tagu <code>serwery-www</code> obejmuje każdy wpis IP, zakresu i FQDN noszący ten tag.
             </p>
-            <ol>
-                <li>
-                    W Host management wyszukaj <code>serwery-www</code> w zakładkach <code>IPs</code>, <code>IP ranges</code> i <code>FQDNs</code>.
-                </li>
-                <li>
-                    Utwórz grupę, np. <code>Serwery WWW</code>, i zaznacz w niej znalezione wpisy (<Link href="/docs/hosty#grupa-kroki">Tworzenie grupy</Link>). Listy członków w oknie grupy nie pokazują tagów, więc posłuż się wynikiem wyszukiwania z poprzedniego kroku.
-                </li>
-                <li>
-                    W Scan Scheduling wybierz tę grupę jako cel.
-                </li>
-            </ol>
-            <p>Nowy wpis z tagiem <code>serwery-www</code> nie trafi do grupy sam: dodaj go do niej przez <code>Edit</code> grupy.</p>
+            <ul>
+                <li>Tag jest rozwijany przy uruchomieniu skanu, więc nowy wpis z tym tagiem wejdzie do kolejnego skanu bez edycji harmonogramu.</li>
+                <li>Dopasowanie jest dokładne i rozróżnia wielkość liter, tak samo jak w ewidencji.</li>
+                <li>Tag przypisany do <strong>grupy</strong> nie wciąga jej członków: wybór tagu dotyczy wpisów IP, zakresów i FQDN, a nie grup. Wybierz grupę osobno, jeśli chcesz skanować cały jej skład.</li>
+            </ul>
 
             <H3 id="data-explorer">Data Explorer</H3>
             <p>
-                Data Explorer ma filtry z operatorami dla dwudziestu kolumn, ale tag hosta nie jest kolumną: dane skanera nie zawierają tagów z ewidencji (<Link href="/docs/data-explorer#filtry">Data Explorer › Filtry</Link>). Pytanie „na których hostach z tagiem serwery-www działa Nginx” rozwiązuje się dziś w dwóch krokach:
+                Data Explorer ma kolumnę <code>Tags</code> typu lista i filtr z operatorami <code>contains</code>, <code>does not contain</code>, <code>is empty</code> i <code>is not empty</code> (<Link href="/docs/data-explorer#filtry">Data Explorer › Filtry</Link>). Tagi są rozwiązywane z ewidencji przy wczytaniu strony i łączone z tagami zapisanymi w wierszu przez import CSV.
             </p>
-            <ol>
-                <li>
-                    W Host management wyszukaj <code>serwery-www</code> i zanotuj adresy.
-                </li>
-                <li>
-                    W Data Explorer dodaj filtr <code>Technologies contains nginx</code> i porównaj kolumnę <code>Host</code> z listą z pierwszego kroku. Gdy adresy tworzą jedną podsieć, możesz dodać filtr <code>Host starts with</code>.
-                </li>
-            </ol>
+            <p>
+                Pytanie „na których hostach z tagiem <code>serwery-www</code> działa Nginx” sprowadza się do dwóch filtrów w jednym widoku: <code>Tags contains serwery-www</code> i <code>Technologies contains nginx</code>. Oba łączą się spójnikiem „i”.
+            </p>
 
             <H2 id="laczenie">Wiele tagów i łączenie kryteriów</H2>
             <ul>
                 <li>Wpis może mieć dowolnie wiele tagów, np. <code>env:prod</code>, <code>serwery-www</code> i <code>owner:netops</code> naraz.</li>
                 <li>
-                    Wyszukiwanie w tabelach ma jedno pole i dopasowuje <strong>jeden fragment tekstu</strong> w całym wierszu. Nie ma operatorów „i” ani „lub”: aby znaleźć wpisy z dwoma tagami naraz, wyszukaj pierwszy tag i przejrzyj wynik pod kątem drugiego.
+                    Wyszukiwanie w tabelach Host management ma jedno pole i dopasowuje <strong>jeden fragment tekstu</strong> w całym wierszu. Aby znaleźć wpisy z dwoma tagami naraz, wyszukaj pierwszy tag i przejrzyj wynik pod kątem drugiego — albo użyj Data Explorer, gdzie kilka filtrów (w tym <code>Tags contains</code>) łączy się spójnikiem „i”.
                 </li>
                 <li>
                     Fragment pasuje także do części tagu, wartości i daty: fraza <code>www</code> znajdzie tag <code>serwery-www</code>, ale też nazwę <code>www.example.com</code>. Dobieraj nazwy tagów tak, aby jedna nie zawierała się w drugiej (<Link href="/docs/tagowanie/konwencje#nazewnictwo">Konwencje › Nazewnictwo</Link>).
@@ -164,12 +152,13 @@ SELECT fqdn FROM host_fqdns WHERE tags @> '["serwery-www", "env:prod"]';`}
                 head={['Miejsce', 'Moment odczytu', 'Skutek zmiany tagu']}
                 rows={[
                     ['Tabele Host management', 'Przy każdym wyświetleniu strony', 'Widoczny od razu po zapisie'],
-                    ['Harmonogramy', 'Nie dotyczy: harmonogram nie odwołuje się do tagów', 'Zmiana tagu nie zmienia celów żadnego harmonogramu'],
-                    ['Wyniki, Data Explorer, dashboardy', 'Nie dotyczy: dane skanera (scan_hosts) nie przechowują tagów hostów', 'Zmiana tagu nie zmienia danych skanera ani wyników']
+                    ['Harmonogramy', 'Przy uruchomieniu skanu (kryterium `tag`)', 'Nowy wpis z tagiem wejdzie do następnego skanu; zmiana tagu zmienia cele bez edycji harmonogramu'],
+                    ['Data Explorer', 'Przy każdym wczytaniu strony (tagi z ewidencji) i z wiersza importu CSV', 'Widoczny po odświeżeniu; dotyczy wszystkich wierszy historii danego hosta'],
+                    ['Wyniki skanu, dashboardy', 'Nie dotyczy: przechwycenie nie kopiuje tagów ewidencji', 'Zmiana tagu nie zmienia zapisanych wyników']
                 ]}
             />
             <p>
-                Aplikacja nie przechowuje historii tagów. Po zmianie tagu nie da się ustalić, jakie tagi wpis miał w chwili wcześniejszego skanu.
+                Aplikacja nie przechowuje historii tagów. Po zmianie tagu nie da się ustalić, jakie tagi wpis miał w chwili wcześniejszego skanu; wyjątkiem są tagi zapisane w wierszu przez import CSV.
             </p>
 
             <H2 id="zakres">Zakres implementacji</H2>
@@ -182,12 +171,13 @@ SELECT fqdn FROM host_fqdns WHERE tags @> '["serwery-www", "env:prod"]';`}
                     ['Filtrowanie po tagach w SQL', <Badge key="4" variant="success">dostępne</Badge>],
                     ['Nadanie tagu wielu istniejącym wpisom naraz', <Badge key="5">niedostępne</Badge>],
                     ['Globalna zmiana nazwy lub usunięcie tagu', <Badge key="6">niedostępne</Badge>],
-                    ['Tag jako cel harmonogramu lub skanu ręcznego', <Badge key="7">niedostępne</Badge>],
-                    ['Filtrowanie Data Explorer, wyników i dashboardów po tagach hostów', <Badge key="8">niedostępne</Badge>]
+                    ['Tag jako cel harmonogramu lub skanu ręcznego', <Badge key="7" variant="success">dostępne</Badge>],
+                    ['Filtrowanie Data Explorer po tagach hostów', <Badge key="8" variant="success">dostępne</Badge>],
+                    ['Filtrowanie Scan Results i dashboardów po tagach hostów', <Badge key="9">niedostępne</Badge>]
                 ]}
             />
-            <Callout type="tip" title="Do czasu kryterium opartego na tagach">
-                Odpowiednikiem wyboru „wszystkie hosty z tagiem” jako celu skanu jest grupa zbudowana z wpisów o tym tagu (<Link href="#scheduling">Scan Scheduling</Link>).
+            <Callout type="tip" title="Tag czy grupa jako cel">
+                Tag wybiera wpisy noszące etykietę, a grupa — ręcznie wskazany zestaw. Jeśli skład ma być stały i niezależny od późniejszych zmian tagów, użyj grupy; jeśli ma podążać za etykietą, użyj tagu (<Link href="#scheduling">Scan Scheduling</Link>).
             </Callout>
         </DocPage>
     );

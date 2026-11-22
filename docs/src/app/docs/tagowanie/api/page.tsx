@@ -108,11 +108,11 @@ export default function Page() {
             </p>
 
             <H2 id="semantyka">Semantyka po stronie serwera</H2>
-            <p>Serwer ufa klientowi: reguły z <Link href="/docs/tagowanie/operacje#pole">Operacji na tagach</Link> (obcinanie, duplikaty) stosuje przeglądarka, a nie API.</p>
+            <p>Serwer normalizuje tagi tak samo jak interfejs: obcina białe znaki, usuwa puste wartości i powtórzenia (zachowując pierwsze wystąpienie). Wielkość liter pozostaje znacząca.</p>
             <RefTable
                 head={['Zagadnienie', 'Zachowanie']}
                 rows={[
-                    ['Normalizacja tagów', 'Brak. Tablica jest zapisywana 1:1: puste łańcuchy, powtórzenia i białe znaki zostają'],
+                    ['Normalizacja tagów', 'Obcięcie białych znaków, usunięcie pustych i powtórzonych wartości; kolejność pierwszych wystąpień zachowana'],
                     [t('Pominięte `tags`'), 'Traktowane jak pusta lista'],
                     ['POST wpisów', 'Tagi otrzymują tylko wpisy nowo utworzone; duplikaty są pomijane razem z tagami'],
                     ['PUT wpisu', 'Pełna podmiana wartości i tagów; zmiana wartości propaguje się do grup'],

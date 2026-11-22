@@ -72,7 +72,7 @@ export default function Page() {
                     ['Host poza grupą', <>Domyślny produkt (domyślnie <code>Visibly Attack Surface</code>)</>],
                     ['Skan + produkt', <>Engagement i Test (<code>Visibly #numer</code>)</>],
                     ['Wykrycie CVE', <>Finding z polem <code>cve</code>, komponentem i wersją</>],
-                    ['Dopasowanie custom signature', <>Finding z <code>vuln_id_from_tool</code> i opisem sygnatury</>],
+                    ['Dopasowanie Custom Signature', <>Finding z <code>vuln_id_from_tool</code> i opisem sygnatury; szczegóły reguł w <Link href="/docs/sygnatury">Custom Signatures</Link></>],
                     ['URL hosta z ostatniego skanu', 'Endpoint findingu (location reference)'],
                     ['Tagi hosta i grupy', 'Tagi findingu']
                 ]}
@@ -83,11 +83,11 @@ export default function Page() {
 
             <H2 id="push">Wysyłanie findingów</H2>
             <p>
-                Push obejmuje <strong>wykrycia CVE</strong> (wersja technologii dopasowana do lokalnej bazy podatności) oraz <strong>dopasowania Custom Signatures</strong>. Findingi <em>New host</em> i <em>Host down</em> nie są wysyłane — opisują zmiany w inwentarzu, a nie podatności.
+                Push obejmuje <strong>wykrycia CVE</strong> (wersja technologii dopasowana do lokalnej bazy podatności) oraz <strong>dopasowania Custom Signatures</strong>, jeśli w ustawieniach włączono odpowiednio <code>Push CVE detections</code> i <code>Push custom signature matches</code>. Findingi <em>New host</em> i <em>Host down</em> nie są wysyłane — opisują zmiany w inwentarzu, a nie podatności.
             </p>
             <ul>
                 <li>
-                    Wysyłane są tylko skany <strong>Full</strong> ze statusem <strong>Completed</strong>.
+                    Wysyłane są tylko skany <strong>Full</strong> ze statusem <strong>Completed</strong>. Skan Reachability, przerwany albo nieudany nie ma findingów do wysłania.
                 </li>
                 <li>
                     Raport jest plikiem JSON w formacie <strong>Generic Findings Import</strong> wysyłanym przez <code>/api/v2/reimport-scan/</code>.
@@ -120,7 +120,7 @@ export default function Page() {
 
             <H3 id="auto">Automatyczna synchronizacja</H3>
             <p>
-                Po zakończeniu skanu Full, przy włączonej opcji <strong>Auto-sync after full scans</strong>, Visibly uruchamia push w osobnym zadaniu. Błąd DefectDojo nie zmienia statusu skanu — trafia do zakładki <strong>Sync activity</strong>. Ręczny push wykonasz przyciskiem <strong>Push latest scan</strong> albo wybierając konkretny skan w zakładce <strong>Sync activity</strong>.
+                Po zakończeniu skanu Full, przy włączonej opcji <strong>Auto-sync after full scans</strong>, Visibly uruchamia push w osobnym zadaniu. Automatyczna synchronizacja wymaga też skonfigurowanego połączenia (włączony <code>Enable DefectDojo</code>, adres i token). Błąd DefectDojo nie zmienia statusu skanu — trafia do zakładki <strong>Sync activity</strong>. Ręczny push wykonasz przyciskiem <strong>Push latest scan</strong> albo wybierając konkretny skan w zakładce <strong>Sync activity</strong>.
             </p>
 
             <H2 id="pull">Pobieranie danych</H2>

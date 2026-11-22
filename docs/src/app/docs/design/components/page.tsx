@@ -106,10 +106,13 @@ export default function Page() {
                     [<code key="7a">data-attr-filter, data-attr-select, data-attr-value</code>, t('Filtr po atrybucie wiersza: tabela wskazuje nazwę atrybutu (`data-attr-filter="data-ack"`) i grupę przycisków (`data-attr-select`), a przyciski niosą dopasowywaną wartość (Alerts)')],
                     [<code key="7b">data-scan-details, data-policy-run, data-alert-ack, data-alert-pick, data-asset-edit</code>, t('Przyciski wierszy: otwarcie szczegółów skanu, uruchomienie konfiguracji, potwierdzenie alertu, zaznaczenie alertu i edycja hosta w Data Explorer; wartość atrybutu to identyfikator wiersza')],
                     [<code key="7c">data-dropzone</code>, 'Pole przeciągania pliku w oknie importu hostów'],
+                    [<code key="7d">data-signature-add, data-signature-edit, data-signature-remove</code>, t('Otwarcie formularza nowej sygnatury, edycja sygnatury o danym `id` i usunięcie po potwierdzeniu (Custom Signatures)')],
+                    [<code key="7e">data-signature-criteria, data-signature-add-criterion</code>, t('Kontener kryteriów i przycisk dodający kolejny wiersz w formularzu sygnatury; dane sygnatur są w `<script id="signature-data">`')],
                     [<code key="8">data-tag-entry, data-tag-add, data-tag-chips</code>, <>Pole, przycisk i kontener chipów pola tagów (<Link href="/docs/tagowanie/operacje#pole">Operacje na tagach</Link>)</>],
                     [<code key="9">data-host-add, data-host-edit, data-host-import</code>, t('Formularze inwentarza; adres endpointu w `data-endpoint`. Przyciski wierszy: `data-edit`, `data-delete`; chipy tagów niosą `data-tag`')],
                     [<code key="10">data-group-form</code>, 'Formularz nowej grupy hostów'],
-                    [<code key="11">data-theme-choice</code>, t('Przycisk motywu (`light`, `dark`) na ekranie Settings')]
+                    [<code key="11">data-theme-choice</code>, t('Przycisk motywu (`light`, `dark`) na ekranie Settings')],
+                    [<code key="12">scan-rate-limit, scan-multithreaded, scan-threads, scan-retries, scan-settings-save</code>, 'Pola i przycisk karty HTTP scanner na ekranie Settings; zapis wysyła `PUT /api/settings/scan`']
                 ]}
             />
 

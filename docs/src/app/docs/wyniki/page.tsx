@@ -40,7 +40,7 @@ export default function Page() {
                 ]}
             />
             <p>
-                Wiersze przykładowe w Scan Results mają znacznik <code>Demo</code>, aby świeża instalacja nie była pusta.
+                Wiersze przykładowe w Scan Results mają znacznik <code>Demo</code>, aby świeża instalacja nie była pusta. Custom Signatures i ich alerty opisuje osobna strona <Link href="/docs/sygnatury">Custom Signatures</Link>.
             </p>
 
             <H2 id="wyniki">Scan Results</H2>
@@ -53,7 +53,7 @@ export default function Page() {
                     [<code key="a">Scan</code>, <>Etykieta uruchomienia: nazwa konfiguracji albo <code>Manual scan</code> dla skanu ręcznego (<Link key="a1" href="/docs/skanowanie#sposoby">Cztery sposoby uruchomienia</Link>). Wiersze przykładowe mają znacznik <code>Demo</code></>],
                     [<code key="b">Type</code>, <><code>Full scan test</code> albo <code>Reachability</code> (<Link key="b1" href="/docs/skanowanie#typy">Typy skanu</Link>)</>],
                     [t('`Started`, `Finished`, `Duration`'), t('Czas rozpoczęcia i zakończenia (UTC, np. `Nov 21, 2026 7:14 AM`) oraz czas trwania w pełnych minutach: skan krótszy niż minuta ma `0m`. W trakcie skanu `Finished` i `Duration` mają wartość `—`')],
-                    [<code key="c">Target</code>, t('Pierwsze cztery adresy skanu i `+N more`; pełna lista w oknie szczegółów')],
+                    [<code key="c">Target</code>, t('Pierwsze cztery cele (adresy lub nazwy FQDN) i `+N more`; pełna lista w oknie szczegółów')],
                     [t('`Alive`, `Down`'), 'Liczba hostów, które odpowiedziały, i tych, które nie odpowiedziały w tym uruchomieniu'],
                     [t('`Services`, `Tech`, `Vulns`'), t('`Services` i `Tech` liczą hosty, dla których zapisano co najmniej jedną usługę lub technologię (także z wcześniejszego skanu Full, gdy bieżący był typu Reachability). `Vulns` nie jest dziś wyliczane dla prawdziwych skanów i pokazuje 0; dopasowania do znanych podatności widać w Alerts jako `New CVE`')],
                     [<code key="e">Alerts</code>, 'Liczba alertów, które wygenerował ten skan, jako znaczek; 0 oznacza brak nowych alertów'],
@@ -78,17 +78,21 @@ export default function Page() {
             <RefTable
                 head={['Część okna', 'Zawartość']}
                 rows={[
-                    ['Metadane', t('`Status`, `Trigger` (`manual`, `policy` albo `scheduled`), `Started`, `Finished`, `Duration`')],
-                    ['Kafle liczników', t('`Hosts in scope`, `Reachable`, `Unreachable`, `Services`, `Technologies`, `Vulnerable matches` (jak `Vulns` w liście, dziś 0)')],
-                    [<code key="a">Alerts raised</code>, <>Podział alertów tego skanu: <code>New hosts</code>, <code>Hosts down</code>, <code>New CVEs</code> oraz <code>Still unacknowledged</code>, czyli ile z nich nadal czeka na potwierdzenie (<Link key="a1" href="/docs/alerty">Alerty</Link>)</>],
-                    [<code key="b">Targets</code>, 'Adresy, które skan rozwiązał z celów konfiguracji (pierwsze cztery i licznik pozostałych)'],
+                    ['Metadane', t('`Status`, `Trigger` (`manual`, `policy`, `scheduled` albo `import`), `Started`, `Finished`, `Duration`')],
+                    ['Kafle liczników', t('`Hosts in scope`, `Reachable`, `Unreachable`, `Services`, `Technologies`, `Vulnerable matches`')],
+                    [<code key="a">Alerts raised</code>, <>Podział alertów tego skanu: <code>New hosts</code>, <code>Hosts down</code>, <code>New CVEs</code> oraz <code>Still unacknowledged</code>, czyli ile z nich nadal czeka na potwierdzenie (<Link key="a1" href="/docs/alerty">Alerty</Link>). Alerty <code>Signature match</code> wchodzą do łącznej liczby i do <code>Still unacknowledged</code>, ale nie mają osobnego wiersza w podziale</>],
+                    [<code key="b">Targets</code>, 'Cele (adresy lub nazwy FQDN), które skan rozwiązał z konfiguracji (pierwsze cztery i licznik pozostałych)'],
                     [t('`Top technologies`, `Top services`'), 'Do ośmiu pozycji z liczbą hostów, na których występują'],
+                    [t('`Changes detected`'), <>Zmiany względem poprzedniego skanu: nowe i usunięte hosty, hosty Down i przywrócone, dodane/usunięte/zmienione technologie i usługi, dodane/usunięte podatności oraz zmiany tytułu i statusu HTTP</>],
                     ['Baner', t('Gdy uruchomienie zakończyło się błędem (`Failed`) albo lista celów została skrócona, nad licznikami widać komunikat, np. brak programu httpx lub `Target list truncated: …`')]
                 ]}
             />
             <ul>
                 <li>
-                    Dla wierszy <code>Demo</code> okno jest syntetyzowane z danych przykładowych i nie zawiera list celów, technologii i usług.
+                    Liczniki <code>Technologies</code> i <code>Vulnerable matches</code> w oknie są liczone z przechwyceń tego skanu (<code>scan_host_captures</code>), a nie z zapisanych agregatów wiersza. Dzięki temu <code>Vulnerable matches</code> pokazuje realne dopasowania wersji do listy podatności, choć kolumna <code>Vulns</code> w liście Scan Results nadal pokazuje wartość zapisaną w wierszu skanu (dla prawdziwych skanów 0).
+                </li>
+                <li>
+                    Dla wierszy <code>Demo</code> okno jest syntetyzowane z danych przykładowych i nie zawiera list celów, technologii, usług ani sekcji zmian.
                 </li>
                 <li>
                     Dane okna pobiera endpoint <code>GET /api/scans/{'{id}'}</code>. Jego ścieżka podpada pod prefiks <code>/api/scan</code>, więc wymaga <strong>odczytu strony Scan Status</strong>, a nie Scan Results (<Link href="/docs/dostep#sciezki">Dostęp i uprawnienia</Link>). Konto bez tego uprawnienia, np. rola startowa <code>Analyst</code>, widzi listę, ale <code>Details</code> nie załaduje szczegółów.
@@ -185,7 +189,7 @@ export default function Page() {
             <RefTable
                 head={['Ekran', 'Źródło', 'Charakter']}
                 rows={[
-                    ['Scan Results, Scan details', <>Tabele <code key="1">scans</code>, <code key="2">scan_hosts</code>, <code key="3">alerts</code>; do listy dołączane są wiersze <code key="4">scan_history</code></>, <Badge key="b1" variant="success">prawdziwe + demo</Badge>],
+                    ['Scan Results, Scan details', <>Tabele <code key="1">scans</code>, <code key="2">scan_hosts</code>, <code key="3">scan_host_captures</code>, <code key="4">alerts</code>; do listy dołączane są wiersze <code key="5">scan_history</code></>, <Badge key="b1" variant="success">prawdziwe + demo</Badge>],
                     ['Data Explorer', <>Historia <code key="5">scan_host_captures</code></>, <Badge key="b2" variant="success">prawdziwe</Badge>],
                     ['Alerts, Open alerts, Latest scan', <>Tabele <code key="6">alerts</code>, <code key="7">scans</code></>, <Badge key="b3" variant="success">prawdziwe</Badge>],
                     ['Compare Scans', <>Tabela <code key="8">scans</code>; technologie i podatności liczone z <code key="8a">scan_host_captures</code></>, <Badge key="b4" variant="success">prawdziwe</Badge>],

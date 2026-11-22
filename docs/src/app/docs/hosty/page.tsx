@@ -51,7 +51,7 @@ export default function Page() {
                 ]}
             />
             <p>
-                Typy są od siebie niezależne: ten sam serwer może figurować w ewidencji jako adres IP i jako FQDN. Aplikacja nie rozwiązuje nazw DNS i nie sprawdza, czy adres należy do któregoś z zapisanych zakresów, więc każdy wpis jest osobną pozycją ewidencji.
+                Typy są od siebie niezależne: ten sam serwer może figurować w ewidencji jako adres IP i jako FQDN. Przy dodawaniu aplikacja nie rozwiązuje nazw DNS i nie sprawdza, czy adres należy do któregoś z zapisanych zakresów, więc każdy wpis jest osobną pozycją ewidencji. Nazwy są rozwiązywane dopiero podczas skanu: Full zachowuje nazwę jako cel (Host/SNI), a Reachability zastępuje ją pierwszym adresem (<Link href="/docs/skanowanie#rozwiazywanie">Skanowanie › Rozwiązywanie celów</Link>).
             </p>
 
             <H2 id="dodawanie">Dodawanie wpisów</H2>

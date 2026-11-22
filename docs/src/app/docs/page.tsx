@@ -66,7 +66,7 @@ export default function Page() {
 
             <H3 id="krok-2">2. Scan Scheduling: skonfiguruj skan</H3>
             <p>
-                W <code>Scan Scheduling</code> kliknij <code>Add scan</code>, nadaj konfiguracji nazwę, wybierz typ skanu (<code>Full scan test</code> albo <code>Reachability</code>), zaznacz cele z ewidencji (grupy, adresy, zakresy, FQDN) i wybierz częstotliwość: <code>Daily</code>, <code>Weekly</code>, <code>Monthly</code> albo <code>On demand</code>. Włączona konfiguracja uruchamia się sama w wyznaczonym terminie.
+                W <code>Scan Scheduling</code> kliknij <code>Add scan</code>, nadaj konfiguracji nazwę, wybierz typ skanu (<code>Full scan test</code> albo <code>Reachability</code>), zaznacz cele z ewidencji (grupy, adresy, zakresy, FQDN albo tagi) i wybierz częstotliwość: <code>Daily</code>, <code>Weekly</code>, <code>Monthly</code> albo <code>On demand</code>. Włączona konfiguracja uruchamia się sama w wyznaczonym terminie.
             </p>
             <p>
                 Skan możesz też uruchomić od razu: <code>Run now</code> przy konfiguracji albo <code>Start scan now</code> w <code>Scan Status</code>, gdzie widać też postęp i można skan wstrzymać lub przerwać.
@@ -88,7 +88,7 @@ export default function Page() {
 
             <H3 id="krok-4">4. Data Explorer: sprawdź stan hostów</H3>
             <p>
-                W <code>Data Explorer</code> zobaczysz, co skan zapisał o każdym adresie: status, odpowiedź HTTP, technologie, certyfikat i czasy. Dodaj filtr, np. <code>Technologies contains nginx</code>, i kliknij <code>Apply</code>; okres zmienia lista <code>Timeframe</code>. Filtrowania po tagu hosta w obecnej wersji nie ma; obejście opisuje rozdział o tagach.
+                W <code>Data Explorer</code> zobaczysz, co każdy skan zapisał o hoście: status, odpowiedź HTTP, technologie, certyfikat, tagi i czasy. Jeden host ma osobny wiersz na każdy skan, w którym był sprawdzany. Dodaj filtr, np. <code>Technologies contains nginx</code> albo <code>Tags contains env:prod</code>, i kliknij <code>Apply</code>; okres zmienia lista <code>Timeframe</code>.
             </p>
             <p>
                 Szczegóły: <Link href="/docs/data-explorer#filtry">Filtry</Link>, <Link href="/docs/data-explorer#przyklad">Przykład: gdzie działa Nginx</Link>.
@@ -121,13 +121,14 @@ export default function Page() {
                     ['Dashboards › Alerts', <code key="3a">/log-center/alerts</code>, 'Zmiany wykryte przez skany do potwierdzenia', <Link key="d3a" href="/docs/alerty">Alerty</Link>],
                     ['Scanning › Scan Status', <code key="4">/scanning/management</code>, 'Start, pauza i przerwanie skanu, postęp na żywo', <Link key="d4" href="/docs/skanowanie#stan">Scan Status</Link>],
                     ['Scanning › Scan Scheduling', <code key="5">/scanning/policies</code>, 'Konfiguracje skanów: typ, cele i harmonogram', <Link key="d5" href="/docs/skanowanie#harmonogramy">Scan Scheduling</Link>],
+                    ['Scanning › Custom Signatures', <code key="5a">/scanning/signatures</code>, 'Reguły dopasowywane do przechwyconych odpowiedzi', <Link key="d5a" href="/docs/sygnatury">Custom Signatures</Link>],
                     ['Scanning › Scan Results', <code key="6">/log-center/scan-history</code>, 'Lista uruchomień ze statusem i szczegółami', <Link key="d6" href="/docs/wyniki#wyniki">Scan Results</Link>],
                     ['Scanning › Compare Scans', <code key="7">/scanning/compare-scans</code>, 'Zestawienie dwóch uruchomień', <Link key="d7" href="/docs/wyniki#porownanie">Compare Scans</Link>],
                     ['Host management', <code key="8">/host-management</code>, 'Ewidencja: IP, zakresy, FQDN, grupy, import', <Link key="d8" href="/docs/hosty">Host management</Link>],
                     ['Data Explorer', <code key="9">/log-center/data-explorer</code>, 'Tabela hostów z filtrami', <Link key="d9" href="/docs/data-explorer">Data Explorer</Link>],
                     ['DefectDojo', <code key="9a">/defectdojo</code>, 'Push findingów i pull dashboardu', <Link key="d9a" href="/docs/defectdojo">DefectDojo</Link>],
                     ['Admin management', <code key="10">/admin-management</code>, 'Konta administratorów i role', <Link key="d10" href="/docs/dostep#konta">Dostęp i uprawnienia</Link>],
-                    ['Settings', <code key="11">/settings</code>, 'Motyw interfejsu', <Link key="d11" href="/docs/architektura#status">Architektura › Status funkcji</Link>]
+                    ['Settings', <code key="11">/settings</code>, 'Motyw i strojenie skanera', <Link key="d11" href="/docs/ustawienia">Settings</Link>]
                 ]}
             />
 
