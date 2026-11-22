@@ -731,10 +731,60 @@
     var PAUSE_SVG = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M5.7 3.4v9.2M10.3 3.4v9.2"/></svg>';
     var PLAY_SVG = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M4.6 2.9l8 5.1-8 5.1z"/></svg>';
 
+    // The popup fires once per scan when it ends. Polling alone cannot see the
+    // start of a fast run (a one-host reachability scan finishes between two
+    // polls), so both signals are used: a scan seen running is reported when it
+    // stops, and a scan_id this page has not reported yet is reported as soon
+    // as it is finished. The id rendered into the page counts as already-known,
+    // so a plain page load never raises the popup.
+    var scanPage = document.getElementById("scan-page");
+    var renderedScanId = scanPage ? Number(scanPage.getAttribute("data-scan-id")) || 0 : 0;
+    var seenRunning = !scanActive.hidden;
+    var reportedScanId = renderedScanId > 0 ? renderedScanId : null;
+
+    var showScanDone = function (s) {
+      var modal = document.getElementById("scan-done-modal");
+      if (!modal) return;
+      var outcome = s.status || "Completed";
+      var title = document.getElementById("scan-done-title");
+      if (title) {
+        title.textContent = outcome === "Completed"
+          ? "Scan finished"
+          : outcome === "Cancelled" ? "Scan cancelled" : "Scan failed";
+      }
+      var sub = document.getElementById("scan-done-sub");
+      if (sub) {
+        var typeLabel = SCAN_TYPE_LABELS[s.scan_type] || s.scan_type || "";
+        sub.textContent = (typeLabel ? typeLabel + " · " : "") + (s.completed_at || "");
+      }
+      var hosts = document.getElementById("scan-done-hosts");
+      if (hosts) hosts.textContent = s.hosts_found;
+      var targets = document.getElementById("scan-done-targets");
+      if (targets) targets.textContent = s.targets_done + " / " + s.target_total;
+      var alerts = document.getElementById("scan-done-alerts");
+      if (alerts) alerts.textContent = s.alerts_found;
+      openModal("scan-done-modal");
+    };
+
     var renderScan = function (s) {
       var state = s.running ? (s.paused ? "paused" : "running") : "idle";
       if (scanPill) scanPill.setAttribute("data-state", state);
       if (scanPillText) scanPillText.textContent = s.paused ? "Paused" : (s.running ? "Running" : "Idle");
+
+      // Report each scan once. A new scan id that we have not reported yet is
+      // the reliable signal: it also covers runs that started and ended between
+      // two polls, where `running` was never observed as true.
+      if (s.running) {
+        seenRunning = true;
+      } else {
+        var finishedId = s.scan_id == null ? 0 : s.scan_id;
+        var changed = finishedId > 0 && reportedScanId !== finishedId;
+        if ((seenRunning || changed) && s.completed_at) {
+          reportedScanId = finishedId || reportedScanId;
+          showScanDone(s);
+        }
+        seenRunning = false;
+      }
 
       if (scanActive) scanActive.hidden = !s.running;
       if (scanIdle) scanIdle.hidden = !!s.running;
@@ -781,7 +831,14 @@
           if (!r.ok) throw new Error();
           return r.json();
         })
-        .then(renderScan)
+        .then(function (status) {
+          // A scan started here is expected to finish, so its completion is
+          // reported even if it begins and ends between two polls.
+          if (path === "/api/scan/run" || path === "/api/scan/start") {
+            seenRunning = true;
+          }
+          renderScan(status);
+        })
         .catch(function () {
           window.alert("Could not start the scan. Another scan may already be running.");
         });

@@ -333,6 +333,10 @@ pub struct ScanStatus {
     pub engine: String,
     #[serde(default)]
     pub alerts_found: i32,
+    /// Final status of the last scan (`Completed`, `Cancelled`, `Failed`), read
+    /// from the `scans` row so the UI can report how it ended.
+    #[serde(default)]
+    pub status: String,
 }
 
 /// One row of the Scan Results table. Real scans come from the `scans` table;

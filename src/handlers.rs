@@ -137,6 +137,9 @@ pub struct ScanView {
     pub scan_type: String,
     pub engine: String,
     pub alerts_found: i32,
+    /// Id of the scan the page was rendered with, so the client can tell a new
+    /// scan apart from the one it already knows about.
+    pub scan_id: i64,
 }
 
 impl From<&ScanStatus> for ScanView {
@@ -161,6 +164,7 @@ impl From<&ScanStatus> for ScanView {
                 other => other.to_string(),
             },
             alerts_found: scan.alerts_found,
+            scan_id: scan.scan_id.unwrap_or(0),
         }
     }
 }

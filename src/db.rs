@@ -1530,10 +1530,13 @@ pub async fn delete_session(pool: &PgPool, token: &str) {
 
 pub async fn get_scan_state(pool: &PgPool) -> ScanStatus {
     let row = sqlx::query(
-        "SELECT running, paused, progress, targets_done, target_total, hosts_found,
-                current_target, started_at, completed_at, scan_id, scan_type, engine,
-                alerts_found
-         FROM scan_state WHERE id = 1",
+        "SELECT st.running, st.paused, st.progress, st.targets_done, st.target_total,
+                st.hosts_found, st.current_target, st.started_at, st.completed_at,
+                st.scan_id, st.scan_type, st.engine, st.alerts_found,
+                COALESCE(sc.status, '') AS run_status
+         FROM scan_state st
+         LEFT JOIN scans sc ON sc.id = st.scan_id
+         WHERE st.id = 1",
     )
     .fetch_optional(pool)
     .await
@@ -1555,6 +1558,7 @@ pub async fn get_scan_state(pool: &PgPool) -> ScanStatus {
             scan_type: row.get("scan_type"),
             engine: row.get("engine"),
             alerts_found: row.get("alerts_found"),
+            status: row.get("run_status"),
         },
         None => ScanStatus::default(),
     }
@@ -1627,6 +1631,8 @@ pub async fn claim_scan(
         scan_type: row.get("scan_type"),
         engine: row.get("engine"),
         alerts_found: row.get("alerts_found"),
+        // The scan just started, so it has no final status yet.
+        status: String::new(),
     })
 }
 

@@ -121,4 +121,41 @@
     </aside>
   </div>
 </div>
+<div class="explorer-host" id="scan-page" data-scan-id="{{ scan.scan_id }}" hidden></div>
+{% endblock %}
+
+{% block modals %}
+<!-- Raised by app.js when a running scan finishes while this page is open. -->
+<div class="modal-backdrop" id="scan-done-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="scan-done-title">
+    <div class="modal-head">
+      <div>
+        <h2 id="scan-done-title">Scan finished</h2>
+        <div class="modal-sub" id="scan-done-sub"></div>
+      </div>
+      <button class="icon-btn subtle" type="button" data-close-modal aria-label="Close">{{ crate::icons::icon("close")|safe }}</button>
+    </div>
+    <div class="modal-body">
+      <div class="detail-grid scan-done-grid">
+        <div class="detail-tile">
+          <div class="detail-value" id="scan-done-hosts">—</div>
+          <div class="detail-label">Hosts discovered</div>
+        </div>
+        <div class="detail-tile">
+          <div class="detail-value" id="scan-done-targets">—</div>
+          <div class="detail-label">Targets scanned</div>
+        </div>
+        <div class="detail-tile">
+          <div class="detail-value" id="scan-done-alerts">—</div>
+          <div class="detail-label">Alerts raised</div>
+        </div>
+      </div>
+      <p class="scan-done-note">Results are available in Scan Results and the Data Explorer.</p>
+    </div>
+    <div class="modal-foot">
+      <a class="btn" href="/log-center/scan-history">View results</a>
+      <button class="btn primary" type="button" data-close-modal>Close</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
