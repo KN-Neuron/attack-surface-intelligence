@@ -1014,8 +1014,13 @@
         } else if (c.kind === "type") {
           scanType = c.value === "reachability" ? "reachability" : "full";
         } else {
+          // Match on kind as well as value: a tag can share its text with an IP
+          // or group name, and only the right checkbox should come back checked.
+          var kind = String(c.kind || "").trim().toLowerCase();
           policyForm.querySelectorAll("input[name=targets]").forEach(function (box) {
-            if (box.value === c.value) box.checked = true;
+            if (box.value !== c.value) return;
+            var boxKind = String(box.getAttribute("data-picker-kind") || "").trim().toLowerCase();
+            if (boxKind === kind) box.checked = true;
           });
         }
       });

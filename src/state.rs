@@ -1,36 +1,60 @@
 use serde::{Deserialize, Serialize};
 
-/// Whether a concrete address falls inside a CIDR block. Used to work out which
-/// inventory tags a captured host inherits from ranges and host groups.
-pub fn cidr_contains(cidr: &str, address: &str) -> bool {
-    use std::net::IpAddr;
+/// Normalises a tag list coming from the client: trims whitespace, drops blanks
+/// and removes duplicates while keeping the first occurrence. Matching stays
+/// case-sensitive, which is documented behaviour, so `prod` and `Prod` remain
+/// two distinct tags.
+pub fn normalize_tags(values: Vec<String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for value in values {
+        let tag = value.trim();
+        if tag.is_empty() || out.iter().any(|seen| seen == tag) {
+            continue;
+        }
+        out.push(tag.to_string());
+    }
+    out
+}
 
-    let Some((base, prefix)) = cidr.trim().split_once('/') else {
-        return false;
-    };
-    let (Ok(base), Ok(prefix)) = (base.trim().parse::<IpAddr>(), prefix.trim().parse::<u8>())
-    else {
-        return false;
-    };
-    let Ok(address) = address.trim().parse::<IpAddr>() else {
-        return false;
-    };
-    match (base, address) {
-        (IpAddr::V4(base), IpAddr::V4(address)) if prefix <= 32 => {
-            if prefix == 0 {
-                return true;
+/// A parsed CIDR block. Parsing once per range keeps repeated membership tests
+/// (one per captured address) cheap instead of re-parsing the string each time.
+#[derive(Clone, Copy)]
+pub struct Cidr {
+    base: std::net::IpAddr,
+    prefix: u8,
+}
+
+impl Cidr {
+    pub fn parse(value: &str) -> Option<Self> {
+        use std::net::IpAddr;
+
+        let (base, prefix) = value.trim().split_once('/')?;
+        let base = base.trim().parse::<IpAddr>().ok()?;
+        let prefix = prefix.trim().parse::<u8>().ok()?;
+        let limit = match base {
+            IpAddr::V4(_) => 32,
+            IpAddr::V6(_) => 128,
+        };
+        (prefix <= limit).then_some(Self { base, prefix })
+    }
+
+    pub fn contains(&self, address: &str) -> bool {
+        use std::net::IpAddr;
+
+        let Ok(address) = address.trim().parse::<IpAddr>() else {
+            return false;
+        };
+        match (self.base, address) {
+            (IpAddr::V4(base), IpAddr::V4(address)) => {
+                let mask = if self.prefix == 0 { 0 } else { u32::MAX << (32 - self.prefix) };
+                u32::from(base) & mask == u32::from(address) & mask
             }
-            let mask = u32::MAX << (32 - prefix);
-            u32::from(base) & mask == u32::from(address) & mask
-        }
-        (IpAddr::V6(base), IpAddr::V6(address)) if prefix <= 128 => {
-            if prefix == 0 {
-                return true;
+            (IpAddr::V6(base), IpAddr::V6(address)) => {
+                let mask = if self.prefix == 0 { 0 } else { u128::MAX << (128 - self.prefix) };
+                u128::from(base) & mask == u128::from(address) & mask
             }
-            let mask = u128::MAX << (128 - prefix);
-            u128::from(base) & mask == u128::from(address) & mask
+            _ => false,
         }
-        _ => false,
     }
 }
 
@@ -59,6 +83,7 @@ impl Criterion {
                 if self.value.contains('/') { "IP range" } else { "IP address" }
             }
             "fqdn" => "FQDN",
+            "tag" => "Tag",
             "frequency" => "Frequency",
             "when" => "When",
             "type" => "Scan type",
@@ -75,7 +100,7 @@ impl Criterion {
     pub fn is_target(&self) -> bool {
         matches!(
             self.kind_name().as_str(),
-            "host group" | "ip address" | "ip range" | "ip to scan" | "fqdn"
+            "host group" | "ip address" | "ip range" | "ip to scan" | "fqdn" | "tag"
         )
     }
 
@@ -440,8 +465,6 @@ pub struct AssetRow {
     pub last_checked_ts: i64,
     pub first_seen_ts: i64,
     pub last_seen_ts: i64,
-    /// The row's own tags as filterable text, e.g. "prod web".
-    pub tag_text: String,
 }
 
 /// Scanner tuning, persisted in `app_data` and applied to every httpx run.

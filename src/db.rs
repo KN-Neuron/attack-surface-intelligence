@@ -205,6 +205,15 @@ CREATE INDEX IF NOT EXISTS scan_host_captures_address
 CREATE INDEX IF NOT EXISTS scan_host_captures_scan
     ON scan_host_captures (scan_id);
 
+-- Which address each FQDN inventory entry resolved to at scan time. Targets are
+-- resolved to IPs before probing, so this is the only link back from a capture
+-- row to the FQDN entry (and therefore to that entry's tags).
+CREATE TABLE IF NOT EXISTS fqdn_resolutions (
+    fqdn TEXT NOT NULL,
+    address TEXT NOT NULL,
+    PRIMARY KEY (fqdn, address)
+);
+
 CREATE TABLE IF NOT EXISTS alerts (
     id BIGSERIAL PRIMARY KEY,
     scan_id BIGINT REFERENCES scans(id) ON DELETE SET NULL,
@@ -725,7 +734,7 @@ pub async fn create_group(
     .bind(serde_json::to_value(ips).unwrap_or(Value::Array(vec![])))
     .bind(serde_json::to_value(ranges).unwrap_or(Value::Array(vec![])))
     .bind(serde_json::to_value(fqdns).unwrap_or(Value::Array(vec![])))
-    .bind(serde_json::to_value(tags).unwrap_or(Value::Array(vec![])))
+    .bind(serde_json::to_value(crate::state::normalize_tags(tags)).unwrap_or(Value::Array(vec![])))
     .fetch_one(pool)
     .await
     .ok()?;
@@ -752,7 +761,7 @@ pub async fn update_group(
     .bind(serde_json::to_value(ips).unwrap_or(Value::Array(vec![])))
     .bind(serde_json::to_value(ranges).unwrap_or(Value::Array(vec![])))
     .bind(serde_json::to_value(fqdns).unwrap_or(Value::Array(vec![])))
-    .bind(serde_json::to_value(tags).unwrap_or(Value::Array(vec![])))
+    .bind(serde_json::to_value(crate::state::normalize_tags(tags)).unwrap_or(Value::Array(vec![])))
     .fetch_optional(pool)
     .await
     .ok()
@@ -844,7 +853,8 @@ async fn insert_host_entries(
     tags: Vec<String>,
 ) -> usize {
     let added_label = now_label();
-    let tags = serde_json::to_value(tags).unwrap_or(Value::Array(vec![]));
+    let tags = serde_json::to_value(crate::state::normalize_tags(tags))
+        .unwrap_or(Value::Array(vec![]));
     let sql = format!(
         "INSERT INTO {table} ({column}, tags, added) VALUES ($1, $2, $3)
          ON CONFLICT ({column}) DO NOTHING"
@@ -1076,7 +1086,8 @@ async fn update_host_entry(
     let Some(old) = old else {
         return false;
     };
-    let tags = serde_json::to_value(tags).unwrap_or(Value::Array(vec![]));
+    let tags = serde_json::to_value(crate::state::normalize_tags(tags))
+        .unwrap_or(Value::Array(vec![]));
     let updated = sqlx::query(&format!(
         "UPDATE {table} SET {column} = $2, tags = $3 WHERE id = $1"
     ))
@@ -2152,7 +2163,6 @@ pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
         AssetRow {
             address: address.clone(),
             tags: tags.clone(),
-            tag_text: tags.join(" "),
             up: row.get::<Option<bool>, _>("up").unwrap_or(false),
             scan_id,
             scan: row
@@ -2322,14 +2332,34 @@ pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
     .collect()
 }
 
+/// Records which address each FQDN resolved to before a scan. Kept so tags on an
+/// FQDN inventory entry can be followed through to the captured host rows.
+pub async fn save_fqdn_resolutions(pool: &PgPool, pairs: &[(String, String)]) {
+    for (fqdn, address) in pairs {
+        let _ = sqlx::query(
+            "INSERT INTO fqdn_resolutions (fqdn, address) VALUES ($1, $2)
+             ON CONFLICT (fqdn, address) DO NOTHING",
+        )
+        .bind(fqdn)
+        .bind(address)
+        .execute(pool)
+        .await;
+    }
+}
+
 /// Inventory tags keyed by concrete address. A host inherits the tags of the
 /// inventory entry it came from: an exact IP row, an FQDN that resolved to it,
 /// any CIDR block containing it, or a group that holds it.
+///
+/// All inventory is read once and the addresses are gathered from the capture
+/// history in a single query, so this stays linear in the number of ranges
+/// rather than re-querying per source.
 async fn inventory_tags(pool: &PgPool) -> std::collections::HashMap<String, Vec<String>> {
+    use crate::state::Cidr;
     use std::collections::HashMap;
 
-    fn add(tags: &mut HashMap<String, Vec<String>>, address: &str, values: &[String]) {
-        let entry = tags.entry(address.to_string()).or_default();
+    fn add(tags: &mut HashMap<String, Vec<String>>, key: &str, values: &[String]) {
+        let entry = tags.entry(key.to_string()).or_default();
         for tag in values {
             if !entry.contains(tag) {
                 entry.push(tag.clone());
@@ -2339,22 +2369,51 @@ async fn inventory_tags(pool: &PgPool) -> std::collections::HashMap<String, Vec<
 
     let mut tags: HashMap<String, Vec<String>> = HashMap::new();
 
-    for host in list_host_ips(pool).await {
-        add(&mut tags, &host.address, &host.tags);
-    }
-
-    let ranges = list_host_ranges(pool).await;
-    let known_addresses: Vec<String> =
+    // Every address the scanner has captured, in one query.
+    let captured: Vec<String> =
         sqlx::query_scalar("SELECT DISTINCT address FROM scan_hosts")
             .fetch_all(pool)
             .await
             .unwrap_or_default();
 
-    // A range's tags apply to every captured address it covers.
-    for address in &known_addresses {
-        for range in &ranges {
-            if crate::state::cidr_contains(&range.cidr, address) {
-                add(&mut tags, address, &range.tags);
+    for host in list_host_ips(pool).await {
+        add(&mut tags, &host.address, &host.tags);
+    }
+
+    // An FQDN entry tags the addresses it resolved to. Targets are rewritten to
+    // IPs before probing, so `fqdn_resolutions` is the only link from the
+    // hostname entry to the capture rows it produced.
+    let mut addresses_by_fqdn: HashMap<String, Vec<String>> = HashMap::new();
+    for row in sqlx::query("SELECT fqdn, address FROM fqdn_resolutions")
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default()
+    {
+        let fqdn: String = row.get("fqdn");
+        let address: String = row.get("address");
+        addresses_by_fqdn.entry(fqdn).or_default().push(address);
+    }
+
+    for fqdn in list_host_fqdns(pool).await {
+        // The hostname itself, plus every address it has ever resolved to.
+        add(&mut tags, &fqdn.fqdn, &fqdn.tags);
+        for address in addresses_by_fqdn.get(&fqdn.fqdn).cloned().unwrap_or_default() {
+            add(&mut tags, &address, &fqdn.tags);
+        }
+    }
+
+    // Parse each range once; the membership test then runs against every
+    // captured address without re-parsing.
+    let ranges: Vec<(Cidr, Vec<String>)> = list_host_ranges(pool)
+        .await
+        .into_iter()
+        .filter_map(|range| Cidr::parse(&range.cidr).map(|cidr| (cidr, range.tags)))
+        .collect();
+
+    for address in &captured {
+        for (cidr, values) in &ranges {
+            if cidr.contains(address) {
+                add(&mut tags, address, values);
             }
         }
     }
@@ -2364,11 +2423,17 @@ async fn inventory_tags(pool: &PgPool) -> std::collections::HashMap<String, Vec<
         for ip in &group.ips {
             add(&mut tags, ip, &group.tags);
         }
+        for fqdn in &group.fqdns {
+            add(&mut tags, fqdn, &group.tags);
+        }
         // Group ranges are matched against known hosts rather than fully
         // enumerated, so a /8 in a group cannot explode here.
         for range in &group.ranges {
-            for address in &known_addresses {
-                if crate::state::cidr_contains(range, address) {
+            let Some(cidr) = Cidr::parse(range) else {
+                continue;
+            };
+            for address in &captured {
+                if cidr.contains(address) {
                     add(&mut tags, address, &group.tags);
                 }
             }

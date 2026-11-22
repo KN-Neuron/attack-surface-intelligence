@@ -306,6 +306,8 @@ struct PoliciesPage {
     ips: Vec<String>,
     ranges: Vec<String>,
     fqdns: Vec<String>,
+    /// Every tag in use across the inventory, so a policy can target by tag.
+    tags: Vec<String>,
     policies_json: String,
 }
 
@@ -316,29 +318,37 @@ pub async fn scanning_policies(
     let policies = db::list_policies(&pool).await;
 
     // Targets come from host management, so both pages share one inventory.
-    let groups: Vec<GroupOption> = db::list_groups(&pool)
-        .await
-        .into_iter()
+    let group_rows = db::list_groups(&pool).await;
+    let ip_rows = db::list_host_ips(&pool).await;
+    let range_rows = db::list_host_ranges(&pool).await;
+    let fqdn_rows = db::list_host_fqdns(&pool).await;
+
+    let groups: Vec<GroupOption> = group_rows
+        .iter()
         .map(|g| GroupOption {
-            name: g.name,
+            name: g.name.clone(),
             targets: g.ips.len() + g.ranges.len() + g.fqdns.len(),
         })
         .collect();
-    let ips: Vec<String> = db::list_host_ips(&pool)
-        .await
-        .into_iter()
-        .map(|h| h.address)
-        .collect();
-    let ranges: Vec<String> = db::list_host_ranges(&pool)
-        .await
-        .into_iter()
-        .map(|h| h.cidr)
-        .collect();
-    let fqdns: Vec<String> = db::list_host_fqdns(&pool)
-        .await
-        .into_iter()
-        .map(|h| h.fqdn)
-        .collect();
+    let ips: Vec<String> = ip_rows.iter().map(|h| h.address.clone()).collect();
+    let ranges: Vec<String> = range_rows.iter().map(|h| h.cidr.clone()).collect();
+    let fqdns: Vec<String> = fqdn_rows.iter().map(|h| h.fqdn.clone()).collect();
+
+    // A tag target picks every entry carrying it, so the picker lists every tag
+    // currently in use across IPs, ranges, FQDNs and groups.
+    let mut tags: Vec<String> = Vec::new();
+    for tag in ip_rows
+        .iter()
+        .flat_map(|h| h.tags.iter())
+        .chain(range_rows.iter().flat_map(|h| h.tags.iter()))
+        .chain(fqdn_rows.iter().flat_map(|h| h.tags.iter()))
+        .chain(group_rows.iter().flat_map(|g| g.tags.iter()))
+    {
+        if !tags.contains(tag) {
+            tags.push(tag.clone());
+        }
+    }
+    tags.sort();
 
     let policies_json = serde_json::to_string(&policies).unwrap_or_else(|_| "[]".into());
 
@@ -350,6 +360,7 @@ pub async fn scanning_policies(
         ips,
         ranges,
         fqdns,
+        tags,
         policies_json,
     };
     render(&page)

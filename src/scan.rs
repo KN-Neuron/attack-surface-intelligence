@@ -44,21 +44,14 @@ pub struct ResolvedTargets {
 /// feed arbitrary strings to a scanner.
 pub async fn resolve_targets(pool: &PgPool, criteria: &[Criterion]) -> ResolvedTargets {
     let groups = db::list_groups(pool).await;
-    let inventory_ips: Vec<String> = db::list_host_ips(pool)
-        .await
-        .into_iter()
-        .map(|h| h.address)
-        .collect();
-    let inventory_ranges: Vec<String> = db::list_host_ranges(pool)
-        .await
-        .into_iter()
-        .map(|h| h.cidr)
-        .collect();
-    let inventory_fqdns: Vec<String> = db::list_host_fqdns(pool)
-        .await
-        .into_iter()
-        .map(|h| h.fqdn)
-        .collect();
+    // Kept whole (not just the address strings) so a tag criterion can match on
+    // each entry's own tags.
+    let host_ips = db::list_host_ips(pool).await;
+    let host_ranges = db::list_host_ranges(pool).await;
+    let host_fqdns = db::list_host_fqdns(pool).await;
+    let inventory_ips: Vec<String> = host_ips.iter().map(|h| h.address.clone()).collect();
+    let inventory_ranges: Vec<String> = host_ranges.iter().map(|h| h.cidr.clone()).collect();
+    let inventory_fqdns: Vec<String> = host_fqdns.iter().map(|h| h.fqdn.clone()).collect();
 
     let mut addresses: Vec<String> = Vec::new();
     for criterion in criteria.iter().filter(|c| c.is_target()) {
@@ -69,6 +62,26 @@ pub async fn resolve_targets(pool: &PgPool, criteria: &[Criterion]) -> ResolvedT
                     addresses.extend(group.ips.iter().cloned());
                     addresses.extend(group.ranges.iter().cloned());
                     addresses.extend(group.fqdns.iter().cloned());
+                }
+            }
+            // A tag selects every inventory entry carrying it. Matching is exact
+            // and case-sensitive, the same rule the inventory itself uses.
+            "tag" => {
+                let tag = criterion.value.trim();
+                for host in &host_ips {
+                    if host.tags.iter().any(|t| t == tag) {
+                        addresses.push(host.address.clone());
+                    }
+                }
+                for range in &host_ranges {
+                    if range.tags.iter().any(|t| t == tag) {
+                        addresses.push(range.cidr.clone());
+                    }
+                }
+                for fqdn in &host_fqdns {
+                    if fqdn.tags.iter().any(|t| t == tag) {
+                        addresses.push(fqdn.fqdn.clone());
+                    }
                 }
             }
             "ip address" => addresses.push(value.to_string()),
@@ -111,7 +124,11 @@ pub async fn resolve_targets(pool: &PgPool, criteria: &[Criterion]) -> ResolvedT
         }
     }
 
-    resolve_fqdns(&mut flat).await;
+    let resolutions = resolve_fqdns(&mut flat).await;
+
+    // Remember which address each name resolved to, so a later tag lookup can
+    // map the capture row back to the FQDN inventory entry.
+    db::save_fqdn_resolutions(pool, &resolutions).await;
 
     if flat.len() > MAX_TARGETS {
         truncated += flat.len() - MAX_TARGETS;
@@ -160,8 +177,10 @@ fn expand_cidr(base: std::net::Ipv4Addr, prefix: u8) -> Expanded {
 }
 
 /// Swaps unresolved hostnames for their addresses, dropping the ones that do
-/// not resolve (a name with no address is not something we can probe).
-async fn resolve_fqdns(targets: &mut Vec<String>) {
+/// not resolve (a name with no address is not something we can probe). Returns
+/// the `(fqdn, address)` pairs so the caller can keep the link the rewrite
+/// would otherwise destroy.
+async fn resolve_fqdns(targets: &mut Vec<String>) -> Vec<(String, String)> {
     let names: Vec<usize> = targets
         .iter()
         .enumerate()
@@ -169,15 +188,20 @@ async fn resolve_fqdns(targets: &mut Vec<String>) {
         .map(|(i, _)| i)
         .collect();
     if names.is_empty() {
-        return;
+        return Vec::new();
     }
 
+    let mut resolved: Vec<(String, String)> = Vec::new();
     let mut drop = Vec::new();
     for index in names {
         let name = targets[index].clone();
         match tokio::net::lookup_host((name.as_str(), 443)).await {
             Ok(mut addrs) => match addrs.next() {
-                Some(addr) => targets[index] = addr.ip().to_string(),
+                Some(addr) => {
+                    let address = addr.ip().to_string();
+                    resolved.push((name.clone(), address.clone()));
+                    targets[index] = address;
+                }
                 None => drop.push(index),
             },
             Err(_) => drop.push(index),
@@ -188,6 +212,7 @@ async fn resolve_fqdns(targets: &mut Vec<String>) {
     }
     targets.sort();
     targets.dedup();
+    resolved
 }
 
 // ===========================================================================

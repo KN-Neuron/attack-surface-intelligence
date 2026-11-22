@@ -181,6 +181,23 @@
             </div>
             {% if fqdns.is_empty() %}<p class="field-hint">No FQDNs in the inventory yet.</p>{% endif %}
           </div>
+
+          <div class="target-group">
+            <span class="field-label">Tags</span>
+            <div class="picker-search">
+              <input type="search" data-filter-input placeholder="Filter tags..." aria-label="Filter tags">
+            </div>
+            <div class="check-list scroll" data-filter-list>
+              {% for tag in tags %}
+              <label class="check-row" data-filter-item>
+                <input type="checkbox" name="targets" value="{{ tag }}" data-picker-kind="tag">
+                <span class="check-box">{{ crate::icons::icon("check")|safe }}</span>
+                <span class="check-label mono">{{ tag }}</span>
+              </label>
+              {% endfor %}
+            </div>
+            {% if tags.is_empty() %}<p class="field-hint">No tags in the inventory yet. Add them in Host management.</p>{% endif %}
+          </div>
         </div>
 
         <div class="criteria-panel">
