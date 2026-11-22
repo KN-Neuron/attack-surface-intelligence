@@ -229,9 +229,12 @@ ALTER TABLE scan_state ADD COLUMN IF NOT EXISTS alerts_found INTEGER NOT NULL DE
 "#;
 
 pub async fn connect() -> anyhow::Result<PgPool> {
+    // `DATABASE_URL` lets container/orchestrated runs point at their own
+    // database; without it the hardcoded default above is used.
+    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| DATABASE_URL.to_string());
     let pool = PgPoolOptions::new()
         .max_connections(8)
-        .connect(DATABASE_URL)
+        .connect(&url)
         .await?;
     Ok(pool)
 }

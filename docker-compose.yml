@@ -1,0 +1,43 @@
+# Runs the whole project: PostgreSQL plus the app.
+#
+#   docker compose up --build
+#
+# The app is served on http://localhost:8080 and seeds its own schema and default
+# admin (admin@hacknation.pl / securepassword) on first start.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: visibly
+      POSTGRES_PASSWORD: visibly
+      POSTGRES_DB: visibly
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      # The app creates its schema on boot, so it must not start before the
+      # database actually accepts connections.
+      test: ["CMD-SHELL", "pg_isready -U visibly -d visibly"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: "8080"
+      DATABASE_URL: postgresql://visibly:visibly@db:5432/visibly
+      DOCS_URL: http://localhost:3000/docs
+      RUST_LOG: info
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
