@@ -81,7 +81,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/scans/{id}", get(handlers::scan_detail))
         .route("/api/alerts/acknowledge", post(handlers::ack_alerts))
         .route("/api/alerts/{id}/acknowledge", post(handlers::ack_alert))
-        .route("/api/assets/{address}", put(handlers::update_asset))
+        .route(
+            "/api/scans/{scan_id}/assets/{address}",
+            put(handlers::update_asset),
+        )
         .route("/api/policies", post(handlers::create_policy))
         .route(
             "/api/policies/{id}",

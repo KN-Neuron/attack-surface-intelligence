@@ -719,14 +719,14 @@ pub async fn data_explorer(
     render(&page)
 }
 
-/// Saves an Explorer edit. Gated on the `data_explorer` write permission by the
-/// router's RBAC guard.
+/// Saves an Explorer edit against the exact scan row it was made on. Gated on
+/// the `data_explorer` write permission by the router's RBAC guard.
 pub async fn update_asset(
     State(pool): State<PgPool>,
-    Path(address): Path<String>,
+    Path((scan_id, address)): Path<(i64, String)>,
     Json(edit): Json<EditAsset>,
 ) -> StatusCode {
-    if db::update_asset(&pool, &address, &edit).await {
+    if db::update_asset(&pool, scan_id, &address, &edit).await {
         StatusCode::NO_CONTENT
     } else {
         StatusCode::NOT_FOUND

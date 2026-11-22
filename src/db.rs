@@ -7,8 +7,8 @@ use sqlx::{PgPool, Row};
 use crate::auth::PERMISSION_PAGES;
 use crate::mock;
 use crate::state::{
-    Admin, AlertRow, AssetRow, Criterion, EditAsset, HostFqdn, HostGroup, HostIp, HostRange,
-    ImportPreview, ImportSummary, Permission, Policy, Role, ScanDetail, ScanRowView,
+    Admin, AlertRow, AssetRow, Criterion, EditAsset, HostCapture, HostFqdn, HostGroup, HostIp,
+    HostRange, ImportPreview, ImportSummary, Permission, Policy, Role, ScanDetail, ScanRowView,
     ScanServiceCount, ScanStatus, ScanTechCount, ScanType, now_label,
 };
 
@@ -156,6 +156,55 @@ CREATE TABLE IF NOT EXISTS scan_hosts (
     raw JSONB
 );
 
+-- Immutable per-scan history: one row per host per scan, never overwritten by a
+-- later scan. This is what the Data Explorer reads, so filtering for a host
+-- prints every scan it appeared in and changes can be compared over time.
+CREATE TABLE IF NOT EXISTS scan_host_captures (
+    id BIGSERIAL PRIMARY KEY,
+    scan_id BIGINT NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+    address TEXT NOT NULL,
+    up BOOLEAN NOT NULL DEFAULT FALSE,
+    captured_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    host_ip TEXT,
+    scheme TEXT,
+    port INT,
+    url TEXT,
+    final_url TEXT,
+    path TEXT,
+    method TEXT,
+    status_code INT,
+    content_type TEXT,
+    title TEXT,
+    webserver TEXT,
+    content_length BIGINT,
+    words BIGINT,
+    lines BIGINT,
+    cdn TEXT,
+    cdn_type TEXT,
+    cname TEXT,
+    response_time TEXT,
+    jarm_hash TEXT,
+    favicon_mmh3 BIGINT,
+    http2 BOOLEAN NOT NULL DEFAULT FALSE,
+    pipeline BOOLEAN NOT NULL DEFAULT FALSE,
+    vhost BOOLEAN NOT NULL DEFAULT FALSE,
+    a_records JSONB NOT NULL DEFAULT '[]'::jsonb,
+    aaaa_records JSONB NOT NULL DEFAULT '[]'::jsonb,
+    hashes JSONB,
+    asn JSONB,
+    tls JSONB,
+    tech JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ports JSONB NOT NULL DEFAULT '[]'::jsonb,
+    tags JSONB NOT NULL DEFAULT '[]'::jsonb,
+    raw JSONB,
+    UNIQUE (scan_id, address)
+);
+
+CREATE INDEX IF NOT EXISTS scan_host_captures_address
+    ON scan_host_captures (address);
+CREATE INDEX IF NOT EXISTS scan_host_captures_scan
+    ON scan_host_captures (scan_id);
+
 CREATE TABLE IF NOT EXISTS alerts (
     id BIGSERIAL PRIMARY KEY,
     scan_id BIGINT REFERENCES scans(id) ON DELETE SET NULL,
@@ -206,9 +255,42 @@ pub async fn init(pool: &PgPool) -> anyhow::Result<()> {
 
     seed(pool).await?;
 
+    // Databases created before per-scan history existed only have the rolling
+    // `scan_hosts` row. Copy those captures into the history table under the
+    // scan that last touched each host, so the Explorer is not blank on an
+    // upgraded install. Idempotent: existing history rows are left untouched.
+    backfill_captures(pool).await?;
+
     // No scan survives a restart, and older databases may still carry the
     // seeded demo run in the running state.
     recover_interrupted_scans(pool).await;
+    Ok(())
+}
+
+/// Seeds `scan_host_captures` from legacy `scan_hosts` rows. A host's newest
+/// state is attributed to the scan recorded in `last_scan_id`.
+async fn backfill_captures(pool: &PgPool) -> anyhow::Result<()> {
+    let result = sqlx::query(
+        "INSERT INTO scan_host_captures (scan_id, address, up, captured_at, host_ip, scheme,
+                port, url, final_url, response_time, status_code, title, webserver,
+                content_length, cdn, cname, tls, tech, ports, raw)
+         SELECT h.last_scan_id, h.address, h.up, COALESCE(h.last_checked, h.last_seen),
+                h.address, h.scheme, h.port, h.url, h.final_url, h.response_time,
+                h.status_code, h.title, h.webserver, h.content_length, h.cdn, h.cname,
+                h.tls, h.tech, h.ports, h.raw
+         FROM scan_hosts h
+         WHERE h.last_scan_id IS NOT NULL
+         ON CONFLICT (scan_id, address) DO NOTHING",
+    )
+    .execute(pool)
+    .await;
+    match result {
+        Ok(done) if done.rows_affected() > 0 => {
+            println!("backfilled {} host captures into scan history", done.rows_affected());
+        }
+        Ok(_) => {}
+        Err(error) => eprintln!("scan history backfill failed: {error}"),
+    }
     Ok(())
 }
 
@@ -1827,7 +1909,8 @@ pub async fn scan_detail(pool: &PgPool, scan_id: i64) -> Option<ScanDetail> {
 // ---------------------------------------------------------------- captured hosts
 
 /// Refreshes up/down for one host. Never touches the HTTP capture columns, so
-/// a reachability scan leaves a previous full scan's findings intact.
+/// a reachability scan leaves a previous full scan's findings intact. The scan's
+/// history still records that the host was seen and whether it answered.
 pub async fn touch_host(pool: &PgPool, scan_id: i64, address: &str, up: bool) {
     let _ = sqlx::query(
         "INSERT INTO scan_hosts (address, up, last_checked, last_scan_id, last_seen)
@@ -1841,29 +1924,33 @@ pub async fn touch_host(pool: &PgPool, scan_id: i64, address: &str, up: bool) {
     .bind(scan_id)
     .execute(pool)
     .await;
+
+    // A host that was probed is part of this scan even when it did not answer,
+    // so the Explorer can show it as down in that scan's rows.
+    let history = sqlx::query(
+        "INSERT INTO scan_host_captures (scan_id, address, up, captured_at)
+         VALUES ($1, $2, $3, now())
+         ON CONFLICT (scan_id, address) DO UPDATE SET up = $3",
+    )
+    .bind(scan_id)
+    .bind(address)
+    .bind(up)
+    .execute(pool)
+    .await;
+    if let Err(error) = history {
+        eprintln!("scan_host_captures insert failed for {address} in scan {scan_id}: {error}");
+    }
 }
 
-/// Writes everything a full scan learned about one host.
+/// Writes everything a full scan learned about one host. Two rows are written:
+/// the immutable per-scan history row that the Data Explorer reads, and the
+/// rolling "latest state" row that dashboards and alerts query.
 #[allow(clippy::too_many_arguments)]
 pub async fn upsert_host_capture(
     pool: &PgPool,
     scan_id: i64,
     address: &str,
-    scheme: &str,
-    port: i32,
-    url: &str,
-    status_code: i32,
-    title: &str,
-    webserver: &str,
-    content_length: i64,
-    cdn: &str,
-    cname: &str,
-    final_url: &str,
-    response_time: &str,
-    tls: Option<Value>,
-    tech: &Value,
-    ports: &Value,
-    raw: Option<Value>,
+    capture: &HostCapture,
 ) {
     let _ = sqlx::query(
         "INSERT INTO scan_hosts (address, up, first_seen, last_seen, last_checked, last_scan_id,
@@ -1880,50 +1967,126 @@ pub async fn upsert_host_capture(
     )
     .bind(address)
     .bind(scan_id)
-    .bind(scheme)
-    .bind(port)
-    .bind(url)
-    .bind(status_code)
-    .bind(title)
-    .bind(webserver)
-    .bind(content_length)
-    .bind(cdn)
-    .bind(cname)
-    .bind(final_url)
-    .bind(response_time)
-    .bind(tls)
-    .bind(tech)
-    .bind(ports)
-    .bind(raw)
+    .bind(&capture.scheme)
+    .bind(capture.port)
+    .bind(&capture.url)
+    .bind(capture.status_code)
+    .bind(&capture.title)
+    .bind(&capture.webserver)
+    .bind(capture.content_length)
+    .bind(&capture.cdn)
+    .bind(&capture.cname)
+    .bind(&capture.final_url)
+    .bind(&capture.response_time)
+    .bind(&capture.tls)
+    .bind(&capture.tech)
+    .bind(&capture.ports)
+    .bind(&capture.raw)
     .execute(pool)
     .await;
+
+    // History is append-only per scan; re-running the same scan updates its own
+    // row instead of duplicating it.
+    let history = sqlx::query(
+        "INSERT INTO scan_host_captures (scan_id, address, up, captured_at, host_ip, scheme,
+                port, url, final_url, path, method, status_code, content_type, title, webserver,
+                content_length, words, lines, cdn, cdn_type, cname, response_time, jarm_hash,
+                favicon_mmh3, http2, pipeline, vhost, a_records, aaaa_records, hashes, asn, tls,
+                tech, ports, raw)
+         VALUES ($1, $2, TRUE, now(), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+                $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29,
+                $30, $31, $32, $33)
+         ON CONFLICT (scan_id, address) DO UPDATE SET
+             up = TRUE, captured_at = now(), host_ip = $3, scheme = $4, port = $5, url = $6,
+             final_url = $7, path = $8, method = $9, status_code = $10, content_type = $11,
+             title = $12, webserver = $13, content_length = $14, words = $15, lines = $16,
+             cdn = $17, cdn_type = $18, cname = $19, response_time = $20, jarm_hash = $21,
+             favicon_mmh3 = $22, http2 = $23, pipeline = $24, vhost = $25, a_records = $26,
+             aaaa_records = $27, hashes = $28, asn = $29, tls = $30, tech = $31, ports = $32,
+             raw = $33",
+    )
+    .bind(scan_id)
+    .bind(address)
+    .bind(&capture.host_ip)
+    .bind(&capture.scheme)
+    .bind(capture.port)
+    .bind(&capture.url)
+    .bind(&capture.final_url)
+    .bind(&capture.path)
+    .bind(&capture.method)
+    .bind(capture.status_code)
+    .bind(&capture.content_type)
+    .bind(&capture.title)
+    .bind(&capture.webserver)
+    .bind(capture.content_length)
+    .bind(capture.words)
+    .bind(capture.lines)
+    .bind(&capture.cdn)
+    .bind(&capture.cdn_type)
+    .bind(&capture.cname)
+    .bind(&capture.response_time)
+    .bind(&capture.jarm)
+    .bind(capture.favicon)
+    .bind(capture.http2)
+    .bind(capture.pipeline)
+    .bind(capture.vhost)
+    // These columns are JSONB, so the vectors are encoded as JSON, not as a
+    // Postgres array (which sqlx would otherwise infer from Vec<String>).
+    .bind(serde_json::to_value(&capture.a_records).unwrap_or(Value::Array(vec![])))
+    .bind(serde_json::to_value(&capture.aaaa_records).unwrap_or(Value::Array(vec![])))
+    .bind(&capture.hashes)
+    .bind(&capture.asn)
+    .bind(&capture.tls)
+    .bind(&capture.tech)
+    .bind(&capture.ports)
+    .bind(&capture.raw)
+    .execute(pool)
+    .await;
+    if let Err(error) = history {
+        // A failed history write loses the comparison trail, so it is surfaced
+        // rather than ignored like the rolling latest-state write above.
+        eprintln!("scan_host_captures insert failed for {address} in scan {scan_id}: {error}");
+    }
 }
 
+/// Every host as captured in every scan, newest scan first. One row per host per
+/// scan, so filtering for a host prints its whole history and changes between
+/// scans are visible side by side.
 pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
-    // CVEs are raised as alerts, so the host's vulnerability list comes from the
-    // alerts the scanner generated rather than from the technology list.
+    // CVEs are raised as alerts, scoped to the scan that produced them.
     let vulns = sqlx::query(
-        "SELECT host, detail FROM alerts
+        "SELECT scan_id, host, detail FROM alerts
          WHERE kind = 'new_cve' AND COALESCE(detail, '') <> ''
          ORDER BY severity, detail",
     )
     .fetch_all(pool)
     .await
     .unwrap_or_default();
-    let mut vulns_by_host: std::collections::HashMap<String, Vec<String>> =
+    let mut vulns_by_capture: std::collections::HashMap<(i64, String), Vec<String>> =
         std::collections::HashMap::new();
     for row in &vulns {
-        let host: String = row.get("host");
-        let detail: String = row.get("detail");
-        vulns_by_host.entry(host).or_default().push(detail);
+        let key: (i64, String) = (row.get("scan_id"), row.get("host"));
+        vulns_by_capture
+            .entry(key)
+            .or_default()
+            .push(row.get("detail"));
     }
 
+    let tags_by_address = inventory_tags(pool).await;
+
     sqlx::query(
-        "SELECT address, up, scheme, port, status_code, title, webserver, tech, ports,
-                url, final_url, content_length, cdn, cname, response_time, tls,
-                first_seen, last_seen, last_checked, last_scan_id
-         FROM scan_hosts
-         ORDER BY up DESC, address",
+        "SELECT c.scan_id, c.address, c.up, c.captured_at, c.host_ip, c.scheme, c.port,
+                c.url, c.final_url, c.path, c.method, c.status_code, c.content_type, c.title,
+                c.webserver, c.content_length, c.words, c.lines, c.cdn, c.cdn_type, c.cname,
+                c.response_time, c.jarm_hash, c.favicon_mmh3, c.http2, c.pipeline, c.vhost,
+                c.a_records, c.aaaa_records, c.hashes, c.asn, c.tls, c.tech, c.ports,
+                COALESCE(s.label, '') AS scan_label,
+                s.started_at AS scan_started,
+                h.first_seen, h.last_seen, h.last_checked
+         FROM scan_host_captures c
+         LEFT JOIN scans s ON s.id = c.scan_id
+         LEFT JOIN scan_hosts h ON h.address = c.address
+         ORDER BY c.captured_at DESC, c.address",
     )
     .fetch_all(pool)
     .await
@@ -1935,6 +2098,16 @@ pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
         let ports: Vec<Value> = serde_json::from_value(row.get::<Value, _>("ports"))
             .unwrap_or_default();
         let tls: Option<Value> = row.get("tls");
+        let hashes: Option<Value> = row.get("hashes");
+        let asn: Option<Value> = row.get("asn");
+        let a_records: Vec<String> = serde_json::from_value(row.get::<Value, _>("a_records"))
+            .unwrap_or_default();
+        let aaaa_records: Vec<String> =
+            serde_json::from_value(row.get::<Value, _>("aaaa_records")).unwrap_or_default();
+
+        let address: String = row.get("address");
+        let scan_id: i64 = row.get::<Option<i64>, _>("scan_id").unwrap_or(0);
+        let tags = tags_by_address.get(&address).cloned().unwrap_or_default();
 
         let timestamp = |key: &str| -> i64 {
             row.get::<Option<chrono::DateTime<chrono::Utc>>, _>(key)
@@ -1942,17 +2115,49 @@ pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
                 .unwrap_or(0)
         };
 
+        let mut resolves: Vec<String> = Vec::new();
+        if let Some(ip) = row.get::<Option<String>, _>("host_ip")
+            && !ip.is_empty()
+        {
+            resolves.push(ip);
+        }
+        for ip in a_records.iter().chain(aaaa_records.iter()) {
+            if !resolves.contains(ip) {
+                resolves.push(ip.clone());
+            }
+        }
+
         AssetRow {
-            address: row.get("address"),
-            up: row.get("up"),
+            address: address.clone(),
+            tags: tags.clone(),
+            tag_text: tags.join(" "),
+            up: row.get::<Option<bool>, _>("up").unwrap_or(false),
+            scan_id,
+            scan: row
+                .get::<Option<String>, _>("scan_label")
+                .filter(|label| !label.is_empty())
+                .unwrap_or_else(|| format!("#{scan_id}")),
+            captured: row
+                .get::<chrono::DateTime<chrono::Utc>, _>("captured_at")
+                .format("%b %-d, %Y %-I:%M %p")
+                .to_string(),
+            captured_ts: timestamp("captured_at"),
+            host_ip: row.get::<Option<String>, _>("host_ip").unwrap_or_default(),
             scheme: row.get::<Option<String>, _>("scheme").unwrap_or_default(),
             port: row
                 .get::<Option<i32>, _>("port")
                 .map(|p| p.to_string())
                 .unwrap_or_default(),
+            url: row.get::<Option<String>, _>("url").unwrap_or_default(),
+            final_url: row.get::<Option<String>, _>("final_url").unwrap_or_default(),
+            path: row.get::<Option<String>, _>("path").unwrap_or_default(),
+            method: row.get::<Option<String>, _>("method").unwrap_or_default(),
             status_code: row
                 .get::<Option<i32>, _>("status_code")
                 .map(|c| c.to_string())
+                .unwrap_or_default(),
+            content_type: row
+                .get::<Option<String>, _>("content_type")
                 .unwrap_or_default(),
             title: row.get::<Option<String>, _>("title").unwrap_or_default(),
             webserver: row.get::<Option<String>, _>("webserver").unwrap_or_default(),
@@ -1968,26 +2173,32 @@ pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
                     })
                 })
                 .collect(),
-            vulnerabilities: vulns_by_host
-                .get(&row.get::<String, _>("address"))
+            vulnerabilities: vulns_by_capture
+                .get(&(scan_id, address.clone()))
                 .cloned()
                 .unwrap_or_default(),
             last_checked: row
                 .get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_checked")
                 .map(|t| t.format("%b %-d, %Y %-I:%M %p").to_string())
                 .unwrap_or_else(|| "—".into()),
-            last_scan: row
-                .get::<Option<i64>, _>("last_scan_id")
-                .map(|id| format!("#{id}"))
-                .unwrap_or_else(|| "—".into()),
-            url: row.get::<Option<String>, _>("url").unwrap_or_default(),
-            final_url: row.get::<Option<String>, _>("final_url").unwrap_or_default(),
+            last_scan: format!("#{scan_id}"),
             content_length: row
                 .get::<Option<i64>, _>("content_length")
                 .filter(|len| *len > 0)
                 .map(|len| len.to_string())
                 .unwrap_or_default(),
+            words: row
+                .get::<Option<i64>, _>("words")
+                .filter(|n| *n > 0)
+                .map(|n| n.to_string())
+                .unwrap_or_default(),
+            lines: row
+                .get::<Option<i64>, _>("lines")
+                .filter(|n| *n > 0)
+                .map(|n| n.to_string())
+                .unwrap_or_default(),
             cdn: row.get::<Option<String>, _>("cdn").unwrap_or_default(),
+            cdn_type: row.get::<Option<String>, _>("cdn_type").unwrap_or_default(),
             cname: row.get::<Option<String>, _>("cname").unwrap_or_default(),
             response_time: row
                 .get::<Option<String>, _>("response_time")
@@ -2011,7 +2222,60 @@ pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
                 .and_then(|tls| tls.get("not_after").and_then(Value::as_str))
                 .map(|raw| raw.split('T').next().unwrap_or(raw).to_string())
                 .unwrap_or_default(),
-            ports: ports
+            tls_serial: tls
+                .as_ref()
+                .and_then(|tls| tls.get("serial").and_then(Value::as_str))
+                .unwrap_or_default()
+                .to_string(),
+            tls_fingerprint: tls
+                .as_ref()
+                .and_then(|tls| tls.get("fingerprint_hash"))
+                .and_then(|hash| hash.get("sha256"))
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+            jarm: row
+                .get::<Option<String>, _>("jarm_hash")
+                .unwrap_or_default(),
+            favicon: row
+                .get::<Option<i64>, _>("favicon_mmh3")
+                .map(|hash| hash.to_string())
+                .unwrap_or_default(),
+            http2: row.get::<Option<bool>, _>("http2").unwrap_or(false),
+            pipeline: row
+                .get::<Option<bool>, _>("pipeline")
+                .unwrap_or(false),
+            vhost: row.get::<Option<bool>, _>("vhost").unwrap_or(false),
+            resolves_to: resolves.join(", "),
+            asn: asn
+                .as_ref()
+                .map(|asn| {
+                    let number = asn
+                        .get("as_number")
+                        .and_then(Value::as_str)
+                        .or_else(|| asn.get("as_number").and_then(Value::as_i64).map(|_| ""))
+                        .unwrap_or("");
+                    let org = asn
+                        .get("as_name")
+                        .and_then(Value::as_str)
+                        .or_else(|| asn.get("as_org").and_then(Value::as_str))
+                        .unwrap_or("");
+                    format!("{number} {org}").trim().to_string()
+                })
+                .unwrap_or_default(),
+            body_hash: hashes
+                .as_ref()
+                .and_then(|hash| hash.get("body_sha256"))
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+            header_hash: hashes
+                .as_ref()
+                .and_then(|hash| hash.get("header_sha256"))
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+            open_ports: ports
                 .iter()
                 .filter_map(|p| {
                     let port = p.get("port")?.as_i64()?;
@@ -2021,13 +2285,13 @@ pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
                 .collect::<Vec<_>>()
                 .join(", "),
             first_seen: row
-                .get::<chrono::DateTime<chrono::Utc>, _>("first_seen")
-                .format("%b %-d, %Y %-I:%M %p")
-                .to_string(),
+                .get::<Option<chrono::DateTime<chrono::Utc>>, _>("first_seen")
+                .map(|t| t.format("%b %-d, %Y %-I:%M %p").to_string())
+                .unwrap_or_else(|| "—".into()),
             last_seen: row
-                .get::<chrono::DateTime<chrono::Utc>, _>("last_seen")
-                .format("%b %-d, %Y %-I:%M %p")
-                .to_string(),
+                .get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_seen")
+                .map(|t| t.format("%b %-d, %Y %-I:%M %p").to_string())
+                .unwrap_or_else(|| "—".into()),
             last_checked_ts: timestamp("last_checked"),
             first_seen_ts: timestamp("first_seen"),
             last_seen_ts: timestamp("last_seen"),
@@ -2036,10 +2300,100 @@ pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
     .collect()
 }
 
+/// Inventory tags keyed by concrete address. A host inherits the tags of the
+/// inventory entry it came from: an exact IP row, an FQDN that resolved to it,
+/// any CIDR block containing it, or a group that holds it.
+async fn inventory_tags(pool: &PgPool) -> std::collections::HashMap<String, Vec<String>> {
+    use std::collections::HashMap;
+
+    fn add(tags: &mut HashMap<String, Vec<String>>, address: &str, values: &[String]) {
+        let entry = tags.entry(address.to_string()).or_default();
+        for tag in values {
+            if !entry.contains(tag) {
+                entry.push(tag.clone());
+            }
+        }
+    }
+
+    let mut tags: HashMap<String, Vec<String>> = HashMap::new();
+
+    for host in list_host_ips(pool).await {
+        add(&mut tags, &host.address, &host.tags);
+    }
+
+    let ranges = list_host_ranges(pool).await;
+    let known_addresses: Vec<String> =
+        sqlx::query_scalar("SELECT DISTINCT address FROM scan_hosts")
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default();
+
+    // A range's tags apply to every captured address it covers.
+    for address in &known_addresses {
+        for range in &ranges {
+            if crate::state::cidr_contains(&range.cidr, address) {
+                add(&mut tags, address, &range.tags);
+            }
+        }
+    }
+
+    // A group's tags reach every member entry, and its ranges cover known hosts.
+    for group in list_groups(pool).await {
+        for ip in &group.ips {
+            add(&mut tags, ip, &group.tags);
+        }
+        // Group ranges are matched against known hosts rather than fully
+        // enumerated, so a /8 in a group cannot explode here.
+        for range in &group.ranges {
+            for address in &known_addresses {
+                if crate::state::cidr_contains(range, address) {
+                    add(&mut tags, address, &group.tags);
+                }
+            }
+        }
+    }
+
+    tags
+}
+
 /// Applies an Explorer edit. Only the display-level columns are writable; the
-/// captured scanner evidence (tech, tls, ports) stays as measured.
-pub async fn update_asset(pool: &PgPool, address: &str, edit: &EditAsset) -> bool {
-    sqlx::query(
+/// captured scanner evidence (tech, tls, ports) stays as measured. The edit is
+/// applied to the exact scan's history row and to the rolling latest-state row,
+/// so the corrected value shows everywhere without rewriting other scans.
+pub async fn update_asset(
+    pool: &PgPool,
+    scan_id: i64,
+    address: &str,
+    edit: &EditAsset,
+) -> bool {
+    let history = sqlx::query(
+        "UPDATE scan_host_captures SET
+             title = COALESCE($3, title),
+             webserver = COALESCE($4, webserver),
+             cdn = COALESCE($5, cdn),
+             cname = COALESCE($6, cname),
+             status_code = COALESCE($7, status_code),
+             scheme = COALESCE($8, scheme),
+             port = COALESCE($9, port),
+             up = COALESCE($10, up)
+         WHERE scan_id = $1 AND address = $2",
+    )
+    .bind(scan_id)
+    .bind(address)
+    .bind(&edit.title)
+    .bind(&edit.webserver)
+    .bind(&edit.cdn)
+    .bind(&edit.cname)
+    .bind(edit.status_code)
+    .bind(&edit.scheme)
+    .bind(edit.port)
+    .bind(edit.up)
+    .execute(pool)
+    .await
+    .map(|result| result.rows_affected() > 0)
+    .unwrap_or(false);
+
+    let current = sqlx::query(
         "UPDATE scan_hosts SET
              title = COALESCE($2, title),
              webserver = COALESCE($3, webserver),
@@ -2063,7 +2417,9 @@ pub async fn update_asset(pool: &PgPool, address: &str, edit: &EditAsset) -> boo
     .execute(pool)
     .await
     .map(|result| result.rows_affected() > 0)
-    .unwrap_or(false)
+    .unwrap_or(false);
+
+    history || current
 }
 
 // ---------------------------------------------------------------- alerts

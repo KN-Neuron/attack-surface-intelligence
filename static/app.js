@@ -1679,21 +1679,44 @@
     // timestamp field the timeframe filter uses for date columns.
     var COLUMNS = [
       { key: "address", label: "Host", type: "text", mono: true, primary: true },
+      { key: "scan", label: "Scan", type: "text", mono: true },
+      { key: "tags", label: "Tags", type: "list", tech: true },
       { key: "up", label: "Status", type: "bool" },
       { key: "scheme", label: "Scheme", type: "text" },
       { key: "port", label: "Port", type: "number", right: true, mono: true },
       { key: "status_code", label: "HTTP", type: "number", right: true, mono: true },
+      { key: "content_type", label: "Content type", type: "text" },
       { key: "title", label: "Title", type: "text", wrap: true, editable: "title" },
       { key: "webserver", label: "Server", type: "text", editable: "webserver" },
       { key: "technologies", label: "Technologies", type: "list", tech: true },
       { key: "vulnerabilities", label: "Vulnerabilities", type: "list", tech: true },
-      { key: "ports", label: "Open ports", type: "text", mono: true },
+      { key: "open_ports", label: "Open ports", type: "text", mono: true },
       { key: "cdn", label: "CDN", type: "text", editable: "cdn" },
+      { key: "cdn_type", label: "CDN type", type: "text" },
       { key: "cname", label: "CNAME", type: "text", editable: "cname" },
+      { key: "resolves_to", label: "Resolves to", type: "text", mono: true },
+      { key: "host_ip", label: "Host IP", type: "text", mono: true },
+      { key: "asn", label: "ASN", type: "text" },
       { key: "tls", label: "TLS", type: "text" },
       { key: "tls_expires", label: "Cert expires", type: "date" },
+      { key: "tls_serial", label: "Cert serial", type: "text", mono: true },
+      { key: "tls_fingerprint", label: "Cert fingerprint", type: "text", mono: true },
+      { key: "jarm", label: "JARM", type: "text", mono: true },
+      { key: "favicon", label: "Favicon hash", type: "text", mono: true },
+      { key: "http2", label: "HTTP/2", type: "flag" },
+      { key: "pipeline", label: "Pipeline", type: "flag" },
+      { key: "vhost", label: "VHOST", type: "flag" },
       { key: "content_length", label: "Size", type: "number", right: true, mono: true },
+      { key: "words", label: "Words", type: "number", right: true, mono: true },
+      { key: "lines", label: "Lines", type: "number", right: true, mono: true },
+      { key: "body_hash", label: "Body hash", type: "text", mono: true },
+      { key: "header_hash", label: "Header hash", type: "text", mono: true },
       { key: "response_time", label: "Response", type: "text" },
+      { key: "url", label: "URL", type: "text", wrap: true },
+      { key: "final_url", label: "Final URL", type: "text", wrap: true },
+      { key: "path", label: "Path", type: "text", mono: true },
+      { key: "method", label: "Method", type: "text" },
+      { key: "captured", label: "Captured", type: "date", ts: "captured_ts" },
       { key: "last_checked", label: "Last checked", type: "date", ts: "last_checked_ts" },
       { key: "last_seen", label: "Last seen", type: "date", ts: "last_seen_ts" },
       { key: "first_seen", label: "First seen", type: "date", ts: "first_seen_ts" },
@@ -1724,6 +1747,10 @@
         { id: "true", label: "is up" },
         { id: "false", label: "is down" }
       ],
+      flag: [
+        { id: "true", label: "is yes" },
+        { id: "false", label: "is no" }
+      ],
       date: [
         { id: "after", label: "after" },
         { id: "before", label: "before" }
@@ -1739,7 +1766,8 @@
     // Operators that carry no value, so their chip only shows a column + verb.
     function isValueless(filter) {
       var col = COLUMN_BY_KEY[filter.key];
-      return (col && col.type === "bool") || filter.op === "empty" || filter.op === "not_empty";
+      return (col && (col.type === "bool" || col.type === "flag"))
+        || filter.op === "empty" || filter.op === "not_empty";
     }
 
     function valueOf(row, key) {
@@ -1756,7 +1784,7 @@
       var op = filter.op;
       var needle = filter.value;
 
-      if (col.type === "bool") {
+      if (col.type === "bool" || col.type === "flag") {
         return op === "true" ? raw === true : raw === false;
       }
       if (col.type === "list") {
@@ -1904,6 +1932,11 @@
         td.appendChild(badge);
         return td;
       }
+      if (col.type === "flag") {
+        td.textContent = row[col.key] ? "Yes" : "No";
+        if (!row[col.key]) td.className += " muted";
+        return td;
+      }
       if (col.tech) {
         td.className = "asset-tech";
         var list = Array.isArray(row[col.key]) ? row[col.key] : [];
@@ -1955,6 +1988,7 @@
           btn.className = "link-btn";
           btn.innerHTML = 'Edit';
           btn.setAttribute("data-asset-edit", row.address);
+          btn.setAttribute("data-asset-scan", row.scan_id);
           td.appendChild(btn);
           tr.insertBefore(td, tr.firstChild);
         }
@@ -2004,6 +2038,7 @@
 
     function csvValue(row, col) {
       var raw = row[col.key];
+      if (col.type === "flag") return raw ? "Yes" : "No";
       if (Array.isArray(raw)) return raw.join("; ");
       if (typeof raw === "boolean") return raw ? "Up" : "Down";
       return valueOf(row, col.key);
@@ -2343,6 +2378,7 @@
     var editModal = document.getElementById("asset-edit-modal");
     var editForm = document.getElementById("asset-edit-form");
     var editingAddress = null;
+    var editingScan = null;
 
     function syncUpText() {
       var box = document.getElementById("asset-up");
@@ -2368,10 +2404,15 @@
         var btn = event.target.closest("[data-asset-edit]");
         if (!btn) return;
         var address = btn.getAttribute("data-asset-edit");
-        var row = assets.filter(function (asset) { return asset.address === address; })[0];
+        var scanId = Number(btn.getAttribute("data-asset-scan"));
+        // Each row is one scan's capture, so match on both to edit the right one.
+        var row = assets.filter(function (asset) {
+          return asset.address === address && asset.scan_id === scanId;
+        })[0];
         if (!row) return;
         editingAddress = address;
-        document.getElementById("asset-edit-sub").textContent = address;
+        editingScan = scanId;
+        document.getElementById("asset-edit-sub").textContent = address + " · " + row.scan;
         document.getElementById("asset-title").value = row.title || "";
         document.getElementById("asset-webserver").value = row.webserver || "";
         document.getElementById("asset-scheme").value = row.scheme || "";
@@ -2403,7 +2444,7 @@
           cname: document.getElementById("asset-cname").value,
           up: document.getElementById("asset-up").checked
         };
-        fetch("/api/assets/" + encodeURIComponent(editingAddress), {
+        fetch("/api/scans/" + editingScan + "/assets/" + encodeURIComponent(editingAddress), {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)

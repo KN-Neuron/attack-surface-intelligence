@@ -11,7 +11,7 @@ use tokio::process::Command;
 use tokio::task::JoinSet;
 
 use crate::db;
-use crate::state::{Criterion, REACHABILITY_PORTS, ScanStatus, ScanType};
+use crate::state::{Criterion, HostCapture, REACHABILITY_PORTS, ScanStatus, ScanType};
 
 /// Upper bound on addresses expanded from a single CIDR, so a wide block in the
 /// inventory cannot exhaust the machine.
@@ -194,7 +194,9 @@ async fn resolve_fqdns(targets: &mut Vec<String>) {
 // HTTP capture (httpx)
 // ===========================================================================
 
-/// One JSON line from `httpx -json`, narrowed to the fields we persist.
+/// One JSON line from `httpx -json`, narrowed to the fields we persist. Every
+/// field httpx can emit that carries evidence about the host is kept here; the
+/// full line is also stored verbatim in `raw` so nothing is lost.
 #[derive(Deserialize, Default)]
 struct HttpxLine {
     #[serde(default)]
@@ -210,21 +212,51 @@ struct HttpxLine {
     #[serde(default)]
     port: Option<String>,
     #[serde(default)]
+    path: Option<String>,
+    #[serde(default)]
+    method: Option<String>,
+    #[serde(default)]
     status_code: Option<i32>,
     #[serde(default)]
     title: Option<String>,
     #[serde(default)]
     webserver: Option<String>,
     #[serde(default)]
+    content_type: Option<String>,
+    #[serde(default)]
     content_length: Option<i64>,
     #[serde(default)]
+    words: Option<i64>,
+    #[serde(default)]
+    lines: Option<i64>,
+    #[serde(default)]
     cdn_name: Option<String>,
+    #[serde(default)]
+    cdn_type: Option<String>,
     #[serde(default)]
     cname: Option<String>,
     #[serde(default)]
     final_url: Option<String>,
     #[serde(default)]
     response_time: Option<String>,
+    #[serde(default)]
+    jarm_hash: Option<String>,
+    #[serde(default)]
+    favicon: Option<Value>,
+    #[serde(default)]
+    http2: Option<bool>,
+    #[serde(default)]
+    pipeline: Option<bool>,
+    #[serde(default)]
+    vhost: Option<bool>,
+    #[serde(default)]
+    a: Option<Vec<String>>,
+    #[serde(default)]
+    aaaa: Option<Vec<String>>,
+    #[serde(default)]
+    asn: Option<Value>,
+    #[serde(default)]
+    hash: Option<Value>,
     #[serde(default)]
     tls: Option<Value>,
     #[serde(default)]
@@ -282,6 +314,56 @@ impl HttpxLine {
             _ => "HTTP",
         };
         json!([{ "port": port, "service": service }])
+    }
+
+    /// Favicon mmh3 hash; httpx reports it as an object with a `mmh3` value.
+    fn favicon_mmh3(&self) -> Option<i64> {
+        match self.favicon.as_ref()? {
+            Value::Number(n) => n.as_i64(),
+            Value::Object(_) => self.favicon.as_ref()?.get("mmh3")?.as_i64(),
+            _ => None,
+        }
+    }
+
+    /// Flattens one httpx line into the storage shape.
+    fn to_capture(&self, line: &str) -> HostCapture {
+        HostCapture {
+            host_ip: self.host_ip.clone().unwrap_or_default(),
+            scheme: self.scheme.clone().unwrap_or_default(),
+            port: self
+                .port
+                .as_deref()
+                .and_then(|p| p.parse::<i32>().ok())
+                .unwrap_or(0),
+            url: self.url.clone().unwrap_or_default(),
+            final_url: self.final_url.clone().unwrap_or_default(),
+            path: self.path.clone().unwrap_or_default(),
+            method: self.method.clone().unwrap_or_default(),
+            status_code: self.status_code.unwrap_or(0),
+            content_type: self.content_type.clone().unwrap_or_default(),
+            title: self.title.clone().unwrap_or_default(),
+            webserver: self.webserver.clone().unwrap_or_default(),
+            content_length: self.content_length.unwrap_or(0),
+            words: self.words.unwrap_or(0),
+            lines: self.lines.unwrap_or(0),
+            cdn: self.cdn_name.clone().unwrap_or_default(),
+            cdn_type: self.cdn_type.clone().unwrap_or_default(),
+            cname: self.cname.clone().unwrap_or_default(),
+            response_time: self.response_time.clone().unwrap_or_default(),
+            jarm: self.jarm_hash.clone().unwrap_or_default(),
+            favicon: self.favicon_mmh3(),
+            http2: self.http2.unwrap_or(false),
+            pipeline: self.pipeline.unwrap_or(false),
+            vhost: self.vhost.unwrap_or(false),
+            a_records: self.a.clone().unwrap_or_default(),
+            aaaa_records: self.aaaa.clone().unwrap_or_default(),
+            asn: self.asn.clone(),
+            hashes: self.hash.clone(),
+            tls: self.tls.clone(),
+            tech: self.tech_value(),
+            ports: self.ports_value(),
+            raw: serde_json::from_str::<Value>(line).ok(),
+        }
     }
 }
 
@@ -357,6 +439,21 @@ async fn run_httpx(
             "-http2",
             "-tls-grab",
             "-follow-redirects",
+            // Additional evidence httpx can report: address and DNS records,
+            // network owner, contents size, hashes, fingerprints and protocol
+            // capabilities. Together with the fields above this is everything
+            // httpx exposes for an HTTP probe.
+            "-ip",
+            "-cname",
+            "-asn",
+            "-rt",
+            "-wc",
+            "-favicon",
+            "-jarm",
+            "-hash",
+            "sha256",
+            "-pipeline",
+            "-vhost",
             "-timeout",
             "10",
             "-retries",
@@ -411,31 +508,7 @@ async fn run_httpx(
         found.insert(address.clone());
         seen_total += 1;
 
-        db::upsert_host_capture(
-            pool,
-            scan_id,
-            &address,
-            capture.scheme.as_deref().unwrap_or(""),
-            capture
-                .port
-                .as_deref()
-                .and_then(|p| p.parse::<i32>().ok())
-                .unwrap_or(0),
-            capture.url.as_deref().unwrap_or(""),
-            capture.status_code.unwrap_or(0),
-            capture.title.as_deref().unwrap_or(""),
-            capture.webserver.as_deref().unwrap_or(""),
-            capture.content_length.unwrap_or(0),
-            capture.cdn_name.as_deref().unwrap_or(""),
-            capture.cname.as_deref().unwrap_or(""),
-            capture.final_url.as_deref().unwrap_or(""),
-            capture.response_time.as_deref().unwrap_or(""),
-            capture.tls.clone(),
-            &capture.tech_value(),
-            &capture.ports_value(),
-            serde_json::from_str::<Value>(&line).ok(),
-        )
-        .await;
+        db::upsert_host_capture(pool, scan_id, &address, &capture.to_capture(&line)).await;
 
         if seen_total.is_multiple_of(PROGRESS_BATCH) {
             report_progress(pool, targets.len(), seen_total, found.len(), &address).await;

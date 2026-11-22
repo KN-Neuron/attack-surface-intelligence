@@ -1,5 +1,39 @@
 use serde::{Deserialize, Serialize};
 
+/// Whether a concrete address falls inside a CIDR block. Used to work out which
+/// inventory tags a captured host inherits from ranges and host groups.
+pub fn cidr_contains(cidr: &str, address: &str) -> bool {
+    use std::net::IpAddr;
+
+    let Some((base, prefix)) = cidr.trim().split_once('/') else {
+        return false;
+    };
+    let (Ok(base), Ok(prefix)) = (base.trim().parse::<IpAddr>(), prefix.trim().parse::<u8>())
+    else {
+        return false;
+    };
+    let Ok(address) = address.trim().parse::<IpAddr>() else {
+        return false;
+    };
+    match (base, address) {
+        (IpAddr::V4(base), IpAddr::V4(address)) if prefix <= 32 => {
+            if prefix == 0 {
+                return true;
+            }
+            let mask = u32::MAX << (32 - prefix);
+            u32::from(base) & mask == u32::from(address) & mask
+        }
+        (IpAddr::V6(base), IpAddr::V6(address)) if prefix <= 128 => {
+            if prefix == 0 {
+                return true;
+            }
+            let mask = u128::MAX << (128 - prefix);
+            u128::from(base) & mask == u128::from(address) & mask
+        }
+        _ => false,
+    }
+}
+
 /// A single rule attached to a scan policy. The `kind` names which selector
 /// (host group, IP to scan, schedule, ...) the value belongs to.
 #[derive(Clone, Serialize, Deserialize)]
@@ -346,39 +380,105 @@ pub struct ScanServiceCount {
     pub hosts: u32,
 }
 
-/// A captured host as shown in the Data Explorer.
+/// One captured host as shown in the Data Explorer. There is one row per host
+/// per scan, straight from the immutable `scan_host_captures` history, so the
+/// same host appears once for every scan it was part of.
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub struct AssetRow {
     pub address: String,
+    /// Inventory tags for this address, resolved from host management.
+    pub tags: Vec<String>,
     pub up: bool,
+    pub scan_id: i64,
+    pub scan: String,
+    pub captured: String,
+    pub captured_ts: i64,
+    pub host_ip: String,
     pub scheme: String,
     pub port: String,
+    pub url: String,
+    pub final_url: String,
+    pub path: String,
+    pub method: String,
     pub status_code: String,
+    pub content_type: String,
     pub title: String,
     pub webserver: String,
     pub technologies: Vec<String>,
-    /// CVE ids raised against this host by the scanner.
+    /// CVE ids raised against this host by the scan that captured this row.
     pub vulnerabilities: Vec<String>,
     pub last_checked: String,
     pub last_scan: String,
-    /// Full URL httpx reported (after redirects).
-    pub url: String,
-    pub final_url: String,
     pub content_length: String,
+    pub words: String,
+    pub lines: String,
     pub cdn: String,
+    pub cdn_type: String,
     pub cname: String,
     pub response_time: String,
     /// TLS summary, e.g. "TLS 1.3 · issuer CN".
     pub tls: String,
     pub tls_expires: String,
-    /// Open ports as "443/HTTPS, 80/HTTP".
-    pub ports: String,
+    pub tls_serial: String,
+    pub tls_fingerprint: String,
+    pub jarm: String,
+    pub favicon: String,
+    pub http2: bool,
+    pub pipeline: bool,
+    pub vhost: bool,
+    /// Addresses the hostname resolved to.
+    pub resolves_to: String,
+    /// ASN / network owner, when httpx reported it.
+    pub asn: String,
+    /// Response body/header hashes, used to spot silent content changes.
+    pub body_hash: String,
+    pub header_hash: String,
+    pub open_ports: String,
     pub first_seen: String,
     pub last_seen: String,
     /// Epoch seconds, so the client can filter by the selected timeframe.
     pub last_checked_ts: i64,
     pub first_seen_ts: i64,
     pub last_seen_ts: i64,
+    /// The row's own tags as filterable text, e.g. "prod web".
+    pub tag_text: String,
+}
+
+/// Everything one httpx probe reported about a host, ready to persist. The
+/// scanner fills this in, so the storage layer never has to know httpx's shape.
+#[derive(Clone, Default)]
+pub struct HostCapture {
+    pub host_ip: String,
+    pub scheme: String,
+    pub port: i32,
+    pub url: String,
+    pub final_url: String,
+    pub path: String,
+    pub method: String,
+    pub status_code: i32,
+    pub content_type: String,
+    pub title: String,
+    pub webserver: String,
+    pub content_length: i64,
+    pub words: i64,
+    pub lines: i64,
+    pub cdn: String,
+    pub cdn_type: String,
+    pub cname: String,
+    pub response_time: String,
+    pub jarm: String,
+    pub favicon: Option<i64>,
+    pub http2: bool,
+    pub pipeline: bool,
+    pub vhost: bool,
+    pub a_records: Vec<String>,
+    pub aaaa_records: Vec<String>,
+    pub asn: Option<serde_json::Value>,
+    pub hashes: Option<serde_json::Value>,
+    pub tls: Option<serde_json::Value>,
+    pub tech: serde_json::Value,
+    pub ports: serde_json::Value,
+    pub raw: Option<serde_json::Value>,
 }
 
 /// The mutable half of a captured host, used by the Explorer edit mode.
