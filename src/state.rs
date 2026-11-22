@@ -469,6 +469,10 @@ pub struct AssetRow {
     pub last_checked_ts: i64,
     pub first_seen_ts: i64,
     pub last_seen_ts: i64,
+    /// Response header names with their values, flattened for display.
+    pub headers: Vec<String>,
+    /// `Set-Cookie` values as `name=value`.
+    pub cookies: Vec<String>,
 }
 
 /// Scanner tuning, persisted in `app_data` and applied to every httpx run.
@@ -530,6 +534,196 @@ impl ScanSettings {
     }
 }
 
+/// One condition inside a custom signature. Every criterion of a signature must
+/// hold for the same capture for the signature to fire.
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct SignatureCriterion {
+    /// What the criterion inspects: `http_header`, `cookie`, `cookie_name`,
+    /// `title`, `server`, `technology`, `url` or `status_code`.
+    pub source: String,
+    /// `contains`, `not_contains`, `equals`, `starts_with`, `not_empty`,
+    /// `empty`, or `eq`/`ne`/`gt`/`lt` for numeric sources.
+    pub operator: String,
+    /// Header or cookie name for the named sources, empty otherwise.
+    #[serde(default)]
+    pub name: String,
+    /// Value to test against. Unused by `empty`/`not_empty`.
+    #[serde(default)]
+    pub value: String,
+}
+
+impl SignatureCriterion {
+    /// Sources that target a specific header or cookie by name.
+    pub fn needs_name(&self) -> bool {
+        matches!(self.source.as_str(), "http_header" | "cookie" | "cookie_name")
+    }
+
+    pub fn source_label(&self) -> &'static str {
+        match self.source.as_str() {
+            "http_header" => "HTTP header",
+            "cookie" => "Cookie",
+            "cookie_name" => "Cookie name",
+            "title" => "Page title",
+            "server" => "Server",
+            "technology" => "Technology",
+            "url" => "URL",
+            "status_code" => "HTTP status",
+            _ => "Criterion",
+        }
+    }
+}
+
+/// An operator-defined signature: named criteria matched against every captured
+/// host. Predefined signatures ship with the app and cannot be removed.
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct Signature {
+    pub id: i64,
+    pub name: String,
+    pub description: String,
+    pub severity: String,
+    pub enabled: bool,
+    pub predefined: bool,
+    /// `all` requires every criterion to hold, `any` requires one.
+    pub match_mode: String,
+    pub criteria: Vec<SignatureCriterion>,
+}
+
+impl Signature {
+    /// Human summary used in tables, e.g. "Cookie `session` contains `admin`".
+    pub fn criterion_summary(&self, criterion: &SignatureCriterion) -> String {
+        let subject = if criterion.needs_name() && !criterion.name.is_empty() {
+            format!("{} `{}`", criterion.source_label(), criterion.name)
+        } else {
+            criterion.source_label().to_string()
+        };
+        match criterion.operator.as_str() {
+            "not_empty" => format!("{subject} is present"),
+            "empty" => format!("{subject} is absent"),
+            "contains" => format!("{subject} contains `{}`", criterion.value),
+            "not_contains" => format!("{subject} does not contain `{}`", criterion.value),
+            "equals" => format!("{subject} equals `{}`", criterion.value),
+            "starts_with" => format!("{subject} starts with `{}`", criterion.value),
+            "eq" => format!("{subject} = {}", criterion.value),
+            "ne" => format!("{subject} ≠ {}", criterion.value),
+            "gt" => format!("{subject} > {}", criterion.value),
+            "lt" => format!("{subject} < {}", criterion.value),
+            _ => format!("{subject} {}", criterion.value),
+        }
+    }
+}
+
+/// A predicate matched against one captured host. Kept separate from the stored
+/// `SignatureCriterion` so matching never allocates.
+pub struct SignatureMatch<'a> {
+    pub address: &'a str,
+    pub title: &'a str,
+    pub server: &'a str,
+    pub url: &'a str,
+    pub status_code: i32,
+    pub technologies: &'a [String],
+    pub headers: &'a std::collections::HashMap<String, String>,
+    pub cookies: &'a [String],
+}
+
+fn value_matches(operator: &str, haystack: &str, needle: &str) -> bool {
+    let haystack = haystack.to_lowercase();
+    let needle = needle.trim().to_lowercase();
+    match operator {
+        "not_empty" => !haystack.trim().is_empty(),
+        "empty" => haystack.trim().is_empty(),
+        "equals" => haystack == needle,
+        "not_contains" => !haystack.contains(&needle),
+        "starts_with" => haystack.starts_with(&needle),
+        // "contains" is the default so an unknown operator never silently passes.
+        _ => haystack.contains(&needle),
+    }
+}
+
+impl SignatureCriterion {
+    /// Whether this criterion holds for one capture. Every source is compared
+    /// case-insensitively, which is how headers and cookies are keyed anyway.
+    pub fn matches(&self, host: &SignatureMatch<'_>) -> bool {
+        if self.source == "status_code" {
+            let Ok(needle) = self.value.trim().parse::<i32>() else {
+                return false;
+            };
+            return match self.operator.as_str() {
+                "eq" => host.status_code == needle,
+                "ne" => host.status_code != needle,
+                "gt" => host.status_code > needle,
+                "lt" => host.status_code < needle,
+                _ => false,
+            };
+        }
+
+        // A named source with no name can never match, rather than matching all.
+        // Underscores and hyphens are treated alike, so `x_powered_by` and
+        // `x-powered-by` name the same header.
+        let named = self.name.trim().to_lowercase().replace('_', "-");
+        let subject = match self.source.as_str() {
+            "http_header" => {
+                if named.is_empty() {
+                    return false;
+                }
+                match host.headers.get(&named) {
+                    Some(value) => value.clone(),
+                    None => return self.operator == "empty",
+                }
+            }
+            "cookie" => {
+                if named.is_empty() {
+                    return false;
+                }
+                let joined = host.cookies.join("; ").to_lowercase();
+                match joined.contains(&format!("{named}=")) {
+                    true => host.cookies.join("; "),
+                    false => {
+                        if self.operator == "empty" {
+                            return true;
+                        }
+                        return false;
+                    }
+                }
+            }
+            "cookie_name" => {
+                if named.is_empty() {
+                    return false;
+                }
+                let names = host
+                    .cookies
+                    .iter()
+                    .filter_map(|cookie| cookie.split('=').next())
+                    .map(str::to_string)
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                names
+            }
+            "title" => host.title.to_string(),
+            "server" => host.server.to_string(),
+            "url" => host.url.to_string(),
+            "technology" => host.technologies.join(" "),
+            _ => return false,
+        };
+
+        value_matches(&self.operator, &subject, &self.value)
+    }
+}
+
+impl Signature {
+    /// Whether this signature fires for a host. `all` requires every criterion
+    /// to hold, `any` requires at least one. An empty signature never fires.
+    pub fn matches(&self, host: &SignatureMatch<'_>) -> bool {
+        if self.criteria.is_empty() {
+            return false;
+        }
+        if self.match_mode == "any" {
+            self.criteria.iter().any(|criterion| criterion.matches(host))
+        } else {
+            self.criteria.iter().all(|criterion| criterion.matches(host))
+        }
+    }
+}
+
 /// Everything one httpx probe reported about a host, ready to persist. The
 /// scanner fills this in, so the storage layer never has to know httpx's shape.
 #[derive(Clone, Default)]
@@ -569,6 +763,66 @@ pub struct HostCapture {
     /// from the inventory); a CSV import fills it so the exported Tags column
     /// survives a round trip.
     pub tags: Vec<String>,
+    /// Response headers with lower-cased names. Custom signatures match on these.
+    pub headers: std::collections::HashMap<String, String>,
+    /// `Set-Cookie` values as `name=value`, in the order httpx reported them.
+    pub cookies: Vec<String>,
+}
+
+/// Create/update payload for a signature.
+#[derive(Deserialize)]
+pub struct NewSignature {
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default = "default_signature_severity")]
+    pub severity: String,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// `all` or `any`. Defaults to `all`, the stricter reading.
+    #[serde(default)]
+    pub match_mode: String,
+    #[serde(default)]
+    pub criteria: Vec<SignatureCriterion>,
+}
+
+/// Only the two understood modes are stored; anything else falls back to `all`.
+pub fn normalize_match_mode(value: &str) -> String {
+    match value.trim().to_lowercase().as_str() {
+        "any" => "any".to_string(),
+        _ => "all".to_string(),
+    }
+}
+
+fn default_signature_severity() -> String {
+    "Medium".to_string()
+}
+
+/// Drops criteria that could never match: unknown sources, and named sources
+/// without a name. Keeps the stored rules honest so the UI never shows a rule
+/// that silently does nothing.
+pub fn normalize_criteria(criteria: &[SignatureCriterion]) -> Vec<SignatureCriterion> {
+    const SOURCES: [&str; 8] = [
+        "http_header",
+        "cookie",
+        "cookie_name",
+        "title",
+        "server",
+        "technology",
+        "url",
+        "status_code",
+    ];
+    criteria
+        .iter()
+        .filter(|criterion| SOURCES.contains(&criterion.source.as_str()))
+        .filter(|criterion| !criterion.needs_name() || !criterion.name.trim().is_empty())
+        .map(|criterion| SignatureCriterion {
+            source: criterion.source.clone(),
+            operator: criterion.operator.clone(),
+            name: criterion.name.trim().to_string(),
+            value: criterion.value.trim().to_string(),
+        })
+        .collect()
 }
 
 /// A CSV import of Data Explorer rows. Each row maps an exported column label

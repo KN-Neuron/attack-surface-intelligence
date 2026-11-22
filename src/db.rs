@@ -8,9 +8,9 @@ use crate::auth::PERMISSION_PAGES;
 use crate::mock;
 use crate::state::{
     Admin, AlertRow, AssetRow, Criterion, EditAsset, HostCapture, HostFqdn, HostGroup, HostIp,
-    HostRange, ImportCapturesResult, ImportPreview, ImportSummary, Permission, Policy, Role,
-    ScanDetail, ScanRowView, ScanServiceCount, ScanSettings, ScanStatus, ScanTechCount, ScanType,
-    now_label,
+    HostRange, ImportCapturesResult, ImportPreview, ImportSummary, NewSignature, Permission,
+    Policy, Role, ScanDetail, ScanRowView, ScanServiceCount, ScanSettings, ScanStatus,
+    ScanTechCount, ScanType, Signature, SignatureCriterion, now_label,
 };
 
 /// Hardcoded Railway Postgres connection (per project requirement).
@@ -201,10 +201,37 @@ CREATE TABLE IF NOT EXISTS scan_host_captures (
     UNIQUE (scan_id, address)
 );
 
+-- Response headers and the cookies derived from them. Custom signatures match
+-- against these, so they are stored per capture rather than recomputed.
+ALTER TABLE scan_host_captures ADD COLUMN IF NOT EXISTS headers JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE scan_host_captures ADD COLUMN IF NOT EXISTS cookies JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE scan_hosts ADD COLUMN IF NOT EXISTS headers JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE scan_hosts ADD COLUMN IF NOT EXISTS cookies JSONB NOT NULL DEFAULT '[]'::jsonb;
+
 CREATE INDEX IF NOT EXISTS scan_host_captures_address
     ON scan_host_captures (address);
 CREATE INDEX IF NOT EXISTS scan_host_captures_scan
     ON scan_host_captures (scan_id);
+
+-- Operator-defined signatures: named criteria matched against each captured
+-- host. A row is a rule, its criteria live in JSON so the shape can grow without
+-- a migration. `predefined` rows ship with the app: they can be disabled but
+-- not deleted.
+CREATE TABLE IF NOT EXISTS signatures (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    severity TEXT NOT NULL DEFAULT 'Medium',
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    predefined BOOLEAN NOT NULL DEFAULT FALSE,
+    criteria JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- How a signature's criteria combine: `all` (every rule must hold) or `any`
+-- (one is enough). The predefined signature lists many interesting headers and
+-- cookies, so it matches on any of them.
+ALTER TABLE signatures ADD COLUMN IF NOT EXISTS match_mode TEXT NOT NULL DEFAULT 'all';
 
 -- Which address each FQDN inventory entry resolved to at scan time. Targets are
 -- resolved to IPs before probing, so this is the only link back from a capture
@@ -419,9 +446,112 @@ async fn seed(pool: &PgPool) -> anyhow::Result<()> {
     seed_json(pool, "popular_technologies", &mock::popular_technologies()).await;
     seed_json(pool, "upcoming_scan", &mock::upcoming_scan()).await;
     seed_json(pool, "latest_scan", &mock::LATEST_SCAN).await;
+    seed_signatures(pool).await;
     migrate_chart_palette(pool).await;
 
     Ok(())
+}
+
+/// The predefined "interesting cookie/header" signature. It ships enabled and
+/// can be disabled by an operator but never deleted, so the coverage it provides
+/// cannot be lost by accident.
+fn predefined_signature() -> Signature {
+    let names = [
+        "x-debug-token",
+        "x-debug-token-link",
+        "x-powered-by",
+        "x-aspnet-version",
+        "x-generator",
+        "x-backend-server",
+        "x-varnish",
+        "x-cache",
+        "x-served-by",
+        "x-rack-cache",
+        "x-turbo-charged-by",
+        "x-runtime",
+        "x-request-id",
+        "server-timing",
+        "x-elastic-product",
+        "x-amz-cf-id",
+        "x-ms-request-id",
+        "x-newrelic-app-id",
+    ];
+
+    let mut criteria: Vec<SignatureCriterion> = names
+        .iter()
+        .map(|name| SignatureCriterion {
+            source: "http_header".into(),
+            operator: "not_empty".into(),
+            name: (*name).to_string(),
+            value: String::new(),
+        })
+        .collect();
+
+    // Cookies whose names commonly leak frameworks, sessions or debug state.
+    for name in [
+        "jsessionid",
+        "phpsessid",
+        "asp.net_sessionid",
+        "laravel_session",
+        "ci_session",
+        "connect.sid",
+        "grafana_session",
+        "wp-settings",
+        "wordpress_logged_in",
+        "joomla_session",
+        "django_session",
+        "rack.session",
+        "x-xsrf-token",
+    ] {
+        criteria.push(SignatureCriterion {
+            source: "cookie_name".into(),
+            operator: "contains".into(),
+            name: name.to_string(),
+            value: name.to_string(),
+        });
+    }
+
+    Signature {
+        id: 0,
+        name: "Interesting cookie/header".into(),
+        description: "Flags responses that expose framework, session or debug \
+                      identifiers in headers or cookies."
+            .into(),
+        severity: "Info".into(),
+        enabled: true,
+        predefined: true,
+        // It lists many independent headers and cookies; any one of them is
+        // interesting on its own.
+        match_mode: "any".into(),
+        criteria,
+    }
+}
+
+/// Installs the predefined signature once. Re-running leaves an existing row
+/// untouched so an operator's disabled state survives restarts.
+async fn seed_signatures(pool: &PgPool) {
+    let existing: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM signatures WHERE predefined")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
+    if existing > 0 {
+        return;
+    }
+    let signature = predefined_signature();
+    let _ = sqlx::query(
+        "INSERT INTO signatures (name, description, severity, enabled, predefined,
+                match_mode, criteria)
+         VALUES ($1, $2, $3, $4, TRUE, $5, $6)",
+    )
+    .bind(&signature.name)
+    .bind(&signature.description)
+    .bind(&signature.severity)
+    .bind(signature.enabled)
+    .bind(&signature.match_mode)
+    .bind(serde_json::to_value(&signature.criteria).unwrap_or(Value::Array(vec![])))
+    .execute(pool)
+    .await;
 }
 
 /// Seeded chart colours live in `app_data`, and seeding never overwrites existing
@@ -2032,10 +2162,10 @@ pub async fn upsert_host_capture(
                 port, url, final_url, path, method, status_code, content_type, title, webserver,
                 content_length, words, lines, cdn, cdn_type, cname, response_time, jarm_hash,
                 favicon_mmh3, http2, pipeline, vhost, a_records, aaaa_records, hashes, asn, tls,
-                tech, ports, raw, tags)
+                tech, ports, raw, tags, headers, cookies)
          VALUES ($1, $2, TRUE, now(), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
                 $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29,
-                $30, $31, $32, $33, $34)
+                $30, $31, $32, $33, $34, $35, $36)
          ON CONFLICT (scan_id, address) DO UPDATE SET
              up = TRUE, captured_at = now(), host_ip = $3, scheme = $4, port = $5, url = $6,
              final_url = $7, path = $8, method = $9, status_code = $10, content_type = $11,
@@ -2043,7 +2173,7 @@ pub async fn upsert_host_capture(
              cdn = $17, cdn_type = $18, cname = $19, response_time = $20, jarm_hash = $21,
              favicon_mmh3 = $22, http2 = $23, pipeline = $24, vhost = $25, a_records = $26,
              aaaa_records = $27, hashes = $28, asn = $29, tls = $30, tech = $31, ports = $32,
-             raw = $33, tags = $34",
+             raw = $33, tags = $34, headers = $35, cookies = $36",
     )
     .bind(scan_id)
     .bind(address)
@@ -2081,6 +2211,8 @@ pub async fn upsert_host_capture(
     .bind(&capture.ports)
     .bind(&capture.raw)
     .bind(serde_json::to_value(&capture.tags).unwrap_or(Value::Array(vec![])))
+    .bind(serde_json::to_value(&capture.headers).unwrap_or(Value::Object(Default::default())))
+    .bind(serde_json::to_value(&capture.cookies).unwrap_or(Value::Array(vec![])))
     .execute(pool)
     .await;
     if let Err(error) = history {
@@ -2121,6 +2253,7 @@ pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
                 c.webserver, c.content_length, c.words, c.lines, c.cdn, c.cdn_type, c.cname,
                 c.response_time, c.jarm_hash, c.favicon_mmh3, c.http2, c.pipeline, c.vhost,
                 c.a_records, c.aaaa_records, c.hashes, c.asn, c.tls, c.tech, c.ports, c.tags,
+                c.headers, c.cookies,
                 COALESCE(s.label, '') AS scan_label,
                 s.started_at AS scan_started,
                 h.first_seen, h.last_seen, h.last_checked
@@ -2350,6 +2483,17 @@ pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
             last_checked_ts: timestamp("last_checked"),
             first_seen_ts: timestamp("first_seen"),
             last_seen_ts: timestamp("last_seen"),
+            headers: {
+                let map: std::collections::HashMap<String, String> =
+                    serde_json::from_value(row.get::<Value, _>("headers")).unwrap_or_default();
+                let mut list: Vec<String> = map
+                    .into_iter()
+                    .map(|(name, value)| format!("{name}: {value}"))
+                    .collect();
+                list.sort();
+                list
+            },
+            cookies: serde_json::from_value(row.get::<Value, _>("cookies")).unwrap_or_default(),
         }
     })
     .collect()
@@ -2702,7 +2846,199 @@ fn capture_from_row(row: &std::collections::HashMap<String, String>) -> HostCapt
         ports: Value::Array(ports),
         raw: None,
         tags: crate::state::normalize_tags(cell_list(row, "Tags")),
+        // The export does not carry headers or cookies, so an imported row has
+        // none for signatures to match until it is scanned again.
+        headers: std::collections::HashMap::new(),
+        cookies: Vec::new(),
     }
+}
+
+// ---------------------------------------------------------------- signatures
+
+fn row_to_signature(row: &PgRow) -> Signature {
+    Signature {
+        id: row.get("id"),
+        name: row.get("name"),
+        description: row.get("description"),
+        severity: row.get("severity"),
+        enabled: row.get("enabled"),
+        predefined: row.get("predefined"),
+        match_mode: row.get("match_mode"),
+        criteria: serde_json::from_value(row.get::<Value, _>("criteria")).unwrap_or_default(),
+    }
+}
+
+pub async fn list_signatures(pool: &PgPool) -> Vec<Signature> {
+    sqlx::query(
+        "SELECT id, name, description, severity, enabled, predefined, match_mode, criteria
+         FROM signatures ORDER BY predefined DESC, id",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(row_to_signature)
+    .collect()
+}
+
+/// Only enabled signatures take part in a scan.
+pub async fn enabled_signatures(pool: &PgPool) -> Vec<Signature> {
+    list_signatures(pool)
+        .await
+        .into_iter()
+        .filter(|signature| signature.enabled)
+        .collect()
+}
+
+pub async fn create_signature(pool: &PgPool, payload: &NewSignature) -> Option<Signature> {
+    let row = sqlx::query(
+        "INSERT INTO signatures (name, description, severity, enabled, predefined,
+                match_mode, criteria)
+         VALUES ($1, $2, $3, $4, FALSE, $5, $6)
+         RETURNING id, name, description, severity, enabled, predefined, match_mode, criteria",
+    )
+    .bind(payload.name.trim())
+    .bind(payload.description.trim())
+    .bind(&payload.severity)
+    .bind(payload.enabled)
+    .bind(crate::state::normalize_match_mode(&payload.match_mode))
+    .bind(serde_json::to_value(crate::state::normalize_criteria(&payload.criteria))
+        .unwrap_or(Value::Array(vec![])))
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()?;
+    Some(row_to_signature(&row))
+}
+
+/// Updates a signature. Predefined rows keep their identity and criteria: an
+/// operator may rename and re-scope them but not change what they detect, so the
+/// shipped coverage stays intact.
+pub async fn update_signature(
+    pool: &PgPool,
+    id: i64,
+    payload: &NewSignature,
+) -> Option<Signature> {
+    let predefined: bool =
+        sqlx::query_scalar("SELECT predefined FROM signatures WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten()?;
+
+    let row = if predefined {
+        sqlx::query(
+            "UPDATE signatures SET name = $2, description = $3, severity = $4, enabled = $5
+             WHERE id = $1
+             RETURNING id, name, description, severity, enabled, predefined, match_mode, criteria",
+        )
+        .bind(id)
+        .bind(payload.name.trim())
+        .bind(payload.description.trim())
+        .bind(&payload.severity)
+        .bind(payload.enabled)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten()?
+    } else {
+        sqlx::query(
+            "UPDATE signatures
+             SET name = $2, description = $3, severity = $4, enabled = $5,
+                 match_mode = $6, criteria = $7
+             WHERE id = $1
+             RETURNING id, name, description, severity, enabled, predefined, match_mode, criteria",
+        )
+        .bind(id)
+        .bind(payload.name.trim())
+        .bind(payload.description.trim())
+        .bind(&payload.severity)
+        .bind(payload.enabled)
+        .bind(crate::state::normalize_match_mode(&payload.match_mode))
+        .bind(serde_json::to_value(crate::state::normalize_criteria(&payload.criteria))
+            .unwrap_or(Value::Array(vec![])))
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten()?
+    };
+    Some(row_to_signature(&row))
+}
+
+/// Removes a signature. Predefined rows cannot be deleted; the caller reports
+/// that as a conflict rather than silently doing nothing.
+pub async fn delete_signature(pool: &PgPool, id: i64) -> Result<bool, &'static str> {
+    let predefined: Option<bool> =
+        sqlx::query_scalar("SELECT predefined FROM signatures WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
+    match predefined {
+        None => Ok(false),
+        Some(true) => Err("predefined signatures cannot be removed"),
+        Some(false) => sqlx::query("DELETE FROM signatures WHERE id = $1")
+            .bind(id)
+            .execute(pool)
+            .await
+            .map(|r| Ok(r.rows_affected() > 0))
+            .unwrap_or(Ok(false)),
+    }
+}
+
+/// A capture as stored, in the shape signature matching needs.
+pub struct StoredCapture {
+    pub address: String,
+    pub title: String,
+    pub server: String,
+    pub url: String,
+    pub status_code: i32,
+    pub technologies: Vec<String>,
+    pub headers: std::collections::HashMap<String, String>,
+    pub cookies: Vec<String>,
+}
+
+/// Every capture of one scan, ready to run signatures against.
+pub async fn scan_captures(pool: &PgPool, scan_id: i64) -> Vec<StoredCapture> {
+    sqlx::query(
+        "SELECT address, COALESCE(title, '') AS title, COALESCE(webserver, '') AS webserver,
+                COALESCE(url, '') AS url, COALESCE(status_code, 0) AS status_code,
+                COALESCE(tech, '[]'::jsonb) AS tech, headers, cookies
+         FROM scan_host_captures WHERE scan_id = $1 ORDER BY address",
+    )
+    .bind(scan_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(|row| {
+        let tech: Vec<Value> = serde_json::from_value(row.get::<Value, _>("tech"))
+            .unwrap_or_default();
+        StoredCapture {
+            address: row.get("address"),
+            title: row.get("title"),
+            server: row.get("webserver"),
+            url: row.get("url"),
+            status_code: row.get("status_code"),
+            technologies: tech
+                .iter()
+                .filter_map(|t| {
+                    let name = t.get("name")?.as_str()?.to_string();
+                    let version = t.get("version").and_then(Value::as_str).unwrap_or("");
+                    Some(if version.is_empty() {
+                        name
+                    } else {
+                        format!("{name} {version}")
+                    })
+                })
+                .collect(),
+            headers: serde_json::from_value(row.get::<Value, _>("headers")).unwrap_or_default(),
+            cookies: serde_json::from_value(row.get::<Value, _>("cookies")).unwrap_or_default(),
+        }
+    })
+    .collect()
 }
 
 // ---------------------------------------------------------------- alerts
@@ -2716,6 +3052,7 @@ fn row_to_alert(row: &PgRow) -> AlertRow {
             "new_host" => "New host",
             "host_down" => "Host down",
             "new_cve" => "New CVE",
+            "custom_signature" => "Signature match",
             _ => "Alert",
         }
         .to_string(),

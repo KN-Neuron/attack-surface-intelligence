@@ -1184,6 +1184,264 @@
   }
 
   // ==========================================================================
+  // Custom signatures — criteria editor
+  // ==========================================================================
+  var signatureForm = document.getElementById("signature-form");
+  var signatureDataEl = document.getElementById("signature-data");
+  if (signatureForm && signatureDataEl) {
+    var signatures = [];
+    try { signatures = JSON.parse(signatureDataEl.textContent || "[]"); } catch (_) {}
+
+    var sigCriteriaList = signatureForm.querySelector("[data-signature-criteria]");
+    var sigCriteriaCount = signatureForm.querySelector("[data-criteria-count]");
+    var sigName = document.getElementById("signature-name");
+    var sigDescription = document.getElementById("signature-description");
+    var sigSeverity = document.getElementById("signature-severity");
+    var sigMatchMode = document.getElementById("signature-match-mode");
+    var sigEnabled = document.getElementById("signature-enabled");
+    var sigEnabledText = document.getElementById("signature-enabled-text");
+    var sigTitle = document.getElementById("signature-modal-title");
+    var editingSignatureId = null;
+
+    // Sources the server understands, and the operators valid for each. Numbers
+    // compare numerically; everything else is text.
+    var SIGNATURE_SOURCES = [
+      { id: "http_header", label: "HTTP header", named: true, numeric: false },
+      { id: "cookie", label: "Cookie value", named: true, numeric: false },
+      { id: "cookie_name", label: "Cookie name", named: true, numeric: false },
+      { id: "title", label: "Page title", named: false, numeric: false },
+      { id: "server", label: "Server", named: false, numeric: false },
+      { id: "technology", label: "Technology", named: false, numeric: false },
+      { id: "url", label: "URL", named: false, numeric: false },
+      { id: "status_code", label: "HTTP status", named: false, numeric: true }
+    ];
+    var TEXT_OPERATORS = [
+      { id: "contains", label: "contains" },
+      { id: "not_contains", label: "does not contain" },
+      { id: "equals", label: "equals" },
+      { id: "starts_with", label: "starts with" },
+      { id: "not_empty", label: "is present" },
+      { id: "empty", label: "is absent" }
+    ];
+    var NUMBER_OPERATORS = [
+      { id: "eq", label: "=" },
+      { id: "ne", label: "≠" },
+      { id: "gt", label: ">" },
+      { id: "lt", label: "<" }
+    ];
+
+    function sourceById(id) {
+      return SIGNATURE_SOURCES.filter(function (s) { return s.id === id; })[0] || SIGNATURE_SOURCES[0];
+    }
+
+    function syncCriteriaCount() {
+      if (!sigCriteriaCount || !sigCriteriaList) return;
+      var count = sigCriteriaList.querySelectorAll("[data-criterion]").length;
+      sigCriteriaCount.textContent = count + (count === 1 ? " rule" : " rules");
+    }
+
+    function addCriterionRow(criterion) {
+      if (!sigCriteriaList) return;
+      criterion = criterion || { source: "http_header", operator: "contains", name: "", value: "" };
+
+      var row = document.createElement("div");
+      row.className = "criteria-row";
+      row.setAttribute("data-criterion", "1");
+
+      var sourceSel = document.createElement("select");
+      sourceSel.setAttribute("data-criterion-source", "1");
+      sourceSel.setAttribute("aria-label", "Criterion source");
+      SIGNATURE_SOURCES.forEach(function (source) {
+        var option = document.createElement("option");
+        option.value = source.id;
+        option.textContent = source.label;
+        if (source.id === criterion.source) option.selected = true;
+        sourceSel.appendChild(option);
+      });
+
+      var nameInput = document.createElement("input");
+      nameInput.type = "text";
+      nameInput.setAttribute("data-criterion-name", "1");
+      nameInput.setAttribute("aria-label", "Header or cookie name");
+      nameInput.placeholder = "header or cookie name";
+      nameInput.value = criterion.name || "";
+
+      var opSel = document.createElement("select");
+      opSel.setAttribute("data-criterion-operator", "1");
+      opSel.setAttribute("aria-label", "Operator");
+
+      var valueInput = document.createElement("input");
+      valueInput.type = "text";
+      valueInput.setAttribute("data-criterion-value", "1");
+      valueInput.setAttribute("aria-label", "Value");
+      valueInput.placeholder = "value";
+      valueInput.value = criterion.value || "";
+
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "icon-btn subtle";
+      remove.setAttribute("aria-label", "Remove criterion");
+      remove.innerHTML = '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3.9 3.9l8.2 8.2M12.1 3.9l-8.2 8.2"/></svg>';
+      remove.addEventListener("click", function () {
+        row.remove();
+        syncCriteriaCount();
+      });
+
+      // The source decides whether a name is needed, which operators apply, and
+      // whether the value is a number.
+      function syncRow(initial) {
+        var source = sourceById(sourceSel.value);
+        nameInput.hidden = !source.named;
+        if (!source.named) nameInput.value = "";
+
+        var operators = source.numeric ? NUMBER_OPERATORS : TEXT_OPERATORS;
+        var previous = initial ? criterion.operator : opSel.value;
+        opSel.innerHTML = "";
+        operators.forEach(function (op) {
+          var option = document.createElement("option");
+          option.value = op.id;
+          option.textContent = op.label;
+          if (op.id === previous) option.selected = true;
+          opSel.appendChild(option);
+        });
+        if (!opSel.value) opSel.value = operators[0].id;
+
+        valueInput.type = source.numeric ? "number" : "text";
+        valueInput.placeholder = source.numeric ? "200" : "value";
+        var valueless = opSel.value === "empty" || opSel.value === "not_empty";
+        valueInput.hidden = valueless;
+        if (valueless) valueInput.value = "";
+      }
+
+      sourceSel.addEventListener("change", function () { syncRow(false); });
+      opSel.addEventListener("change", function () { syncRow(false); });
+
+      row.appendChild(sourceSel);
+      row.appendChild(nameInput);
+      row.appendChild(opSel);
+      row.appendChild(valueInput);
+      row.appendChild(remove);
+      sigCriteriaList.appendChild(row);
+      syncRow(true);
+      syncCriteriaCount();
+    }
+
+    function readCriteria() {
+      var rows = sigCriteriaList ? sigCriteriaList.querySelectorAll("[data-criterion]") : [];
+      return Array.prototype.slice.call(rows).map(function (row) {
+        return {
+          source: row.querySelector("[data-criterion-source]").value,
+          operator: row.querySelector("[data-criterion-operator]").value,
+          name: row.querySelector("[data-criterion-name]").value.trim(),
+          value: row.querySelector("[data-criterion-value]").value.trim()
+        };
+      });
+    }
+
+    function resetSignatureForm() {
+      editingSignatureId = null;
+      signatureForm.reset();
+      if (sigCriteriaList) sigCriteriaList.innerHTML = "";
+      if (sigEnabled) sigEnabled.checked = true;
+      if (sigEnabledText) sigEnabledText.textContent = "Enabled";
+      if (sigTitle) sigTitle.textContent = "New signature";
+      if (sigSeverity) sigSeverity.value = "Medium";
+      if (sigMatchMode) sigMatchMode.value = "all";
+      syncCriteriaCount();
+    }
+
+    function openSignature(policy) {
+      resetSignatureForm();
+      editingSignatureId = policy.id;
+      if (sigTitle) sigTitle.textContent = "Edit signature";
+      if (sigName) sigName.value = policy.name || "";
+      if (sigDescription) sigDescription.value = policy.description || "";
+      if (sigSeverity) sigSeverity.value = policy.severity || "Medium";
+      if (sigMatchMode) sigMatchMode.value = policy.match_mode === "any" ? "any" : "all";
+      if (sigEnabled) sigEnabled.checked = !!policy.enabled;
+      if (sigEnabledText) sigEnabledText.textContent = policy.enabled ? "Enabled" : "Disabled";
+      (policy.criteria || []).forEach(addCriterionRow);
+    }
+
+    if (sigEnabled) {
+      sigEnabled.addEventListener("change", function () {
+        if (sigEnabledText) sigEnabledText.textContent = sigEnabled.checked ? "Enabled" : "Disabled";
+      });
+    }
+
+    var addCriterionBtn = signatureForm.querySelector("[data-signature-add-criterion]");
+    if (addCriterionBtn) addCriterionBtn.addEventListener("click", function () { addCriterionRow(null); });
+
+    document.querySelectorAll("[data-signature-add]").forEach(function (btn) {
+      btn.addEventListener("click", resetSignatureForm);
+    });
+
+    document.querySelectorAll("[data-signature-edit]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = Number(btn.getAttribute("data-signature-edit"));
+        var signature = signatures.filter(function (s) { return s.id === id; })[0];
+        if (!signature) return;
+        openSignature(signature);
+        openModal("signature-modal");
+      });
+    });
+
+    document.querySelectorAll("[data-signature-remove]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = Number(btn.getAttribute("data-signature-remove"));
+        var signature = signatures.filter(function (s) { return s.id === id; })[0];
+        if (!signature) return;
+        if (!window.confirm('Remove the signature "' + signature.name + '"?')) return;
+        fetch("/api/signatures/" + id, { method: "DELETE" })
+          .then(function (response) {
+            if (!response.ok) throw new Error();
+            window.location.reload();
+          })
+          .catch(function () { window.alert("Could not remove this signature."); });
+      });
+    });
+
+    signatureForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var criteria = readCriteria();
+      if (criteria.length === 0) {
+        window.alert("Add at least one criterion.");
+        return;
+      }
+      var payload = {
+        name: sigName.value.trim(),
+        description: sigDescription ? sigDescription.value.trim() : "",
+        severity: sigSeverity ? sigSeverity.value : "Medium",
+        match_mode: sigMatchMode ? sigMatchMode.value : "all",
+        enabled: sigEnabled ? sigEnabled.checked : true,
+        criteria: criteria
+      };
+      if (!payload.name) {
+        window.alert("Give the signature a name.");
+        return;
+      }
+      var submit = document.getElementById("signature-submit");
+      if (submit) submit.disabled = true;
+      var url = editingSignatureId ? "/api/signatures/" + editingSignatureId : "/api/signatures";
+      fetch(url, {
+        method: editingSignatureId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+        .then(function (response) {
+          if (!response.ok) throw new Error();
+          window.location.reload();
+        })
+        .catch(function () {
+          window.alert("Could not save the signature. Please try again.");
+          if (submit) submit.disabled = false;
+        });
+    });
+
+    resetSignatureForm();
+  }
+
+  // ==========================================================================
   // Host groups — create, edit, remove
   // ==========================================================================
   var groupForm = document.querySelector("[data-group-form]");
@@ -1816,6 +2074,8 @@
       { key: "cdn_type", label: "CDN type", type: "text" },
       { key: "cname", label: "CNAME", type: "text", editable: "cname" },
       { key: "resolves_to", label: "Resolves to", type: "text", mono: true },
+      { key: "headers", label: "Headers", type: "list", tech: true },
+      { key: "cookies", label: "Cookies", type: "list", tech: true },
       { key: "host_ip", label: "Host IP", type: "text", mono: true },
       { key: "asn", label: "ASN", type: "text" },
       { key: "tls", label: "TLS", type: "text" },

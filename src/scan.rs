@@ -286,6 +286,9 @@ struct HttpxLine {
     tls: Option<Value>,
     #[serde(default)]
     tech: Option<Vec<String>>,
+    /// Response headers, present when httpx runs with `-irh`.
+    #[serde(default)]
+    header: Option<std::collections::HashMap<String, String>>,
 }
 
 impl HttpxLine {
@@ -390,7 +393,45 @@ impl HttpxLine {
             raw: serde_json::from_str::<Value>(line).ok(),
             // Tags come from the inventory at read time, not from the scanner.
             tags: Vec::new(),
+            headers: self.headers(),
+            cookies: self.cookies(),
         }
+    }
+
+    /// Response headers keyed by their real (hyphenated) names. httpx emits JSON
+    /// keys in snake_case, so `x-powered-by` arrives as `x_powered_by`; the
+    /// underscore is turned back into a hyphen so signatures can name headers
+    /// the way they appear on the wire.
+    fn headers(&self) -> std::collections::HashMap<String, String> {
+        self.header
+            .as_ref()
+            .map(|headers| {
+                headers
+                    .iter()
+                    .map(|(name, value)| (name.to_lowercase().replace('_', "-"), value.clone()))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// `Set-Cookie` values reduced to `name=value`. httpx may report several
+    /// cookies joined into one comma-separated value, so they are split out.
+    fn cookies(&self) -> Vec<String> {
+        let Some(raw) = self
+            .header
+            .as_ref()
+            .and_then(|headers| headers.get("set_cookie").or_else(|| headers.get("set-cookie")))
+        else {
+            return Vec::new();
+        };
+        raw.split(',')
+            .filter_map(|part| {
+                let pair = part.split(';').next().unwrap_or(part).trim();
+                let (name, value) = pair.split_once('=')?;
+                let name = name.trim();
+                (!name.is_empty()).then(|| format!("{name}={}", value.trim()))
+            })
+            .collect()
     }
 }
 
@@ -488,6 +529,9 @@ async fn run_httpx(
             "sha256",
             "-pipeline",
             "-vhost",
+            // Response headers carry the cookies and security headers that
+            // custom signatures match on.
+            "-irh",
             "-timeout",
             "10",
             "-retries",
@@ -886,7 +930,9 @@ pub async fn run_scan(pool: PgPool, scan_id: i64, targets: Vec<String>, scan_typ
         ScanType::Reachability => run_reachability(&pool, scan_id, &targets, &list_path).await,
     };
 
-    let alerts = record_alerts(&pool, scan_id, &known_before, &up_before).await;
+    let mut alerts = record_alerts(&pool, scan_id, &known_before, &up_before).await;
+    // Custom signatures run after the sweep, against what this scan captured.
+    alerts += record_signature_alerts(&pool, scan_id).await;
 
     match outcome {
         Ok(()) => db::finish_scan(&pool, scan_id, "Completed", None).await,
@@ -923,6 +969,60 @@ fn write_target_list(targets: &[String]) -> std::io::Result<std::path::PathBuf> 
 // ===========================================================================
 // Alerts
 // ===========================================================================
+
+/// Runs every enabled custom signature against what this scan captured and
+/// raises an alert for each host that matches. Returns how many alerts were
+/// added, so the scan's alert total includes them.
+async fn record_signature_alerts(pool: &PgPool, scan_id: i64) -> u64 {
+    let signatures = db::enabled_signatures(pool).await;
+    if signatures.is_empty() {
+        return 0;
+    }
+    let captures = db::scan_captures(pool, scan_id).await;
+    if captures.is_empty() {
+        return 0;
+    }
+
+    let mut added = 0u64;
+    for capture in &captures {
+        let host = crate::state::SignatureMatch {
+            address: &capture.address,
+            title: &capture.title,
+            server: &capture.server,
+            url: &capture.url,
+            status_code: capture.status_code,
+            technologies: &capture.technologies,
+            headers: &capture.headers,
+            cookies: &capture.cookies,
+        };
+        for signature in &signatures {
+            if !signature.matches(&host) {
+                continue;
+            }
+            // Only the criteria that actually held are reported, so an `any`
+            // signature listing many indicators does not dump all of them.
+            let detail = signature
+                .criteria
+                .iter()
+                .filter(|c| c.matches(&host))
+                .map(|c| signature.criterion_summary(c))
+                .collect::<Vec<_>>()
+                .join("; ");
+            db::insert_alert(
+                pool,
+                scan_id,
+                "custom_signature",
+                &signature.severity,
+                &capture.address,
+                &format!("Matched signature: {}", signature.name),
+                Some(&detail),
+            )
+            .await;
+            added += 1;
+        }
+    }
+    added
+}
 
 /// Turns what changed during this scan into Alerts page rows.
 async fn record_alerts(

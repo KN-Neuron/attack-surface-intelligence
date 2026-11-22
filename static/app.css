@@ -2017,6 +2017,7 @@ html.nav-collapsed .sidebar .nav-item:not(.root) { display: none; }
   white-space: nowrap;
 }
 .criteria-kind { color: var(--accent); text-transform: capitalize; }
+.criteria-more { color: var(--text-mute); }
 
 /* ================================================================
    Scan summary

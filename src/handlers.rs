@@ -19,8 +19,9 @@ use crate::scan;
 use crate::state::{
     AckPayload, Admin, AlertRow, Criterion, EditAsset, EditHostEntry, HostFqdn, HostGroup,
     HostIp, HostRange, ImportCaptures, ImportCapturesResult, ImportHosts, ImportPreview,
-    ImportSummary, NewAdmin, NewGroup, NewHostEntries, NewPolicy, Policy, Role, RolePayload,
-    RunScan, ScanDetail, ScanRowView, ScanSettings, ScanStatus, ScanType, UpdateAdmin,
+    ImportSummary, NewAdmin, NewGroup, NewHostEntries, NewPolicy, NewSignature, Policy, Role,
+    RolePayload, RunScan, ScanDetail, ScanRowView, ScanSettings, ScanStatus, ScanType, Signature,
+    UpdateAdmin,
 };
 
 const PRODUCT: &str = "Visibly";
@@ -1149,6 +1150,69 @@ pub async fn save_scan_settings(
         StatusCode::NO_CONTENT
     } else {
         StatusCode::INTERNAL_SERVER_ERROR
+    }
+}
+
+// ---------------------------------------------------------------- signatures
+
+#[derive(Template)]
+#[template(path = "pages/signatures.html")]
+struct SignaturesPage {
+    shell: Shell,
+    title: &'static str,
+    signatures: Vec<Signature>,
+    signatures_json: String,
+    can_edit: bool,
+}
+
+pub async fn signatures_page(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+) -> Html<String> {
+    let signatures = db::list_signatures(&pool).await;
+    let signatures_json =
+        serde_json::to_string(&signatures).unwrap_or_else(|_| "[]".into()).replace('<', "\\u003c");
+    let page = SignaturesPage {
+        shell: build_shell(&pool, nav::SIGNATURES, &admin).await,
+        title: "Custom Signatures",
+        signatures,
+        signatures_json,
+        can_edit: admin.can_write("signatures"),
+    };
+    render(&page)
+}
+
+pub async fn create_signature(
+    State(pool): State<PgPool>,
+    Json(payload): Json<NewSignature>,
+) -> Result<Json<Signature>, (StatusCode, String)> {
+    db::create_signature(&pool, &payload)
+        .await
+        .map(Json)
+        .ok_or_else(|| (StatusCode::BAD_REQUEST, "could not save the signature".into()))
+}
+
+pub async fn update_signature(
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
+    Json(payload): Json<NewSignature>,
+) -> Result<Json<Signature>, StatusCode> {
+    db::update_signature(&pool, id, &payload)
+        .await
+        .map(Json)
+        .ok_or(StatusCode::NOT_FOUND)
+}
+
+pub async fn delete_signature(
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    match db::delete_signature(&pool, id).await {
+        Ok(true) => Ok(StatusCode::NO_CONTENT),
+        Ok(false) => Err((StatusCode::NOT_FOUND, "signature not found".into())),
+        // A predefined signature is protected, which is a conflict rather than a
+        // permission problem.
+        Err(reason) => Err((StatusCode::CONFLICT, reason.into())),
     }
 }
 

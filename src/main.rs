@@ -56,6 +56,7 @@ async fn main() -> anyhow::Result<()> {
         // Scanning.
         .route("/scanning/management", get(handlers::scanning_management))
         .route("/scanning/policies", get(handlers::scanning_policies))
+        .route("/scanning/signatures", get(handlers::signatures_page))
         .route("/scanning/compare-scans", get(handlers::scan_compare))
         // Dashboards.
         .route("/dashboards/scan-summary", get(handlers::scan_summary))
@@ -86,6 +87,11 @@ async fn main() -> anyhow::Result<()> {
             put(handlers::update_asset),
         )
         .route("/api/assets/import", post(handlers::import_captures))
+        .route("/api/signatures", post(handlers::create_signature))
+        .route(
+            "/api/signatures/{id}",
+            put(handlers::update_signature).delete(handlers::delete_signature),
+        )
         .route("/api/settings/scan", put(handlers::save_scan_settings))
         .route("/api/policies", post(handlers::create_policy))
         .route(

@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block bodyclass %}screen-redesign{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ title }}</h1>
+  <span class="spacer"></span>
+  {% if can_edit %}
+  <button class="btn primary" type="button" data-open-modal="signature-modal" data-signature-add>{{ crate::icons::icon("plus")|safe }} Add signature</button>
+  {% endif %}
+</div>
+
+<div class="page-body">
+  <section class="card">
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Severity</th>
+            <th>Match</th>
+            <th>Criteria</th>
+            <th class="w-status">Status</th>
+            <th class="right w-actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for signature in signatures %}
+          <tr>
+            <td class="strong-cell">
+              {{ signature.name }}
+              {% if signature.predefined %}<span class="badge">Predefined</span>{% endif %}
+              {% if !signature.description.is_empty() %}<div class="section-note">{{ signature.description }}</div>{% endif %}
+            </td>
+            <td><span class="severity sev-{{ signature.severity }}">{{ signature.severity }}</span></td>
+            <td>{% if signature.match_mode == "any" %}Any{% else %}All{% endif %}</td>
+            <td>
+              <div class="criteria-chips">
+                {% for c in signature.criteria %}
+                {# A long signature would otherwise make the row enormous; only the
+                   first few rules are shown, with the remainder counted. #}
+                {% if loop.index0 < 4 %}
+                <span class="criteria-chip"><span class="criteria-kind">{{ c.source_label() }}</span>{{ c.name }}{% if !c.value.is_empty() %} {{ c.value }}{% endif %}</span>
+                {% endif %}
+                {% endfor %}
+                {% if signature.criteria.is_empty() %}<span class="muted">—</span>{% endif %}
+                {% if signature.criteria.len() > 4 %}
+                <span class="criteria-chip criteria-more">+{{ signature.criteria.len() - 4 }} more</span>
+                {% endif %}
+              </div>
+            </td>
+            <td>
+              {% if signature.enabled %}<span class="badge">Enabled</span>{% else %}<span class="badge blocked">Disabled</span>{% endif %}
+            </td>
+            <td class="right">
+              <div class="row-actions">
+                {% if can_edit %}
+                <button class="link-btn" type="button" data-signature-edit="{{ signature.id }}">{{ crate::icons::icon("sliders")|safe }} Edit</button>
+                {% if !signature.predefined %}
+                <button class="link-btn danger-link" type="button" data-signature-remove="{{ signature.id }}">{{ crate::icons::icon("trash")|safe }} Remove</button>
+                {% endif %}
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          {% if signatures.is_empty() %}
+          <tr><td colspan="5" class="empty-cell">No signatures yet. Add one to flag interesting responses.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pager.html" %}
+  </section>
+</div>
+{% endblock %}
+
+{% block modals %}
+{% if can_edit %}
+<div class="modal-backdrop" id="signature-modal" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="signature-modal-title">
+    <div class="modal-head">
+      <h2 id="signature-modal-title">New signature</h2>
+      <button class="icon-btn subtle" type="button" data-close-modal aria-label="Close">{{ crate::icons::icon("close")|safe }}</button>
+    </div>
+    <form id="signature-form">
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="field">
+            <label class="field-label" for="signature-name">Name</label>
+            <input id="signature-name" name="name" type="text" autocomplete="off" required placeholder="e.g. Exposed debug header">
+          </div>
+          <div class="field">
+            <label class="field-label" for="signature-severity">Severity</label>
+            <div class="select-wrap">
+              <select id="signature-severity" name="severity" aria-label="Severity">
+                <option value="Info">Info</option>
+                <option value="Medium" selected>Medium</option>
+                <option value="High">High</option>
+                <option value="Critical">Critical</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="signature-description">Description</label>
+          <input id="signature-description" name="description" type="text" autocomplete="off" placeholder="What this signature is looking for">
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="signature-match-mode">Match</label>
+          <div class="select-wrap">
+            <select id="signature-match-mode" name="match_mode" aria-label="Match mode">
+              <option value="all" selected>All criteria must match</option>
+              <option value="any">Any criterion matches</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="switch signature-enabled">
+          <input type="checkbox" id="signature-enabled" checked>
+          <span class="switch-track"></span>
+          <span class="switch-text" id="signature-enabled-text">Enabled</span>
+        </label>
+
+        <div class="criteria-panel">
+          <div class="criteria-head">
+            <span class="field-label">Criteria</span>
+            <span class="card-note" data-criteria-count>0 rule(s)</span>
+          </div>
+          <p class="field-hint">Header and cookie matching is case-insensitive. Set "Any criterion matches" for a signature that lists several alternative indicators.</p>
+          <div class="criteria-list" data-signature-criteria></div>
+          <button class="btn add-criterion" type="button" data-signature-add-criterion>{{ crate::icons::icon("plus")|safe }} Add criterion</button>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" data-close-modal>Cancel</button>
+        <button class="btn primary" type="submit" id="signature-submit">Save signature</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script type="application/json" id="signature-data">{{ signatures_json|safe }}</script>
+{% endif %}
+{% endblock %}

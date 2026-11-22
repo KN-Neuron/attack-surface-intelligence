@@ -25,10 +25,11 @@ pub struct PermissionPage {
     pub label: &'static str,
 }
 
-pub const PERMISSION_PAGES: [PermissionPage; 10] = [
+pub const PERMISSION_PAGES: [PermissionPage; 11] = [
     PermissionPage { key: "dashboards", label: "Dashboards" },
     PermissionPage { key: "scan_management", label: "Scan Management" },
     PermissionPage { key: "policies", label: "Scan Scheduling" },
+    PermissionPage { key: "signatures", label: "Custom Signatures" },
     PermissionPage { key: "compare", label: "Compare Scans" },
     PermissionPage { key: "host_management", label: "Host management" },
     PermissionPage { key: "data_explorer", label: "Data Explorer" },
@@ -84,6 +85,8 @@ pub fn nav_permission(href: &str) -> Option<&'static str> {
         Some("compare")
     } else if href.starts_with("/host-management") {
         Some("host_management")
+    } else if href.starts_with("/scanning/signatures") {
+        Some("signatures")
     } else if href.starts_with("/log-center/data-explorer") {
         Some("data_explorer")
     } else if href.starts_with("/log-center/scan-history") {
@@ -107,6 +110,8 @@ pub fn page_for_path(path: &str) -> Option<&'static str> {
         Some("scan_management")
     } else if path.starts_with("/scanning/policies") || path.starts_with("/api/policies") {
         Some("policies")
+    } else if path.starts_with("/scanning/signatures") || path.starts_with("/api/signatures") {
+        Some("signatures")
     } else if path.starts_with("/scanning/compare-scans") {
         Some("compare")
     } else if path.starts_with("/host-management") || path.starts_with("/api/host-") {

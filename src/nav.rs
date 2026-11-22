@@ -34,6 +34,7 @@ fn plain(items: Vec<NavItem>) -> NavGroup {
 
 pub const SCANNING_MANAGEMENT: &str = "/scanning/management";
 pub const SCANNING_POLICIES: &str = "/scanning/policies";
+pub const SIGNATURES: &str = "/scanning/signatures";
 pub const SCAN_COMPARE: &str = "/scanning/compare-scans";
 pub const SCAN_SUMMARY: &str = "/dashboards/scan-summary";
 pub const TECHNOLOGIES: &str = "/dashboards/technologies-used";
@@ -60,6 +61,7 @@ pub fn main_nav() -> SidebarDef {
             group("Scanning", "scan", vec![
                 item("Scan Management", SCANNING_MANAGEMENT, "activity"),
                 item("Scan Scheduling", SCANNING_POLICIES, "sliders"),
+                item("Custom Signatures", SIGNATURES, "shield"),
                 item("Scan Results", SCAN_HISTORY, "file-text"),
                 item("Compare Scans", SCAN_COMPARE, "git-compare"),
             ]),
