@@ -123,7 +123,7 @@ export default function Page() {
             <RefTable
                 head={['Miejsce', 'Co pokazuje']}
                 rows={[
-                    ['Scan Management', t('Licznik `Alerts raised` trwającego skanu (uzupełnia się na końcu)')],
+                    ['Scan Status', t('Licznik `Alerts raised` trwającego skanu (uzupełnia się na końcu)')],
                     ['Scan Results', <>Kolumna <code>Alerts</code> z liczbą alertów każdego skanu</>],
                     ['Okno Scan details', t('Podział na `New hosts`, `Hosts down`, `New CVEs` i `Still unacknowledged`')],
                     ['Latest Scan summary', t('Kafelek `Open alerts` z odnośnikiem `Review alerts`')],

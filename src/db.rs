@@ -1046,6 +1046,9 @@ fn is_cidr(value: &str) -> bool {
 }
 
 fn is_fqdn(value: &str) -> bool {
+    // Validate the hostname inside the entry, so a URL or port form is accepted
+    // when its host is a valid name. It is stored as typed but probed by host.
+    let value = crate::state::hostname(value);
     let value = value.trim_end_matches('.');
     if value.is_empty() || value.len() > 253 || !value.contains('.') {
         return false;

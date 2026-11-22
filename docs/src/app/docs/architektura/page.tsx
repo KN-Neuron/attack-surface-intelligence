@@ -68,7 +68,7 @@ export default function Page() {
                     Strona HTML jest renderowana z kontekstem <code>Shell</code>: menu przefiltrowane uprawnieniami, nazwa administratora i adres dokumentacji.
                 </li>
                 <li>
-                    Mutacje to wywołania <code>fetch</code> z JSON do <code>/api/*</code> (<Link href="/docs/api">API HTTP</Link>). Po sukcesie strona przeładowuje się; interfejs nie jest aplikacją jednostronicową. Wyjątkiem są Scan Management, który co 1,5 s odpytuje <code>/api/scan/status</code>, oraz filtry Data Explorer, działające w przeglądarce na wczytanym zestawie hostów.
+                    Mutacje to wywołania <code>fetch</code> z JSON do <code>/api/*</code> (<Link href="/docs/api">API HTTP</Link>). Po sukcesie strona przeładowuje się; interfejs nie jest aplikacją jednostronicową. Wyjątkiem są Scan Status, który co 1,5 s odpytuje <code>/api/scan/status</code>, oraz filtry Data Explorer, działające w przeglądarce na wczytanym zestawie hostów.
                 </li>
             </ol>
 

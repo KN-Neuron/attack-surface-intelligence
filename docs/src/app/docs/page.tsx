@@ -69,7 +69,7 @@ export default function Page() {
                 W <code>Scan Scheduling</code> kliknij <code>Add scan</code>, nadaj konfiguracji nazwę, wybierz typ skanu (<code>Full scan test</code> albo <code>Reachability</code>), zaznacz cele z ewidencji (grupy, adresy, zakresy, FQDN) i wybierz częstotliwość: <code>Daily</code>, <code>Weekly</code>, <code>Monthly</code> albo <code>On demand</code>. Włączona konfiguracja uruchamia się sama w wyznaczonym terminie.
             </p>
             <p>
-                Skan możesz też uruchomić od razu: <code>Run now</code> przy konfiguracji albo <code>Start scan now</code> w <code>Scan Management</code>, gdzie widać też postęp i można skan wstrzymać lub przerwać.
+                Skan możesz też uruchomić od razu: <code>Run now</code> przy konfiguracji albo <code>Start scan now</code> w <code>Scan Status</code>, gdzie widać też postęp i można skan wstrzymać lub przerwać.
             </p>
             <p>
                 Szczegóły: <Link href="/docs/skanowanie#nowy">Tworzenie skanu</Link>, <Link href="/docs/skanowanie#typy">Typy skanu</Link>, <Link href="/docs/skanowanie#scheduler">Uruchamianie z harmonogramu</Link>, <Link href="/docs/skanowanie#uruchomienie">Uruchomienie skanu</Link>.
@@ -119,7 +119,7 @@ export default function Page() {
                     ['Dashboards › Technologies used', <code key="2">/dashboards/technologies-used</code>, 'Wykryte technologie i hosty, na których działają', <Link key="d2" href="/docs/wyniki#technologies">Technologies used</Link>],
                     ['Dashboards › Vulnerable versions', <code key="3">/dashboards/vulnerable-versions</code>, 'Wykryte wersje z podatnościami (CVE)', <Link key="d3" href="/docs/wyniki#vulnerable">Vulnerable versions</Link>],
                     ['Dashboards › Alerts', <code key="3a">/log-center/alerts</code>, 'Zmiany wykryte przez skany do potwierdzenia', <Link key="d3a" href="/docs/alerty">Alerty</Link>],
-                    ['Scanning › Scan Management', <code key="4">/scanning/management</code>, 'Start, pauza i przerwanie skanu, postęp na żywo', <Link key="d4" href="/docs/skanowanie#stan">Scan Management</Link>],
+                    ['Scanning › Scan Status', <code key="4">/scanning/management</code>, 'Start, pauza i przerwanie skanu, postęp na żywo', <Link key="d4" href="/docs/skanowanie#stan">Scan Status</Link>],
                     ['Scanning › Scan Scheduling', <code key="5">/scanning/policies</code>, 'Konfiguracje skanów: typ, cele i harmonogram', <Link key="d5" href="/docs/skanowanie#harmonogramy">Scan Scheduling</Link>],
                     ['Scanning › Scan Results', <code key="6">/log-center/scan-history</code>, 'Lista uruchomień ze statusem i szczegółami', <Link key="d6" href="/docs/wyniki#wyniki">Scan Results</Link>],
                     ['Scanning › Compare Scans', <code key="7">/scanning/compare-scans</code>, 'Zestawienie dwóch uruchomień', <Link key="d7" href="/docs/wyniki#porownanie">Compare Scans</Link>],

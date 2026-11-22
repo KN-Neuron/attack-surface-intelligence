@@ -80,12 +80,13 @@ pub async fn resolve_targets(pool: &PgPool, criteria: &[Criterion]) -> ResolvedT
                 }
                 for fqdn in &host_fqdns {
                     if fqdn.tags.iter().any(|t| t == tag) {
-                        addresses.push(fqdn.fqdn.clone());
+                        addresses.push(crate::state::hostname(&fqdn.fqdn));
                     }
                 }
             }
             "ip address" => addresses.push(value.to_string()),
-            "fqdn" => addresses.push(value.to_string()),
+            // A hostname target may be stored as a URL; only its host is probed.
+            "fqdn" => addresses.push(crate::state::hostname(value)),
             "ip range" | "ip to scan" if value.contains('/') => {
                 addresses.push(value.to_string())
             }
@@ -149,18 +150,25 @@ fn expand_entry(entry: &str) -> Expanded {
     if entry.is_empty() {
         return Expanded::Unresolved;
     }
-    if let Some((base, prefix)) = entry.split_once('/') {
+    // An entry may be stored as a URL (`https://host/path`); the hostname is
+    // what actually gets probed. This runs before the CIDR check, otherwise the
+    // slash in a URL would make it look like a malformed range.
+    let host = crate::state::hostname(entry);
+    if host.is_empty() {
+        return Expanded::Unresolved;
+    }
+    if let Some((base, prefix)) = host.split_once('/') {
         let (Ok(base), Ok(prefix)) = (base.parse::<std::net::Ipv4Addr>(), prefix.parse::<u8>())
         else {
             return Expanded::Unresolved;
         };
         return expand_cidr(base, prefix);
     }
-    if entry.parse::<IpAddr>().is_ok() {
-        return Expanded::Single(entry.to_string());
+    if host.parse::<IpAddr>().is_ok() {
+        return Expanded::Single(host);
     }
     // FQDNs are resolved separately, once the rest of the list is deduped.
-    Expanded::Single(entry.to_string())
+    Expanded::Single(host)
 }
 
 fn expand_cidr(base: std::net::Ipv4Addr, prefix: u8) -> Expanded {

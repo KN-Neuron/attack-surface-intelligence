@@ -67,7 +67,7 @@ export default function Page() {
                 </li>
                 <li>Stopka pokazuje liczbę uruchomień w wybranym okresie i pozwala przechodzić między stronami.</li>
                 <li>
-                    Skan, który właśnie trwa, jest na liście od startu (status <code>Running</code>); jego postęp na żywo widać w <Link href="/docs/skanowanie#stan">Scan Management</Link>.
+                    Skan, który właśnie trwa, jest na liście od startu (status <code>Running</code>); jego postęp na żywo widać w <Link href="/docs/skanowanie#stan">Scan Status</Link>.
                 </li>
             </ul>
 
@@ -91,7 +91,7 @@ export default function Page() {
                     Dla wierszy <code>Demo</code> okno jest syntetyzowane z danych przykładowych i nie zawiera list celów, technologii i usług.
                 </li>
                 <li>
-                    Dane okna pobiera endpoint <code>GET /api/scans/{'{id}'}</code>. Jego ścieżka podpada pod prefiks <code>/api/scan</code>, więc wymaga <strong>odczytu strony Scan Management</strong>, a nie Scan Results (<Link href="/docs/dostep#sciezki">Dostęp i uprawnienia</Link>). Konto bez tego uprawnienia, np. rola startowa <code>Analyst</code>, widzi listę, ale <code>Details</code> nie załaduje szczegółów.
+                    Dane okna pobiera endpoint <code>GET /api/scans/{'{id}'}</code>. Jego ścieżka podpada pod prefiks <code>/api/scan</code>, więc wymaga <strong>odczytu strony Scan Status</strong>, a nie Scan Results (<Link href="/docs/dostep#sciezki">Dostęp i uprawnienia</Link>). Konto bez tego uprawnienia, np. rola startowa <code>Analyst</code>, widzi listę, ale <code>Details</code> nie załaduje szczegółów.
                 </li>
                 <li>
                     Szczegóły hostów z tego uruchomienia odczytasz w <Link href="/docs/data-explorer">Data Explorer</Link>: kolumna <code>Last scan</code> zawiera numer ostatniego skanu, który objął host, ale numer ten nie jest pokazany w liście Scan Results, więc łączy się je po czasie.
@@ -193,7 +193,7 @@ export default function Page() {
                     ['Latest Scan summary: Service families, tabele popularności', <>Klucze <code key="10">service_slices</code>, <code key="10a">popular_services</code>, <code key="10b">popular_technologies</code></>, <Badge key="b6" variant="warn">przykładowe</Badge>],
                     ['Technologies used', <>Klucz <code key="11">technologies</code></>, <Badge key="b7" variant="warn">przykładowe</Badge>],
                     ['Vulnerable versions', <>Klucz <code key="12">detected_vulns</code></>, <Badge key="b8" variant="warn">przykładowe</Badge>],
-                    ['Scan Management: Upcoming scan', <>Konfiguracje z tabeli <code key="13">policies</code>; klucz <code key="13a">upcoming_scan</code> jako wartości zastępcze</>, <Badge key="b9" variant="success">prawdziwe</Badge>],
+                    ['Scan Status: Upcoming scan', <>Konfiguracje z tabeli <code key="13">policies</code>; klucz <code key="13a">upcoming_scan</code> jako wartości zastępcze</>, <Badge key="b9" variant="success">prawdziwe</Badge>],
                     ['Dopasowanie podatności w skanie', <>Klucz <code key="14">vulnerabilities</code>: lista znanych wersji z podatnościami (<Link key="l" href="/docs/alerty#cve">Alerty › New CVE</Link>)</>, <Badge key="b10">referencyjne</Badge>]
                 ]}
             />

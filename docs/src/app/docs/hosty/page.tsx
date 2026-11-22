@@ -116,7 +116,7 @@ export default function Page() {
                     [t('`1–10 of N` w stopce'), 'Każda zakładka Host management', 'Liczbę wpisów w tej zakładce, po uwzględnieniu filtru wyszukiwania. Zakres CIDR liczy się jako jeden wpis'],
                     [<code key="b">Hosts</code>, t('Zakładka `IP ranges`'), <>Liczbę adresów w bloku CIDR: 2^(32 − prefiks), łącznie z adresem sieci i rozgłoszeniowym. <code>/24</code> daje 256, <code>/32</code> daje 1. Skan rozwija jednak z jednego zakresu najwyżej 1024 adresy (<Link href="/docs/skanowanie#rozwiazywanie">Rozwiązywanie celów</Link>)</>],
                     [<code key="c">Targets</code>, t('Zakładka `Host groups`'), t('Liczbę wpisów w grupie: adresy IP + zakresy + FQDN. Zakres `/24` to jeden cel, a nie 256')],
-                    [t('`Hosts discovered`, `Alive`, `Reachable hosts`'), 'Scan Management, Scan Results, Latest Scan summary', <>Hosty zaobserwowane w skanie (<Link key="l" href="/docs/wyniki#wyniki">Wyniki i analiza</Link>), niezależne od wielkości ewidencji</>]
+                    [t('`Hosts discovered`, `Alive`, `Reachable hosts`'), 'Scan Status, Scan Results, Latest Scan summary', <>Hosty zaobserwowane w skanie (<Link key="l" href="/docs/wyniki#wyniki">Wyniki i analiza</Link>), niezależne od wielkości ewidencji</>]
                 ]}
             />
             <p>

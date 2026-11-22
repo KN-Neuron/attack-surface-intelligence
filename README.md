@@ -74,7 +74,7 @@ Change these immediately for anything beyond a local demo.
 | Scan summary | `/dashboards/scan-summary` |
 | Technologies used | `/dashboards/technologies-used` |
 | Vulnerable versions | `/dashboards/vulnerable-versions` |
-| Scan Management | `/scanning/management` |
+| Scan Status | `/scanning/management` |
 | Scan Scheduling | `/scanning/policies` |
 | Scan Results | `/log-center/scan-history` |
 | Compare Scans | `/scanning/compare-scans` |

@@ -59,7 +59,7 @@ pub fn main_nav() -> SidebarDef {
                 item("Alerts", ALERTS, "alert-triangle"),
             ]),
             group("Scanning", "scan", vec![
-                item("Scan Management", SCANNING_MANAGEMENT, "activity"),
+                item("Scan Status", SCANNING_MANAGEMENT, "activity"),
                 item("Scan Scheduling", SCANNING_POLICIES, "sliders"),
                 item("Custom Signatures", SIGNATURES, "shield"),
                 item("Scan Results", SCAN_HISTORY, "file-text"),

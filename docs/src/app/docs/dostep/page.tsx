@@ -58,7 +58,7 @@ export default function Page() {
                 head={['Klucz', 'Etykieta', 'Ścieżki (prefiks)']}
                 rows={[
                     [<code key="1">dashboards</code>, 'Dashboards', <code key="1a">/dashboards</code>],
-                    [<code key="2">scan_management</code>, 'Scan Management', <><code>/scanning/management</code>, <code>/api/scan</code> (także <code>/api/scans/{'{id}'}</code>)</>],
+                    [<code key="2">scan_management</code>, 'Scan Status', <><code>/scanning/management</code>, <code>/api/scan</code> (także <code>/api/scans/{'{id}'}</code>)</>],
                     [<code key="3">policies</code>, 'Scan Scheduling', <><code>/scanning/policies</code>, <code>/api/policies</code></>],
                     [<code key="4">compare</code>, 'Compare Scans', <code key="4a">/scanning/compare-scans</code>],
                     [<code key="5">host_management</code>, 'Host management', <><code>/host-management</code>, <code>/api/host-</code></>],
@@ -72,8 +72,8 @@ export default function Page() {
             <p>
                 Ścieżki bez klucza (<code>/</code>, <code>/logout</code>, <code>/api/search</code>) wymagają tylko ważnej sesji. Kluczy jest dziesięć.
             </p>
-            <Callout type="note" title="Scan details wymaga Scan Management">
-                Dopasowanie ścieżek działa prefiksem, a <code>/api/scans/{'{id}'}</code> zaczyna się od <code>/api/scan</code>. Okno Scan details z ekranu Scan Results wymaga więc odczytu <code>Scan Management</code>, a nie <code>Scan Results</code>. Konto z samym Scan Results, np. <code>Analyst</code>, zobaczy listę uruchomień, ale okno szczegółów się nie załaduje (odpowiedź 403).
+            <Callout type="note" title="Scan details wymaga Scan Status">
+                Dopasowanie ścieżek działa prefiksem, a <code>/api/scans/{'{id}'}</code> zaczyna się od <code>/api/scan</code>. Okno Scan details z ekranu Scan Results wymaga więc odczytu <code>Scan Status</code>, a nie <code>Scan Results</code>. Konto z samym Scan Results, np. <code>Analyst</code>, zobaczy listę uruchomień, ale okno szczegółów się nie załaduje (odpowiedź 403).
             </Callout>
             <RefTable
                 head={['Sytuacja', 'Odpowiedź']}
@@ -93,7 +93,7 @@ export default function Page() {
                 head={['Rola', 'Dostęp', 'Zapis']}
                 rows={[
                     [<code key="a">Super Admin</code>, 'Wszystkie strony', <Badge key="a1" variant="success">tak</Badge>],
-                    [<code key="b">Scan Operator</code>, 'Dashboards, Scan Management, Scan Scheduling, Compare Scans, Host management, Scan Results, Alerts', <Badge key="b1" variant="success">tak</Badge>],
+                    [<code key="b">Scan Operator</code>, 'Dashboards, Scan Status, Scan Scheduling, Compare Scans, Host management, Scan Results, Alerts', <Badge key="b1" variant="success">tak</Badge>],
                     [<code key="c">Analyst</code>, 'Dashboards, Data Explorer, Scan Results, Alerts, Host management', <Badge key="c1">tylko odczyt</Badge>]
                 ]}
             />
@@ -109,7 +109,7 @@ export default function Page() {
                     ['Przeglądać ewidencję, grupy i tagi', 'tak', 'tak', 'tak'],
                     ['Dodawać, edytować, importować i usuwać wpisy, grupy i tagi', 'tak', 'tak', 'nie'],
                     ['Przeglądać i zmieniać konfiguracje w Scan Scheduling', 'tak', 'tak', 'nie'],
-                    ['Uruchamiać, wstrzymywać i przerywać skan (Scan Management)', 'tak', 'tak', 'nie'],
+                    ['Uruchamiać, wstrzymywać i przerywać skan (Scan Status)', 'tak', 'tak', 'nie'],
                     ['Uruchamiać skan z konfiguracji (Run now)', 'tak', 'tak', 'nie'],
                     ['Przeglądać Scan Results', 'tak', 'tak', 'tak'],
                     ['Otwierać okno Scan details w Scan Results', 'tak', 'tak', 'nie'],

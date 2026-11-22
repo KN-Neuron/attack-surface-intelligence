@@ -58,6 +58,46 @@ impl Cidr {
     }
 }
 
+/// The bare hostname of an inventory entry, ignoring any URL scheme, path,
+/// query, fragment, port or trailing dot. A name is stored exactly as the
+/// operator typed it, but it is always probed as a hostname, so
+/// `https://app.example.com:8443/x` and `app.example.com` resolve to the same
+/// target.
+///
+/// The port is dropped because it cannot be honoured: target resolution looks
+/// names up with `lookup_host(name, 443)` and rewrites each to a bare address,
+/// so a port either fails the lookup outright (`host:8443` is not a hostname) or
+/// is discarded. The scanner probes each address on its own set of ports.
+pub fn hostname(value: &str) -> String {
+    let trimmed = value.trim();
+
+    // A CIDR block is not a URL: its slash separates the prefix, not a path.
+    // Rewriting it here would silently turn `10.0.0.0/24` into `10.0.0.0`.
+    if let Some((base, prefix)) = trimmed.split_once('/')
+        && base.trim().parse::<std::net::Ipv4Addr>().is_ok()
+        && prefix.trim().parse::<u8>().is_ok_and(|p| p <= 32)
+    {
+        return trimmed.to_lowercase();
+    }
+
+    // Drop the scheme (`https://`, `http://`, …) when one is present.
+    let rest = match trimmed.find("://") {
+        Some(index) => &trimmed[index + 3..],
+        None => trimmed,
+    };
+    // The authority ends at the first path, query or fragment separator.
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+    // Drop any credentials before the host.
+    let host = authority.rsplit('@').next().unwrap_or(authority);
+    // Drop a trailing `:port`, but only when it really is one, so IPv6 literals
+    // (which are bracketed) and plain hostnames are left alone.
+    let host = match host.rsplit_once(':') {
+        Some((head, port)) if !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => head,
+        _ => host,
+    };
+    host.trim_end_matches('.').to_lowercase()
+}
+
 /// A single rule attached to a scan policy. The `kind` names which selector
 /// (host group, IP to scan, schedule, ...) the value belongs to.
 #[derive(Clone, Serialize, Deserialize)]

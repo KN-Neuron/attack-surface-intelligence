@@ -46,7 +46,7 @@ export default function Page() {
                     ['POST', <code key="2b">/api/scan/start</code>, 'Skrót: skan Full całej ewidencji, bez ciała'],
                     ['POST', <code key="3">/api/scan/pause</code>, 'Przełącza wstrzymanie trwającego skanu'],
                     ['POST', <code key="4">/api/scan/cancel</code>, 'Przerywa skan'],
-                    ['GET', <code key="5">/api/scans/{'{id}'}</code>, <>Szczegóły uruchomienia (ScanDetail); 404 dla nieznanego numeru. Wymaga odczytu <code>Scan Management</code> (<Link href="/docs/dostep#sciezki">Dostęp i uprawnienia</Link>)</>]
+                    ['GET', <code key="5">/api/scans/{'{id}'}</code>, <>Szczegóły uruchomienia (ScanDetail); 404 dla nieznanego numeru. Wymaga odczytu <code>Scan Status</code> (<Link href="/docs/dostep#sciezki">Dostęp i uprawnienia</Link>)</>]
                 ]}
             />
             <p>

@@ -14,7 +14,7 @@ export default function Page() {
         <DocPage
             href="/docs/skanowanie"
             title="Skanowanie"
-            lead="Konfiguracja skanów i harmonogramów (Scan Scheduling), typy skanów, sposób wyznaczania celów oraz uruchamianie i śledzenie skanu (Scan Management)."
+            lead="Konfiguracja skanów i harmonogramów (Scan Scheduling), typy skanów, sposób wyznaczania celów oraz uruchamianie i śledzenie skanu (Scan Status)."
             toc={[
                 { id: 'pojecia', label: 'Konfiguracja, uruchomienie, wynik' },
                 { id: 'harmonogramy', label: 'Scan Scheduling' },
@@ -27,7 +27,7 @@ export default function Page() {
                 { id: 'sposoby', label: 'Cztery sposoby uruchomienia', level: 3 },
                 { id: 'typy', label: 'Typy skanu', level: 3 },
                 { id: 'rozwiazywanie', label: 'Rozwiązywanie celów', level: 3 },
-                { id: 'stan', label: 'Scan Management', level: 3 },
+                { id: 'stan', label: 'Scan Status', level: 3 },
                 { id: 'przejscia', label: 'Stany i przejścia', level: 3 },
                 { id: 'kolejka', label: 'Upcoming scan i Scan queue', level: 3 }
             ]}
@@ -39,7 +39,7 @@ export default function Page() {
                     ['Wpis w ewidencji', 'Host management', <>Zasób zadeklarowany przez organizację (<Link key="h" href="/docs/hosty">Host management</Link>)</>],
                     ['Cel skanu', t('Sekcja `Targets` konfiguracji'), 'Wpis ewidencji lub grupa wybrana do konkretnej konfiguracji'],
                     ['Konfiguracja (harmonogram)', 'Scan Scheduling', 'Nazwany zestaw celów z typem skanu oraz informacją, kiedy i jak często skan ma się odbywać'],
-                    ['Uruchomienie', 'Scan Management, Scan Results', <>Jedno wykonanie skanu z czasem rozpoczęcia i zakończenia oraz statusem (<Link key="r" href="/docs/wyniki#wyniki">Wyniki i analiza</Link>)</>],
+                    ['Uruchomienie', 'Scan Status, Scan Results', <>Jedno wykonanie skanu z czasem rozpoczęcia i zakończenia oraz statusem (<Link key="r" href="/docs/wyniki#wyniki">Wyniki i analiza</Link>)</>],
                     ['Obserwacja', 'Data Explorer, Alerts, dashboardy', <>Stan hosta zapisany przez skan: odpowiedź, usługa, technologia, certyfikat (<Link key="d" href="/docs/data-explorer">Data Explorer</Link>); zmiana względem poprzednich skanów trafia do <Link key="a" href="/docs/alerty">Alerts</Link></>]
                 ]}
             />
@@ -166,7 +166,7 @@ export default function Page() {
             <RefTable
                 head={['Akcja', 'Jak', 'Skutek']}
                 rows={[
-                    ['Uruchomienie', t('`Run now` w wierszu'), <>Natychmiast uruchamia skan z celami i typem tej konfiguracji, także gdy ma status <code>Disabled</code> lub <code>On demand</code>. Po sukcesie następuje przejście do Scan Management (<Link key="s" href="#sposoby">Cztery sposoby uruchomienia</Link>)</>],
+                    ['Uruchomienie', t('`Run now` w wierszu'), <>Natychmiast uruchamia skan z celami i typem tej konfiguracji, także gdy ma status <code>Disabled</code> lub <code>On demand</code>. Po sukcesie następuje przejście do Scan Status (<Link key="s" href="#sposoby">Cztery sposoby uruchomienia</Link>)</>],
                     ['Edycja', t('`Edit` w wierszu otwiera okno `Edit scan` z bieżącymi wartościami'), t('`Save` nadpisuje nazwę, kolejność, status, typ, cele i harmonogram. Cele, których nie ma już w ewidencji, nie są zaznaczone i po zapisie znikają')],
                     ['Wyłączenie', t('Przełącznik `Status` w oknie edycji, potem `Save`'), t('Kolumna `Status` pokazuje `Disabled`, a harmonogram przestaje uruchamiać skany. Konfiguracja zostaje na liście')],
                     ['Usunięcie', t('`Remove` i potwierdzenie `Remove this scan? This cannot be undone.`'), 'Konfiguracja jest usuwana trwale. Wyniki wcześniejszych uruchomień zostają w Scan Results']
@@ -189,7 +189,7 @@ export default function Page() {
                     Skan z całej ewidencji obejmuje wszystkie adresy IP, zakresy CIDR i nazwy FQDN z Host management.
                 </li>
                 <li>
-                    Uruchamianie, wstrzymywanie i przerywanie wymaga zapisu do strony <code>Scan Management</code>, a <code>Run now</code> – zapisu do <code>Scan Scheduling</code> (<Link href="/docs/dostep#sciezki">Dostęp i uprawnienia</Link>).
+                    Uruchamianie, wstrzymywanie i przerywanie wymaga zapisu do strony <code>Scan Status</code>, a <code>Run now</code> – zapisu do <code>Scan Scheduling</code> (<Link href="/docs/dostep#sciezki">Dostęp i uprawnienia</Link>).
                 </li>
                 <li>
                     W jednej chwili działa <strong>jeden</strong> skan. Próba uruchomienia drugiego, a także skanu bez żadnego rozwiązanego celu, kończy się komunikatem <code>Could not start the scan. Another scan may already be running.</code> (API zwraca 409; <Link href="/docs/api#scan">API HTTP › Skan</Link>).
@@ -204,7 +204,7 @@ export default function Page() {
                     ['Co sprawdza', 'Odpowiedź HTTP(S) hosta: kod statusu, tytuł, serwer, przekierowania, rozmiar, CDN i CNAME, HTTP/2, certyfikat TLS oraz technologie', t('Czy host odpowiada na któryś z portów 80, 443, 22, 445, 3389, 8443')],
                     ['Co zapisuje', <>Wszystkie pola obserwacji (<Link key="d" href="/docs/data-explorer#kolumny">kolumny Data Explorer</Link>)</>, t('Tylko status `Up`/`Down` i czasy `Last checked`; pozostałe dane z wcześniejszego skanu Full zostają nietknięte')],
                     ['Znaczenie Up / Down', 'Up: host odpowiedział po HTTP(S). Host, który nasłuchuje tylko na innym protokole, np. SSH, jest w skanie Full oznaczony jako Down', 'Up: otwarty co najmniej jeden z portów z listy'],
-                    ['Wymagania', <>Program <code key="e">httpx</code> w wersji ProjectDiscovery; bez niego skan kończy się statusem <code>Failed</code> (<Link key="f" href="/docs/architektura#konfiguracja">Architektura › Konfiguracja</Link>)</>, t('masscan wymaga uprawnień do surowych gniazd. Gdy go brakuje, zawodzi albo nie znajdzie żadnego hosta, skan przechodzi na sprawdzenie połączeniem TCP (silnik w Scan Management: `TCP probe`)')]
+                    ['Wymagania', <>Program <code key="e">httpx</code> w wersji ProjectDiscovery; bez niego skan kończy się statusem <code>Failed</code> (<Link key="f" href="/docs/architektura#konfiguracja">Architektura › Konfiguracja</Link>)</>, t('masscan wymaga uprawnień do surowych gniazd. Gdy go brakuje, zawodzi albo nie znajdzie żadnego hosta, skan przechodzi na sprawdzenie połączeniem TCP (silnik w Scan Status: `TCP probe`)')]
                 ]}
             />
             <ul>
@@ -239,7 +239,7 @@ export default function Page() {
                 Adresy ponad oba limity nie są skanowane, ale uruchomienie nie kończy się błędem: sumaryczną liczbę pominiętych adresów podaje komunikat <code>Target list truncated: N address(es) beyond the 2048 scan cap were skipped.</code> w oknie Scan details (<Link href="/docs/wyniki#szczegoly">Wyniki i analiza</Link>). Zakres większy niż <code>/22</code> jest skanowany tylko od początku bloku, a w jednym skanie mieści się najwyżej 2048 adresów. Większe środowisko podziel na kilka konfiguracji.
             </Callout>
 
-            <H3 id="stan">Scan Management</H3>
+            <H3 id="stan">Scan Status</H3>
             <p>
                 Karta <code>Scan activity</code> pokazuje stan (<code>Running</code>, <code>Paused</code>, <code>Idle</code>), pasek postępu z procentem, bieżący cel (<code>Scanning …</code>), linię z typem i silnikiem (np. <code>Full scan test · httpx</code>) oraz liczniki <code>Targets scanned</code> (<code>wykonane / wszystkie</code>), <code>Hosts discovered</code>, <code>Started</code> i <code>Alerts raised</code>. Dane odświeżają się co 1,5 s.
             </p>

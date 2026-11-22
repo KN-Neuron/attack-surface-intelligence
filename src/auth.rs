@@ -27,7 +27,7 @@ pub struct PermissionPage {
 
 pub const PERMISSION_PAGES: [PermissionPage; 11] = [
     PermissionPage { key: "dashboards", label: "Dashboards" },
-    PermissionPage { key: "scan_management", label: "Scan Management" },
+    PermissionPage { key: "scan_management", label: "Scan Status" },
     PermissionPage { key: "policies", label: "Scan Scheduling" },
     PermissionPage { key: "signatures", label: "Custom Signatures" },
     PermissionPage { key: "compare", label: "Compare Scans" },
