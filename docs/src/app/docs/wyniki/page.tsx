@@ -35,8 +35,8 @@ export default function Page() {
             <RefTable
                 head={['Ekran', 'Dane']}
                 rows={[
-                    ['Scan Results, okno Scan details, Data Explorer, Alerts, kafelki Open alerts i Latest scan', <Badge key="1" variant="success">z prawdziwych skanów</Badge>],
-                    ['Compare Scans, Technologies used, Vulnerable versions, pozostałe kafelki i tabele Latest Scan summary', <Badge key="2" variant="warn">dane przykładowe</Badge>]
+                    ['Scan Results, okno Scan details, Data Explorer, Alerts, Compare Scans, Technologies used, kafelki Open alerts i Latest scan', <Badge key="1" variant="success">z prawdziwych skanów</Badge>],
+                    ['Vulnerable versions, pozostałe kafelki i tabele Latest Scan summary', <Badge key="2" variant="warn">dane przykładowe</Badge>]
                 ]}
             />
             <p>
@@ -99,8 +99,8 @@ export default function Page() {
             </ul>
 
             <H2 id="porownanie">Compare Scans</H2>
-            <Callout type="warning" title="Compare Scans czyta tylko dane przykładowe">
-                Sloty <code>Scan A</code> i <code>Scan B</code> oferują wyłącznie uruchomienia przykładowe (<code>Scan #…</code>). Skanów wykonanych w aplikacji tu nie ma, więc do oceny zmian w prawdziwym środowisku użyj Alerts i Data Explorer. Opis poniżej dotyczy sposobu czytania zestawienia.
+            <Callout type="note" title="Compare Scans korzysta z prawdziwych uruchomień">
+                Lista wyboru zawiera zakończone skany z tabeli <code>scans</code>; uruchomienia w stanie <code>Running</code> są pomijane. Liczby różnych technologii i podatności są liczone z historii przechwyceń <code>scan_host_captures</code>, a nie z zapisanych agregatów wiersza skanu.
             </Callout>
             <p>Ekran zestawia liczniki dwóch uruchomień.</p>
             <ol>
@@ -126,8 +126,8 @@ export default function Page() {
                     ['Alive hosts', 'Hosty, które odpowiedziały', 'wzrost'],
                     ['Hosts down', 'Hosty, które nie odpowiedziały', 'spadek'],
                     ['Services', 'Łączna liczba wykrytych usług', 'wzrost'],
-                    ['Technologies', 'Łączna liczba wykrytych technologii', 'wzrost'],
-                    ['Vulnerabilities', 'Łączna liczba wykrytych podatności', 'spadek']
+                    ['Distinct technologies', 'Liczba różnych technologii wykrytych w skanie', 'wzrost'],
+                    ['Vulnerabilities', 'Liczba par host + CVE dopasowanych do bazy podatności', 'spadek']
                 ]}
             />
             <ul>
@@ -173,7 +173,7 @@ export default function Page() {
 
             <H3 id="technologies">Technologies used</H3>
             <p>
-                Tabela technologii: <code>Technology</code>, <code>Version(s)</code>, <code>Category</code>, <code>Hosts</code>. Przycisk szczegółów otwiera okno z listą hostów, na których technologię wykryto: <code>Host</code>, <code>OS</code>, <code>Port</code>, <code>Service</code>, <code>First seen</code>, <code>Last seen</code>. Przycisk <code>Open in Data Explorer</code> w nagłówku przechodzi do hostów z niepustą kolumną <code>Technologies</code>. Dane tego dashboardu są przykładowe; technologie z prawdziwych skanów oglądasz w Data Explorer.
+                Tabela agreguje technologie z historii przechwyceń <code>scan_host_captures</code> wszystkich skanów: <code>Technology</code>, wszystkie wykryte <code>Version(s)</code>, <code>Category</code> i liczbę hostów. Przycisk szczegółów otwiera okno z listą hostów, na których technologię wykryto: <code>Host</code>, <code>OS</code>, <code>Port</code>, <code>Service</code>, <code>First seen</code>, <code>Last seen</code>. Przycisk <code>Open in Data Explorer</code> w nagłówku przechodzi do hostów z niepustą kolumną <code>Technologies</code>.
             </p>
             <H3 id="vulnerable">Vulnerable versions</H3>
             <p>
@@ -186,12 +186,12 @@ export default function Page() {
                 head={['Ekran', 'Źródło', 'Charakter']}
                 rows={[
                     ['Scan Results, Scan details', <>Tabele <code key="1">scans</code>, <code key="2">scan_hosts</code>, <code key="3">alerts</code>; do listy dołączane są wiersze <code key="4">scan_history</code></>, <Badge key="b1" variant="success">prawdziwe + demo</Badge>],
-                    ['Data Explorer', <>Tabela <code key="5">scan_hosts</code></>, <Badge key="b2" variant="success">prawdziwe</Badge>],
+                    ['Data Explorer', <>Historia <code key="5">scan_host_captures</code></>, <Badge key="b2" variant="success">prawdziwe</Badge>],
                     ['Alerts, Open alerts, Latest scan', <>Tabele <code key="6">alerts</code>, <code key="7">scans</code></>, <Badge key="b3" variant="success">prawdziwe</Badge>],
-                    ['Compare Scans', <>Klucz <code key="8">scan_history</code> w <code key="8a">app_data</code></>, <Badge key="b4" variant="warn">przykładowe</Badge>],
+                    ['Compare Scans', <>Tabela <code key="8">scans</code>; technologie i podatności liczone z <code key="8a">scan_host_captures</code></>, <Badge key="b4" variant="success">prawdziwe</Badge>],
                     ['Latest Scan summary: kafelki, wykres okresów', <>Klucz <code key="9">timeline_points</code></>, <Badge key="b5" variant="warn">przykładowe</Badge>],
                     ['Latest Scan summary: Service families, tabele popularności', <>Klucze <code key="10">service_slices</code>, <code key="10a">popular_services</code>, <code key="10b">popular_technologies</code></>, <Badge key="b6" variant="warn">przykładowe</Badge>],
-                    ['Technologies used', <>Klucz <code key="11">technologies</code></>, <Badge key="b7" variant="warn">przykładowe</Badge>],
+                    ['Technologies used', <>Historia <code key="11">scan_host_captures</code></>, <Badge key="b7" variant="success">prawdziwe</Badge>],
                     ['Vulnerable versions', <>Klucz <code key="12">detected_vulns</code></>, <Badge key="b8" variant="warn">przykładowe</Badge>],
                     ['Scan Status: Upcoming scan', <>Konfiguracje z tabeli <code key="13">policies</code>; klucz <code key="13a">upcoming_scan</code> jako wartości zastępcze</>, <Badge key="b9" variant="success">prawdziwe</Badge>],
                     ['Dopasowanie podatności w skanie', <>Klucz <code key="14">vulnerabilities</code>: lista znanych wersji z podatnościami (<Link key="l" href="/docs/alerty#cve">Alerty › New CVE</Link>)</>, <Badge key="b10">referencyjne</Badge>]

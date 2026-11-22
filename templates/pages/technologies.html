@@ -38,6 +38,9 @@
             </td>
           </tr>
           {% endfor %}
+          {% if techs.is_empty() %}
+          <tr><td colspan="5" class="empty-cell">No technologies captured yet. Run a full scan.</td></tr>
+          {% endif %}
         </tbody>
       </table>
     </div>

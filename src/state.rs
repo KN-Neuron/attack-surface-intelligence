@@ -917,6 +917,32 @@ pub fn now_label() -> String {
         .to_string()
 }
 
+// ---------------------------------------------------------------- technologies
+
+/// One host on which a technology was captured, as shown in the Technologies
+/// used detail modal.
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct TechHost {
+    pub ip: String,
+    pub hostname: String,
+    pub os: String,
+    pub port: u16,
+    pub service: String,
+    pub first_seen: String,
+    pub last_seen: String,
+}
+
+/// One row of the Technologies used table, aggregated from scan captures.
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct TechRow {
+    pub id: usize,
+    pub name: String,
+    pub versions: String,
+    pub category: String,
+    pub host_count: usize,
+    pub hosts: Vec<TechHost>,
+}
+
 // ---------------------------------------------------------------- DefectDojo
 
 /// Config for the DefectDojo connection. Stored as one JSON document in

@@ -3164,9 +3164,9 @@
         techTitle.textContent = tech.name;
         techSub.textContent = tech.versions + " · " + tech.category + " · " + tech.host_count + " hosts";
         techHosts.innerHTML = tech.hosts.map(function (h) {
-          return "<tr><td class='strong-cell'>" + h.ip + "<div class='section-note'>" + h.hostname + "</div></td>" +
-            "<td>" + h.os + "</td><td>" + h.port + "</td><td>" + h.service + "</td>" +
-            "<td>" + h.first_seen + "</td><td>" + h.last_seen + "</td></tr>";
+          return "<tr><td class='strong-cell'>" + escapeHtml(h.ip) + "<div class='section-note'>" + escapeHtml(h.hostname) + "</div></td>" +
+            "<td>" + escapeHtml(h.os) + "</td><td>" + escapeHtml(h.port || "\u2014") + "</td><td>" + escapeHtml(h.service) + "</td>" +
+            "<td>" + escapeHtml(h.first_seen) + "</td><td>" + escapeHtml(h.last_seen) + "</td></tr>";
         }).join("");
         openModal("tech-modal");
       });
@@ -3324,7 +3324,7 @@
         { label: "Alive hosts", key: "alive", invert: false },
         { label: "Hosts down", key: "down", invert: true },
         { label: "Services", key: "services", invert: false },
-        { label: "Technologies", key: "technologies", invert: false },
+        { label: "Distinct technologies", key: "technologies", invert: false },
         { label: "Vulnerabilities", key: "vulns", invert: true }
       ];
       body.innerHTML = metrics.map(function (m) {
@@ -3357,8 +3357,8 @@
       }).forEach(function (s) {
         var item = document.createElement("div");
         item.className = "picker-item";
-        item.innerHTML = "<span class='picker-item-name'>" + s.label + "</span>" +
-          "<span class='picker-item-meta'>" + s.started + " · " + s.target + "</span>";
+        item.innerHTML = "<span class='picker-item-name'>" + escapeHtml(s.label) + "</span>" +
+          "<span class='picker-item-meta'>" + escapeHtml(s.started) + " · " + escapeHtml(s.target) + "</span>";
         item.addEventListener("click", function () {
           if (pickTarget) selected[pickTarget] = s;
           renderSlots();

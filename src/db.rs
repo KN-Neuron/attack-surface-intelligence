@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
@@ -11,7 +13,7 @@ use crate::state::{
     DefectDojoSettings, DefectDojoSyncRow, EditAsset, HostCapture, HostFqdn, HostGroup, HostIp,
     HostRange, ImportCapturesResult, ImportPreview, ImportSummary, NewSignature, Permission,
     Policy, Role, ScanDetail, ScanRowView, ScanServiceCount, ScanSettings, ScanStatus,
-    ScanTechCount, ScanType, Signature, SignatureCriterion, now_label,
+    ScanTechCount, ScanType, Signature, SignatureCriterion, TechHost, TechRow, now_label,
 };
 
 /// Hardcoded Railway Postgres connection (per project requirement).
@@ -532,13 +534,18 @@ async fn seed(pool: &PgPool) -> anyhow::Result<()> {
 
     seed_json(pool, "scan_history", &mock::scan_history()).await;
     seed_json(pool, "data_events", &mock::data_events()).await;
-    seed_json(pool, "technologies", &mock::technologies()).await;
     seed_json(pool, "vulnerabilities", &mock::vulnerable_db()).await;
     seed_json(pool, "detected_vulns", &mock::detected_vulns()).await;
     seed_json(pool, "timeline_points", &mock::timeline_points()).await;
     seed_json(pool, "service_slices", &mock::service_slices()).await;
     seed_json(pool, "popular_services", &mock::popular_services()).await;
     seed_json(pool, "popular_technologies", &mock::popular_technologies()).await;
+
+    // The Technologies used page now aggregates real captures. Remove the
+    // snapshot seeded by older versions so it cannot be mistaken for live data.
+    let _ = sqlx::query("DELETE FROM app_data WHERE key = 'technologies'")
+        .execute(pool)
+        .await;
     seed_json(pool, "upcoming_scan", &mock::upcoming_scan()).await;
     seed_json(pool, "latest_scan", &mock::LATEST_SCAN).await;
     seed_signatures(pool).await;
@@ -2004,6 +2011,262 @@ pub async fn list_scans(pool: &PgPool) -> Vec<ScanRowView> {
     .iter()
     .map(row_to_scan_view)
     .collect()
+}
+
+/// Real per-scan counts for Compare Scans. The stored `technologies` aggregate
+/// counts hosts with a technology rather than distinct technologies, and
+/// `vulns` is not maintained by the scan body, so both are recomputed from the
+/// immutable capture history.
+pub async fn scan_compare_metrics(pool: &PgPool) -> HashMap<i64, (u32, u32)> {
+    let mut metrics: HashMap<i64, (u32, u32)> = HashMap::new();
+
+    let techs = sqlx::query(
+        "SELECT c.scan_id, count(DISTINCT COALESCE(t->>'name', '')) AS count
+         FROM scan_host_captures c
+         CROSS JOIN LATERAL jsonb_array_elements(COALESCE(c.tech, '[]'::jsonb)) AS t
+         WHERE COALESCE(t->>'name', '') <> ''
+         GROUP BY c.scan_id",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    for row in &techs {
+        metrics.entry(row.get("scan_id")).or_default().0 =
+            row.get::<i64, _>("count").max(0) as u32;
+    }
+
+    let vulns = sqlx::query(
+        "SELECT c.scan_id,
+                count(DISTINCT (
+                    c.address,
+                    COALESCE(vb->>'service', ''),
+                    COALESCE(vb->>'cve', '')
+                )) AS count
+         FROM scan_host_captures c
+         CROSS JOIN LATERAL jsonb_array_elements(COALESCE(c.tech, '[]'::jsonb)) AS t
+         JOIN app_data d ON d.key = 'vulnerabilities'
+         CROSS JOIN LATERAL jsonb_array_elements(d.data) AS vb
+         WHERE lower(COALESCE(t->>'name', '')) = lower(COALESCE(vb->>'service', ''))
+           AND COALESCE(t->>'version', '') <> ''
+           AND (vb->>'version') LIKE COALESCE(t->>'version', '') || '%'
+         GROUP BY c.scan_id",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    for row in &vulns {
+        metrics.entry(row.get("scan_id")).or_default().1 =
+            row.get::<i64, _>("count").max(0) as u32;
+    }
+
+    metrics
+}
+
+/// Distinct technologies seen in the immutable capture history. One row per
+/// technology name, with every captured version and one entry per host carrying
+/// the first and last capture dates.
+pub async fn list_technologies(pool: &PgPool) -> Vec<TechRow> {
+    struct HostAgg {
+        ip: String,
+        hostname: String,
+        port: u16,
+        service: String,
+        first: chrono::DateTime<chrono::Utc>,
+        last: chrono::DateTime<chrono::Utc>,
+    }
+    struct TechAgg {
+        name: String,
+        versions: BTreeSet<String>,
+        hosts: BTreeMap<String, HostAgg>,
+    }
+
+    let rows = sqlx::query(
+        "SELECT COALESCE(t->>'name', '') AS name,
+                COALESCE(t->>'version', '') AS version,
+                c.address,
+                COALESCE(c.host_ip, '') AS host_ip,
+                c.port,
+                COALESCE(c.scheme, '') AS scheme,
+                min(c.captured_at) AS first_seen,
+                max(c.captured_at) AS last_seen
+         FROM scan_host_captures c
+         CROSS JOIN LATERAL jsonb_array_elements(COALESCE(c.tech, '[]'::jsonb)) AS t
+         WHERE COALESCE(t->>'name', '') <> ''
+         GROUP BY COALESCE(t->>'name', ''), COALESCE(t->>'version', ''),
+                  c.address, c.host_ip, c.port, COALESCE(c.scheme, '')
+         ORDER BY name, c.address, version",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    let mut by_name: BTreeMap<String, TechAgg> = BTreeMap::new();
+    for row in &rows {
+        let name: String = row.get("name");
+        let version: String = row.get("version");
+        let address: String = row.get("address");
+        let host_ip: String = row.get("host_ip");
+        let port = row.get::<Option<i32>, _>("port").unwrap_or(0).max(0) as u16;
+        let scheme: String = row.get("scheme");
+        let first: chrono::DateTime<chrono::Utc> = row.get("first_seen");
+        let last: chrono::DateTime<chrono::Utc> = row.get("last_seen");
+
+        let agg = by_name
+            .entry(name.to_lowercase())
+            .or_insert_with(|| TechAgg {
+                name: name.clone(),
+                versions: BTreeSet::new(),
+                hosts: BTreeMap::new(),
+            });
+        if !version.trim().is_empty() {
+            agg.versions.insert(version.trim().to_string());
+        }
+
+        let host = agg
+            .hosts
+            .entry(address.clone())
+            .or_insert_with(|| HostAgg {
+                ip: if host_ip.is_empty() {
+                    address.clone()
+                } else {
+                    host_ip.clone()
+                },
+                hostname: if host_ip.is_empty() || host_ip == address {
+                    String::new()
+                } else {
+                    address.clone()
+                },
+                port,
+                service: service_label(&scheme).to_string(),
+                first,
+                last,
+            });
+        if last > host.last {
+            host.ip = if host_ip.is_empty() {
+                address.clone()
+            } else {
+                host_ip.clone()
+            };
+            host.hostname = if host_ip.is_empty() || host_ip == address {
+                String::new()
+            } else {
+                address.clone()
+            };
+            host.port = port;
+            host.service = service_label(&scheme).to_string();
+        }
+        host.first = host.first.min(first);
+        host.last = host.last.max(last);
+    }
+
+    let mut technologies: Vec<TechRow> = by_name
+        .into_values()
+        .map(|agg| {
+            let TechAgg {
+                name,
+                versions,
+                hosts,
+            } = agg;
+            let mut hosts: Vec<TechHost> = hosts
+                .into_values()
+                .map(|host| TechHost {
+                    ip: host.ip,
+                    hostname: host.hostname,
+                    os: "—".into(),
+                    port: host.port,
+                    service: host.service,
+                    first_seen: host.first.format("%B %-d, %Y").to_string(),
+                    last_seen: host.last.format("%B %-d, %Y").to_string(),
+                })
+                .collect();
+            hosts.sort_by(|a, b| a.ip.cmp(&b.ip));
+            TechRow {
+                id: 0,
+                name: name.clone(),
+                versions: if versions.is_empty() {
+                    "—".into()
+                } else {
+                    versions.into_iter().collect::<Vec<_>>().join(", ")
+                },
+                category: technology_category(&name).to_string(),
+                host_count: hosts.len(),
+                hosts,
+            }
+        })
+        .collect();
+
+    technologies.sort_by(|a, b| {
+        b.host_count
+            .cmp(&a.host_count)
+            .then(a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+    for (index, technology) in technologies.iter_mut().enumerate() {
+        technology.id = index + 1;
+    }
+    technologies
+}
+
+fn service_label(scheme: &str) -> &'static str {
+    match scheme.trim().to_ascii_lowercase().as_str() {
+        "https" => "HTTPS",
+        "http" => "HTTP",
+        _ => "—",
+    }
+}
+
+fn technology_category(name: &str) -> &'static str {
+    let name = name.to_lowercase();
+    let matches = |needles: &[&str]| needles.iter().any(|needle| name.contains(needle));
+
+    if matches(&[
+        "nginx", "apache", "httpd", "caddy", "iis", "lighttpd", "tomcat", "jetty", "openresty",
+    ]) {
+        "Web server"
+    } else if matches(&["openssh", "dropbear"]) {
+        "Remote access"
+    } else if matches(&["redis", "memcached"]) {
+        "Cache"
+    } else if matches(&[
+        "postgres",
+        "mysql",
+        "mariadb",
+        "mongo",
+        "elasticsearch",
+        "mssql",
+        "sqlite",
+        "cassandra",
+    ]) {
+        "Database"
+    } else if matches(&["docker", "containerd", "podman"]) {
+        "Container runtime"
+    } else if matches(&["kubernetes", "openshift", "rancher"]) {
+        "Orchestration"
+    } else if matches(&["gitea", "gitlab", "github", "bitbucket"]) {
+        "Source control"
+    } else if matches(&["jenkins", "teamcity", "drone", "argo"]) {
+        "CI/CD"
+    } else if matches(&[
+        "wordpress",
+        "joomla",
+        "drupal",
+        "ghost",
+        "magento",
+        "shopify",
+    ]) {
+        "CMS"
+    } else if matches(&[
+        "php", "node.js", "nodejs", "python", "ruby", "java", "golang", "dotnet", "asp.net",
+    ]) {
+        "Application runtime"
+    } else if matches(&[
+        "laravel", "django", "rails", "express", "react", "vue", "angular", "next.js",
+    ]) {
+        "Framework"
+    } else if matches(&["cloudflare", "akamai", "fastly"]) {
+        "CDN"
+    } else {
+        "Detected"
+    }
 }
 
 /// Inserts a scan row in the running state and returns its id.

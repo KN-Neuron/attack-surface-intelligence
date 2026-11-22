@@ -15,8 +15,7 @@ use crate::auth::{self, CurrentAdmin, PERMISSION_PAGES, PermissionPage};
 use crate::db;
 use crate::defectdojo;
 use crate::mock::{
-    DetectedVuln, PopularService, PopularTech, ScanRow, ServiceSlice, TechRow, TimelinePoint,
-    UpcomingScan,
+    DetectedVuln, PopularService, PopularTech, ScanRow, ServiceSlice, TimelinePoint, UpcomingScan,
 };
 use crate::nav::{self, NavGroup};
 use crate::scan;
@@ -26,7 +25,7 @@ use crate::state::{
     DefectDojoSyncRow, EditAsset, EditHostEntry, HostFqdn, HostGroup, HostIp, HostRange,
     ImportCaptures, ImportCapturesResult, ImportHosts, ImportPreview, ImportSummary, NewAdmin,
     NewGroup, NewHostEntries, NewPolicy, NewSignature, Policy, Role, RolePayload, RunScan,
-    ScanDetail, ScanRowView, ScanSettings, ScanStatus, ScanType, Signature, UpdateAdmin,
+    ScanDetail, ScanRowView, ScanSettings, ScanStatus, ScanType, Signature, TechRow, UpdateAdmin,
 };
 
 const PRODUCT: &str = "Visibly";
@@ -542,8 +541,10 @@ pub async fn technologies_used(
     State(pool): State<PgPool>,
     Extension(admin): Extension<CurrentAdmin>,
 ) -> Html<String> {
-    let techs: Vec<TechRow> = db::get_data(&pool, "technologies").await;
-    let tech_json = serde_json::to_string(&techs).unwrap_or_else(|_| "[]".into());
+    let techs: Vec<TechRow> = db::list_technologies(&pool).await;
+    let tech_json = serde_json::to_string(&techs)
+        .unwrap_or_else(|_| "[]".into())
+        .replace('<', "\\u003c");
     let page = TechnologiesPage {
         shell: build_shell(&pool, nav::TECHNOLOGIES, &admin).await,
         title: "Technologies used",
@@ -979,8 +980,22 @@ pub async fn scan_compare(
     State(pool): State<PgPool>,
     Extension(admin): Extension<CurrentAdmin>,
 ) -> Html<String> {
-    let scans: Vec<ScanRow> = db::get_data(&pool, "scan_history").await;
-    let scan_json = serde_json::to_string(&scans).unwrap_or_else(|_| "[]".into());
+    // Only real, finished scans are comparable. Technology and vulnerability
+    // counts are recomputed from the captures because the stored scan row keeps
+    // a host-based technology count and does not update its vulnerability total.
+    let mut scans = db::list_scans(&pool).await;
+    scans.retain(|scan| scan.status != "Running");
+    let metrics = db::scan_compare_metrics(&pool).await;
+    for scan in &mut scans {
+        if let Some((technologies, vulns)) = metrics.get(&scan.id) {
+            scan.technologies = *technologies;
+            scan.vulns = *vulns;
+        }
+    }
+
+    let scan_json = serde_json::to_string(&scans)
+        .unwrap_or_else(|_| "[]".into())
+        .replace('<', "\\u003c");
     let page = ScanComparePage {
         shell: build_shell(&pool, nav::SCAN_COMPARE, &admin).await,
         title: "Compare Scans",
