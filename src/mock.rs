@@ -60,6 +60,9 @@ pub struct UpcomingScan {
     pub next_run: String,
     pub target: String,
     pub hosts: u32,
+    /// Policy id of the next scheduled scan, so it can be head-started.
+    #[serde(default)]
+    pub policy_id: i64,
 }
 
 pub fn upcoming_scan() -> UpcomingScan {
@@ -69,6 +72,9 @@ pub fn upcoming_scan() -> UpcomingScan {
         next_run: "November 22, 2026 01:00 AM".into(),
         target: "Perimeter DMZ · 10.0.0.0/24".into(),
         hosts: 254,
+        // The seeded placeholder has no policy behind it, so nothing can be
+        // head-started until a real schedule exists.
+        policy_id: 0,
     }
 }
 

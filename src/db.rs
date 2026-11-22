@@ -3260,6 +3260,17 @@ pub async fn policy_schedule(pool: &PgPool) -> Vec<(i64, String, Option<chrono::
     .collect()
 }
 
+/// Policy behind a scan, if it was launched by one. `None` for manual scans.
+pub async fn scan_policy_id(pool: &PgPool, scan_id: i64) -> Option<i64> {
+    sqlx::query_scalar("SELECT policy_id FROM scans WHERE id = $1")
+        .bind(scan_id)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten()
+        .flatten()
+}
+
 pub async fn policy_by_id(pool: &PgPool, id: i64) -> Option<Policy> {
     sqlx::query("SELECT id, name, ord, enabled, criteria FROM policies WHERE id = $1")
         .bind(id)

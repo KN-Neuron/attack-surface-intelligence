@@ -723,7 +723,6 @@
     var pauseBtn = document.getElementById("scan-pause");
     var pauseIcon = document.getElementById("scan-pause-icon");
     var pauseText = document.getElementById("scan-pause-text");
-    var scanTypeSel = document.getElementById("scan-type");
 
     var SCAN_TYPE_LABELS = { full: "Full scan test", reachability: "Reachability" };
     var ENGINE_LABELS = { httpx: "httpx", masscan: "masscan", tcp: "TCP probe" };
@@ -847,12 +846,14 @@
     if (pauseBtn) pauseBtn.addEventListener("click", function () { scanAction("/api/scan/pause"); });
     var cancelBtn = document.getElementById("scan-cancel");
     if (cancelBtn) cancelBtn.addEventListener("click", function () { scanAction("/api/scan/cancel"); });
-    ["scan-start", "scan-start-upcoming"].forEach(function (id) {
-      var btn = document.getElementById(id);
-      if (!btn) return;
+
+    // Every start button names the policy it runs, so what will scan is never a
+    // guess. Starting one is a head start, not a change to the schedule.
+    document.querySelectorAll("[data-scan-run-policy]").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        var type = scanTypeSel ? scanTypeSel.value : "full";
-        scanAction("/api/scan/run", { scan_type: type });
+        var id = btn.getAttribute("data-scan-run-policy");
+        if (!id) return;
+        scanAction("/api/policies/" + encodeURIComponent(id) + "/run");
       });
     });
 

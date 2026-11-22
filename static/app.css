@@ -1944,6 +1944,8 @@ html.nav-collapsed .sidebar .nav-item:not(.root) { display: none; }
   align-items: start;
 }
 .scan-side { display: flex; flex-direction: column; gap: 14px; }
+.queue-tail { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: 0 0 auto; }
+.queue-empty { margin: 0; padding: 16px; font-size: 12.5px; color: var(--text-mute); }
 .scan-live { padding-bottom: 18px; }
 .scan-active { padding: 6px 18px 0; }
 .scan-progress-row { padding: 4px 0 16px; }
@@ -3126,9 +3128,6 @@ body.modal-open { overflow: hidden; }
 .history-card .target-cell { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .scan-engine { margin-top: 10px; font-size: 12px; color: var(--text-mute); }
-.scan-start-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.scan-start-row .select-wrap { width: 220px; }
-.scan-start-row .select-wrap select { height: 38px; border-radius: var(--radius-ctl); font-size: 13px; }
 .screen-redesign .scan-start-row .btn { flex: 0 0 auto; align-self: auto; }
 .screen-redesign .metric-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 

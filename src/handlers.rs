@@ -170,6 +170,16 @@ impl From<&ScanStatus> for ScanView {
     }
 }
 
+/// One row of the scan queue: a scheduled policy waiting for its slot.
+pub struct QueueEntry {
+    pub id: i64,
+    pub name: String,
+    pub meta: String,
+    pub next_run: String,
+    /// This policy is the one currently scanning.
+    pub in_progress: bool,
+}
+
 #[derive(Template)]
 #[template(path = "pages/scanning_management.html")]
 struct ScanningManagementPage {
@@ -177,6 +187,8 @@ struct ScanningManagementPage {
     title: &'static str,
     upcoming: UpcomingScan,
     scan: ScanView,
+    queue: Vec<QueueEntry>,
+    can_start: bool,
 }
 
 pub async fn scanning_management(
@@ -191,6 +203,7 @@ pub async fn scanning_management(
     if let Some((policy_id, _, next)) = schedule.first() {
         if let Some(policy) = db::policy_by_id(&pool, *policy_id).await {
             upcoming.name = policy.name.clone();
+            upcoming.policy_id = policy.id;
             if let Some((frequency, when)) = policy.schedule_spec() {
                 let readable = Criterion { kind: "when".into(), value: when }.display_value();
                 upcoming.schedule = format!("{frequency} · {readable}");
@@ -216,11 +229,52 @@ pub async fn scanning_management(
         }
     }
 
+    // The queue lists every enabled policy in the order the scheduler will run
+    // them, so an operator can see what is coming and head-start the next one.
+    let running_policy = match scan.scan_id {
+        Some(id) if scan.running => db::scan_policy_id(&pool, id).await,
+        _ => None,
+    };
+    let mut queue: Vec<QueueEntry> = Vec::new();
+    for (policy_id, _, next) in &schedule {
+        let Some(policy) = db::policy_by_id(&pool, *policy_id).await else {
+            continue;
+        };
+        let targets: Vec<String> = policy
+            .targets()
+            .iter()
+            .map(|c| c.value.clone())
+            .collect();
+        let meta = if targets.is_empty() {
+            "Whole inventory".to_string()
+        } else {
+            targets.join(" · ")
+        };
+        let next_run = next
+            .map(|when| {
+                when.with_timezone(&chrono::Local)
+                    .format("%b %-d, %H:%M")
+                    .to_string()
+            })
+            .unwrap_or_else(|| "On demand".to_string());
+        queue.push(QueueEntry {
+            id: policy.id,
+            name: policy.name,
+            meta,
+            next_run,
+            // The scan state records which policy is running, so the queue can
+            // mark it rather than guessing from position.
+            in_progress: running_policy == Some(policy.id),
+        });
+    }
+
     let page = ScanningManagementPage {
         shell: build_shell(&pool, nav::SCANNING_MANAGEMENT, &admin).await,
-        title: "Scan management",
+        title: "Scan status",
         upcoming,
         scan: ScanView::from(&scan),
+        queue,
+        can_start: admin.can_write("scan_management"),
     };
     render(&page)
 }

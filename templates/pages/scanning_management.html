@@ -61,17 +61,8 @@
         <div class="scan-idle-body">
           <div>
             <h3>No scan in progress</h3>
-            <p id="scan-last">{% if !scan.completed_at.is_empty() %}Last scan finished {{ scan.completed_at }}.{% else %}Start a scan to discover hosts, services and technologies.{% endif %}</p>
+            <p id="scan-last">{% if !scan.completed_at.is_empty() %}Last scan finished {{ scan.completed_at }}.{% else %}Start the next scheduled scan from the queue.{% endif %}</p>
           </div>
-        </div>
-        <div class="scan-start-row">
-          <div class="select-wrap">
-            <select id="scan-type" aria-label="Scan type">
-              <option value="full">Full scan test (httpx)</option>
-              <option value="reachability">Reachability (masscan)</option>
-            </select>
-          </div>
-          <button class="btn primary" type="button" id="scan-start">{{ crate::icons::icon("play")|safe }} Start scan now</button>
         </div>
       </div>
     </section>
@@ -103,25 +94,47 @@
             <span class="upcoming-val">{{ upcoming.hosts }}</span>
           </div>
         </div>
+        {% if can_start && upcoming.policy_id > 0 %}
         <div class="upcoming-foot">
-          <button class="btn primary full" type="button" id="scan-start-upcoming">{{ crate::icons::icon("play")|safe }} Start now</button>
+          <button class="btn primary full" type="button" data-scan-run-policy="{{ upcoming.policy_id }}">{{ crate::icons::icon("play")|safe }} Start now</button>
         </div>
+        {% endif %}
       </section>
 
       <section class="card">
         <div class="card-head">
           <h2>Scan queue</h2>
         </div>
+        {% if queue.is_empty() %}
+        <p class="queue-empty">No scheduled scans. Add one in Scan Scheduling.</p>
+        {% else %}
         <ul class="queue">
-          <li><span class="queue-dot running"></span><div class="queue-text"><div class="queue-name">Nightly perimeter sweep</div><div class="queue-meta">10.0.4.0/24</div></div><span class="queue-state is-running">In progress</span></li>
-          <li><span class="queue-dot"></span><div class="queue-text"><div class="queue-name">Weekly internal audit</div><div class="queue-meta">Sundays 22:00</div></div><span class="queue-state">Queued</span></li>
-          <li><span class="queue-dot"></span><div class="queue-text"><div class="queue-name">Branch office discovery</div><div class="queue-meta">Mondays 03:00</div></div><span class="queue-state">Queued</span></li>
+          {% for entry in queue %}
+          <li>
+            <span class="queue-dot{% if entry.in_progress %} running{% endif %}"></span>
+            <div class="queue-text">
+              <div class="queue-name">{{ entry.name }}</div>
+              <div class="queue-meta">{{ entry.meta }}</div>
+            </div>
+            <div class="queue-tail">
+              {% if entry.in_progress %}
+              <span class="queue-state is-running">In progress</span>
+              {% else %}
+              <span class="queue-state">{{ entry.next_run }}</span>
+              {% if can_start && !scan.running %}
+              <button class="link-btn" type="button" data-scan-run-policy="{{ entry.id }}">{{ crate::icons::icon("play")|safe }} Start</button>
+              {% endif %}
+              {% endif %}
+            </div>
+          </li>
+          {% endfor %}
         </ul>
+        {% endif %}
       </section>
     </aside>
   </div>
 </div>
-<div class="explorer-host" id="scan-page" data-scan-id="{{ scan.scan_id }}" hidden></div>
+<div id="scan-page" data-scan-id="{{ scan.scan_id }}" hidden></div>
 {% endblock %}
 
 {% block modals %}
