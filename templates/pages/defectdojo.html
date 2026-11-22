@@ -1,0 +1,419 @@
+{% extends "base.html" %}
+{% block bodyclass %}screen-redesign{% endblock %}
+{% block content %}
+<div class="page-head dd-head">
+  <h1>{{ title }}</h1>
+  <span class="dd-pill {% if configured %}ok{% else %}muted{% endif %}">
+    {% if configured %}Configured{% else %}Not configured{% endif %}
+  </span>
+  <span class="spacer"></span>
+  {% if !settings.base_url.is_empty() %}
+  <a class="btn" href="{{ settings.base_url }}" target="_blank" rel="noopener">{{ crate::icons::icon("export")|safe }} Open DefectDojo</a>
+  {% endif %}
+  {% if can_write %}
+  <button class="btn" type="button" id="dd-test">{{ crate::icons::icon("activity")|safe }} Test connection</button>
+  <button class="btn" type="button" id="dd-pull">{{ crate::icons::icon("download")|safe }} Pull findings</button>
+  <button class="btn primary" type="button" id="dd-push-latest" {% if !configured || scans.is_empty() %}disabled{% endif %}>{{ crate::icons::icon("upload")|safe }} Push latest scan</button>
+  {% endif %}
+</div>
+
+<div class="page-body dd-page">
+  <div class="dd-flash" id="dd-flash" role="status" aria-live="polite" hidden></div>
+  {% if !configured %}
+  <div class="dd-note warn">
+    {{ crate::icons::icon("info")|safe }}
+    <span>Add a DefectDojo URL and API token in <button class="link-btn" type="button" data-dd-tab="settings">Settings</button> to start syncing.</span>
+  </div>
+  {% endif %}
+  <div class="vuln-tabs dd-tabs" id="dd-tabs" role="tablist" aria-label="DefectDojo sections">
+    <button type="button" class="is-on" data-dd-tab="overview" aria-pressed="true">Overview</button>
+    <button type="button" data-dd-tab="findings" aria-pressed="false">Findings<span>{{ findings.len() }}</span></button>
+    <button type="button" data-dd-tab="sync" aria-pressed="false">Sync activity<span>{{ syncs.len() }}</span></button>
+    <button type="button" data-dd-tab="settings" aria-pressed="false">Settings</button>
+  </div>
+
+  <section class="dd-panel is-on" data-dd-panel="overview">
+    <div class="dd-kpis">
+      <div class="card dd-kpi"><span class="dd-kpi-label">Active findings</span><strong>{{ active }}</strong><span class="dd-kpi-sub">{{ total }} cached in total</span></div>
+      <div class="card dd-kpi"><span class="dd-kpi-label">Critical</span><strong class="sev-Critical">{{ critical }}</strong><span class="dd-kpi-sub">{{ critical_pct }}% of active</span></div>
+      <div class="card dd-kpi"><span class="dd-kpi-label">High</span><strong class="sev-High">{{ high }}</strong><span class="dd-kpi-sub">{{ high_pct }}% of active</span></div>
+      <div class="card dd-kpi"><span class="dd-kpi-label">Verified</span><strong>{{ verified }}</strong><span class="dd-kpi-sub">{{ risk_accepted }} risk accepted</span></div>
+    </div>
+
+    <div class="dd-note">
+      {{ crate::icons::icon("clock")|safe }}
+      <span>
+        {% if last_sync.id > 0 %}
+        Last {{ last_sync.kind }}: <span class="badge {% if last_sync.status == "Completed" %}ok{% else if last_sync.status == "Partial" %}warn{% else %}bad{% endif %}">{{ last_sync.status }}</span>
+        · {{ last_sync.started }} · {{ last_sync.duration }}
+        {% else %}
+        No DefectDojo sync has run yet.
+        {% endif %}
+      </span>
+    </div>
+
+    <div class="dd-split">
+      <section class="card dd-card">
+        <div class="card-head"><h2>Severity distribution</h2><span class="spacer"></span><span class="muted">{{ active }} active</span></div>
+        <div class="dd-sev-list">
+          <div class="dd-sev-row"><span class="severity sev-Critical">Critical</span><span class="dd-bar"><i style="width: {{ critical_pct }}%"></i></span><b>{{ critical }}</b></div>
+          <div class="dd-sev-row"><span class="severity sev-High">High</span><span class="dd-bar"><i style="width: {{ high_pct }}%"></i></span><b>{{ high }}</b></div>
+          <div class="dd-sev-row"><span class="severity sev-Medium">Medium</span><span class="dd-bar"><i style="width: {{ medium_pct }}%"></i></span><b>{{ medium }}</b></div>
+          <div class="dd-sev-row"><span class="severity sev-Low">Low</span><span class="dd-bar"><i style="width: {{ low_pct }}%"></i></span><b>{{ low }}</b></div>
+          <div class="dd-sev-row"><span class="severity sev-Info">Info</span><span class="dd-bar"><i style="width: {{ info_pct }}%"></i></span><b>{{ info }}</b></div>
+        </div>
+        <div class="dd-mini">
+          <span>{{ false_positive }} false positive</span>
+          <span>{{ mitigated }} mitigated</span>
+          <span>{{ risk_accepted }} risk accepted</span>
+        </div>
+      </section>
+
+      <section class="card dd-card">
+        <div class="card-head"><h2>Products</h2><span class="spacer"></span><span class="muted">Top {{ products.len() }}</span></div>
+        {% if products.is_empty() %}
+        <div class="dd-empty">No product data yet. Pull findings from DefectDojo to populate this view.</div>
+        {% else %}
+        <div class="dd-product-list">
+          {% for product in products %}
+          <div class="dd-product-row">
+            <span class="dd-product-name" title="{{ product.name }}">{{ product.name }}</span>
+            <span class="dd-bar"><i style="width: {{ product.pct }}%"></i></span>
+            <b>{{ product.count }}</b>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </section>
+    </div>
+
+    <section class="card dd-card">
+      <div class="card-head">
+        <h2>Recent findings</h2>
+        <span class="spacer"></span>
+        <button class="link-btn" type="button" data-dd-tab="findings">View all{{ crate::icons::icon("chevron-right")|safe }}</button>
+      </div>
+      {% if recent.is_empty() %}
+      <div class="dd-empty">Nothing cached yet. Use “Pull findings” after connecting.</div>
+      {% else %}
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Severity</th><th>Finding</th><th>Status</th><th>Product</th><th>Date</th><th></th></tr></thead>
+          <tbody>
+            {% for finding in recent %}
+            <tr>
+              <td><span class="severity sev-{{ finding.severity }}">{{ finding.severity }}</span></td>
+              <td class="wrap-cell"><span class="dd-finding-title">{{ finding.title }}</span>{% if !finding.cve.is_empty() %}<span class="alert-cve mono">{{ finding.cve }}</span>{% endif %}</td>
+              <td><span class="badge {% if finding.active %}warn{% else %}muted-badge{% endif %}">{{ finding.status }}</span></td>
+              <td>{{ finding.product_name }}</td>
+              <td>{{ finding.date }}</td>
+              <td class="right"><a class="link-btn" href="{{ finding.link }}" target="_blank" rel="noopener">Open{{ crate::icons::icon("chevron-right")|safe }}</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </section>
+  </section>
+
+  <section class="dd-panel" data-dd-panel="findings" hidden>
+    <section class="card tab-card">
+      <div class="vuln-tabs" id="dd-severity-filter" role="group" aria-label="Filter findings by severity">
+        <button type="button" class="is-on" data-attr-value="" aria-pressed="true">All</button>
+        <button type="button" data-attr-value="Critical" aria-pressed="false">Critical</button>
+        <button type="button" data-attr-value="High" aria-pressed="false">High</button>
+        <button type="button" data-attr-value="Medium" aria-pressed="false">Medium</button>
+        <button type="button" data-attr-value="Low" aria-pressed="false">Low</button>
+        <button type="button" data-attr-value="Info" aria-pressed="false">Info</button>
+        <div class="search-box">
+          <input type="search" placeholder="Search title, product, CVE, host..." aria-label="Search DefectDojo findings" data-table-filter="dd-findings-table">
+          {{ crate::icons::icon("search")|safe }}
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl" id="dd-findings-table" data-attr-filter="data-severity" data-attr-select="dd-severity-filter">
+          <thead>
+            <tr>
+              <th>Severity</th>
+              <th>Finding</th>
+              <th>Status</th>
+              <th>Product</th>
+              <th>CVE / Rule</th>
+              <th>Endpoint</th>
+              <th>Date</th>
+              <th class="right w-actions"><span class="visually-hidden">Open</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for finding in findings %}
+            <tr data-severity="{{ finding.severity }}">
+              <td><span class="severity sev-{{ finding.severity }}">{{ finding.severity }}</span></td>
+              <td class="wrap-cell">
+                <span class="dd-finding-title">{{ finding.title }}</span>
+                {% if !finding.component_name.is_empty() %}<span class="dd-component">{{ finding.component_name }}{% if !finding.component_version.is_empty() %} {{ finding.component_version }}{% endif %}</span>{% endif %}
+              </td>
+              <td><span class="badge {% if finding.active %}warn{% else %}muted-badge{% endif %}">{{ finding.status }}</span></td>
+              <td>{{ finding.product_name }}</td>
+              <td class="mono">{{ finding.cve }}{% if finding.cve.is_empty() %}{{ finding.vuln_id_from_tool }}{% endif %}</td>
+              <td class="mono wrap-cell">{{ finding.endpoint }}</td>
+              <td>{{ finding.date }}</td>
+              <td class="right"><a class="link-btn" href="{{ finding.link }}" target="_blank" rel="noopener">Open{{ crate::icons::icon("chevron-right")|safe }}</a></td>
+            </tr>
+            {% endfor %}
+            {% if findings.is_empty() %}
+            <tr><td colspan="8" class="empty-cell">No findings cached. Pull from DefectDojo to populate this table.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      {% include "partials/pager.html" %}
+    </section>
+  </section>
+
+  <section class="dd-panel" data-dd-panel="sync" hidden>
+    <section class="card dd-card">
+      <div class="card-head">
+        <h2>Push a scan</h2>
+        <span class="spacer"></span>
+        <span class="muted">One engagement and test per scan and product</span>
+      </div>
+      {% if scans.is_empty() %}
+      <div class="dd-empty">No completed full scans yet. Run a full scan, then push it here.</div>
+      {% else %}
+      <div class="dd-push-row">
+        <div class="select-wrap">
+          <select id="dd-scan-select" aria-label="Scan to push">
+            {% for scan in scans %}
+            <option value="{{ scan.id }}">#{{ scan.id }} · {{ scan.label }} · {{ scan.started }} · {{ scan.findings }} finding(s)</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% if can_write %}
+        <button class="btn primary" type="button" id="dd-push-selected" {% if !configured %}disabled{% endif %}>{{ crate::icons::icon("upload")|safe }} Push selected scan</button>
+        {% endif %}
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="card dd-card">
+      <div class="card-head"><h2>Activity</h2><span class="spacer"></span><span class="muted">Newest first</span></div>
+      <div class="tbl-wrap">
+        <table class="tbl" id="dd-sync-table">
+          <thead>
+            <tr><th>Started</th><th>Action</th><th>Trigger</th><th>Status</th><th>Scan</th><th>Results</th><th>Duration</th><th>Details</th></tr>
+          </thead>
+          <tbody>
+            {% for sync in syncs %}
+            <tr>
+              <td>{{ sync.started }}</td>
+              <td><span class="badge">{{ sync.kind }}</span></td>
+              <td>{{ sync.trigger }}</td>
+              <td><span class="badge {% if sync.status == "Completed" %}ok{% else if sync.status == "Partial" %}warn{% else %}bad{% endif %}">{{ sync.status }}</span></td>
+              <td>{{ sync.scan_label }}{% if sync.scan_id > 0 %} <span class="muted mono">#{{ sync.scan_id }}</span>{% endif %}</td>
+              <td class="wrap-cell">
+                {% if sync.kind == "push" %}
+                {{ sync.findings_sent }} sent · {{ sync.findings_created }} new · {{ sync.findings_closed }} closed{% if sync.findings_reactivated > 0 %} · {{ sync.findings_reactivated }} reopened{% endif %}
+                {% else if sync.kind == "pull" %}
+                {{ sync.findings_pulled }} pulled
+                {% else %}
+                Connection test
+                {% endif %}
+              </td>
+              <td>{{ sync.duration }}</td>
+              <td>
+                {% if !sync.error.is_empty() %}<div class="dd-error">{{ sync.error }}</div>{% endif %}
+                {% if !sync.response.is_empty() %}
+                <details class="dd-details"><summary>Response</summary><pre class="dd-response">{{ sync.response }}</pre></details>
+                {% endif %}
+                {% if sync.error.is_empty() && sync.response.is_empty() %}<span class="muted">—</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+            {% if syncs.is_empty() %}
+            <tr><td colspan="8" class="empty-cell">No DefectDojo activity yet.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+
+  <section class="dd-panel" data-dd-panel="settings" hidden>
+    <section class="card dd-card">
+      <div class="card-head">
+        <h2>Connection</h2>
+        <span class="spacer"></span>
+        {% if !key_page_url.is_empty() %}
+        <a class="link-btn" href="{{ key_page_url }}" target="_blank" rel="noopener">Get an API token{{ crate::icons::icon("chevron-right")|safe }}</a>
+        {% endif %}
+      </div>
+      <div class="dd-settings">
+        <div class="settings-row">
+          <div class="settings-copy">
+            <div class="settings-title">Enable DefectDojo</div>
+            <div class="settings-desc">Turn off to pause every automatic and manual sync without deleting the configuration.</div>
+          </div>
+          <div class="settings-field">
+            <label class="switch">
+              <input type="checkbox" id="dd-enabled" {% if settings.enabled %}checked{% endif %} {% if !can_write %}disabled{% endif %}>
+              <span class="switch-track"></span>
+              <span class="switch-text" id="dd-enabled-text">{% if settings.enabled %}On{% else %}Off{% endif %}</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-copy">
+            <div class="settings-title">DefectDojo URL</div>
+            <div class="settings-desc">Base URL of the instance, for example <code>https://defectdojo.example.com</code>.</div>
+          </div>
+          <div class="settings-field dd-wide-field">
+            <input type="url" id="dd-base-url" value="{{ settings.base_url }}" placeholder="https://defectdojo.example.com" {% if !can_write %}disabled{% endif %}>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-copy">
+            <div class="settings-title">API token</div>
+            <div class="settings-desc">
+              Sent as <code>Authorization: Token …</code>. {% if settings.has_token %}Stored token: <span class="mono">{{ settings.token_hint }}</span>. Leave blank to keep it.{% else %}No token stored yet.{% endif %}
+            </div>
+          </div>
+          <div class="settings-field dd-wide-field">
+            <input type="password" id="dd-token" autocomplete="new-password" placeholder="{% if settings.has_token %}Leave blank to keep the stored token{% else %}Paste the API v2 token{% endif %}" {% if !can_write %}disabled{% endif %}>
+            {% if settings.has_token && can_write %}
+            <label class="dd-check"><input type="checkbox" id="dd-clear-token"> Remove the stored token</label>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-copy">
+            <div class="settings-title">Verify TLS</div>
+            <div class="settings-desc">Keep on for normal HTTPS instances. Turn off only for a self-signed certificate you trust.</div>
+          </div>
+          <div class="settings-field">
+            <label class="switch">
+              <input type="checkbox" id="dd-verify-tls" {% if settings.verify_tls %}checked{% endif %} {% if !can_write %}disabled{% endif %}>
+              <span class="switch-track"></span>
+              <span class="switch-text" id="dd-verify-tls-text">{% if settings.verify_tls %}On{% else %}Off{% endif %}</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card dd-card">
+      <div class="card-head"><h2>Mapping and sync</h2></div>
+      <div class="dd-settings">
+        <div class="settings-row">
+          <div class="settings-copy">
+            <div class="settings-title">Product type</div>
+            <div class="settings-desc">DefectDojo organization that owns the Visibly products.</div>
+          </div>
+          <div class="settings-field dd-wide-field">
+            <input type="text" id="dd-product-type" value="{{ settings.product_type_name }}" {% if !can_write %}disabled{% endif %}>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-copy">
+            <div class="settings-title">Default product</div>
+            <div class="settings-desc">Used for hosts that are not in any Visibly host group. Grouped hosts map to a product named after the group.</div>
+          </div>
+          <div class="settings-field dd-wide-field">
+            <input type="text" id="dd-default-product" value="{{ settings.default_product_name }}" {% if !can_write %}disabled{% endif %}>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-copy">
+            <div class="settings-title">Auto-sync after full scans</div>
+            <div class="settings-desc">Push a completed full scan automatically. Failures only appear in Activity; they never fail the scan.</div>
+          </div>
+          <div class="settings-field">
+            <label class="switch">
+              <input type="checkbox" id="dd-auto-sync" {% if settings.auto_sync %}checked{% endif %} {% if !can_write %}disabled{% endif %}>
+              <span class="switch-track"></span>
+              <span class="switch-text" id="dd-auto-sync-text">{% if settings.auto_sync %}On{% else %}Off{% endif %}</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-copy">
+            <div class="settings-title">Close old findings on re-push</div>
+            <div class="settings-desc">When the same scan is pushed again, findings absent from the new report are mitigated inside that scan's test.</div>
+          </div>
+          <div class="settings-field">
+            <label class="switch">
+              <input type="checkbox" id="dd-close-old" {% if settings.close_old_findings %}checked{% endif %} {% if !can_write %}disabled{% endif %}>
+              <span class="switch-track"></span>
+              <span class="switch-text" id="dd-close-old-text">{% if settings.close_old_findings %}On{% else %}Off{% endif %}</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-copy">
+            <div class="settings-title">Minimum severity</div>
+            <div class="settings-desc">Findings below this severity are dropped by the DefectDojo importer.</div>
+          </div>
+          <div class="settings-field">
+            <div class="select-wrap settings-select">
+              <select id="dd-min-severity" {% if !can_write %}disabled{% endif %}>
+                <option value="Info" {% if settings.minimum_severity == "Info" %}selected{% endif %}>Info</option>
+                <option value="Low" {% if settings.minimum_severity == "Low" %}selected{% endif %}>Low</option>
+                <option value="Medium" {% if settings.minimum_severity == "Medium" %}selected{% endif %}>Medium</option>
+                <option value="High" {% if settings.minimum_severity == "High" %}selected{% endif %}>High</option>
+                <option value="Critical" {% if settings.minimum_severity == "Critical" %}selected{% endif %}>Critical</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-copy">
+            <div class="settings-title">Push CVE detections</div>
+            <div class="settings-desc">Technology versions matching the local vulnerability database become findings with a CVE id.</div>
+          </div>
+          <div class="settings-field">
+            <label class="switch">
+              <input type="checkbox" id="dd-push-cves" {% if settings.push_cves %}checked{% endif %} {% if !can_write %}disabled{% endif %}>
+              <span class="switch-track"></span>
+              <span class="switch-text" id="dd-push-cves-text">{% if settings.push_cves %}On{% else %}Off{% endif %}</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-copy">
+            <div class="settings-title">Push custom signature matches</div>
+            <div class="settings-desc">Header, cookie and technology matches raised by Custom Signatures become generic findings.</div>
+          </div>
+          <div class="settings-field">
+            <label class="switch">
+              <input type="checkbox" id="dd-push-signatures" {% if settings.push_signatures %}checked{% endif %} {% if !can_write %}disabled{% endif %}>
+              <span class="switch-track"></span>
+              <span class="switch-text" id="dd-push-signatures-text">{% if settings.push_signatures %}On{% else %}Off{% endif %}</span>
+            </label>
+          </div>
+        </div>
+
+        {% if can_write %}
+        <div class="settings-foot">
+          <span class="settings-saved" id="dd-status" role="status" aria-live="polite" hidden></span>
+          <button class="btn primary" type="button" id="dd-save">{{ crate::icons::icon("check")|safe }} Save settings</button>
+        </div>
+        {% endif %}
+      </div>
+    </section>
+
+    {% if !can_write %}
+    <div class="dd-note">{{ crate::icons::icon("info")|safe }}<span>Your role can read this page but not change the connection or run syncs.</span></div>
+    {% endif %}
+  </section>
+</div>
+<script src="/static/defectdojo.js?v=1"></script>
+{% endblock %}

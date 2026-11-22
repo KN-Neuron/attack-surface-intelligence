@@ -1,5 +1,6 @@
 mod auth;
 mod db;
+mod defectdojo;
 mod handlers;
 mod icons;
 mod mock;
@@ -68,6 +69,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/log-center/data-explorer", get(handlers::data_explorer))
         .route("/log-center/scan-history", get(handlers::scan_history))
         .route("/log-center/alerts", get(handlers::alerts_page))
+        // DefectDojo integration.
+        .route("/defectdojo", get(handlers::defectdojo_page))
         // Single destinations.
         .route("/admin-management", get(handlers::admin_management))
         .route("/settings", get(handlers::settings))
@@ -93,6 +96,13 @@ async fn main() -> anyhow::Result<()> {
             put(handlers::update_signature).delete(handlers::delete_signature),
         )
         .route("/api/settings/scan", put(handlers::save_scan_settings))
+        .route(
+            "/api/defectdojo/settings",
+            put(handlers::save_defectdojo_settings),
+        )
+        .route("/api/defectdojo/test", post(handlers::test_defectdojo))
+        .route("/api/defectdojo/sync", post(handlers::sync_defectdojo))
+        .route("/api/defectdojo/pull", post(handlers::pull_defectdojo))
         .route("/api/policies", post(handlers::create_policy))
         .route(
             "/api/policies/{id}",

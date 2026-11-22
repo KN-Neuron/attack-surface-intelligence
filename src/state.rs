@@ -917,6 +917,210 @@ pub fn now_label() -> String {
         .to_string()
 }
 
+// ---------------------------------------------------------------- DefectDojo
+
+/// Config for the DefectDojo connection. Stored as one JSON document in
+/// `app_data`; the token never leaves the server except when it is written.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct DefectDojoSettings {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    pub base_url: String,
+    #[serde(default)]
+    pub api_token: String,
+    pub product_type_name: String,
+    pub default_product_name: String,
+    #[serde(default = "default_true")]
+    pub auto_sync: bool,
+    #[serde(default = "default_true")]
+    pub close_old_findings: bool,
+    pub minimum_severity: String,
+    #[serde(default = "default_true")]
+    pub verify_tls: bool,
+    #[serde(default = "default_true")]
+    pub push_cves: bool,
+    #[serde(default = "default_true")]
+    pub push_signatures: bool,
+}
+
+impl Default for DefectDojoSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            base_url: String::new(),
+            api_token: String::new(),
+            product_type_name: "Visibly".into(),
+            default_product_name: "Visibly Attack Surface".into(),
+            auto_sync: true,
+            close_old_findings: true,
+            minimum_severity: "Info".into(),
+            verify_tls: true,
+            push_cves: true,
+            push_signatures: true,
+        }
+    }
+}
+
+impl DefectDojoSettings {
+    /// Trims operator input and replaces blanks with the built-in defaults, so a
+    /// half-filled form can never produce an unusable request.
+    pub fn sanitized(mut self) -> Self {
+        let defaults = Self::default();
+        self.base_url = self.base_url.trim().trim_end_matches('/').to_string();
+        if self.base_url.is_empty() {
+            self.base_url = defaults.base_url;
+        }
+        self.api_token = self.api_token.trim().to_string();
+        self.product_type_name = self.product_type_name.trim().to_string();
+        if self.product_type_name.is_empty() {
+            self.product_type_name = defaults.product_type_name;
+        }
+        self.default_product_name = self.default_product_name.trim().to_string();
+        if self.default_product_name.is_empty() {
+            self.default_product_name = defaults.default_product_name;
+        }
+        self.minimum_severity = normalize_severity(&self.minimum_severity).to_string();
+        self
+    }
+
+    /// A connection needs a URL, a token and the feature enabled.
+    pub fn configured(&self) -> bool {
+        self.enabled
+            && !self.api_token.is_empty()
+            && (self.base_url.starts_with("https://") || self.base_url.starts_with("http://"))
+    }
+
+    pub fn token_hint(&self) -> String {
+        if self.api_token.is_empty() {
+            String::new()
+        } else if self.api_token.len() <= 4 {
+            "••••".into()
+        } else {
+            format!("••••{}", &self.api_token[self.api_token.len() - 4..])
+        }
+    }
+}
+
+/// The settings shown in the UI. The token is reduced to a hint.
+pub struct DefectDojoSettingsView {
+    pub enabled: bool,
+    pub base_url: String,
+    pub has_token: bool,
+    pub token_hint: String,
+    pub product_type_name: String,
+    pub default_product_name: String,
+    pub auto_sync: bool,
+    pub close_old_findings: bool,
+    pub minimum_severity: String,
+    pub verify_tls: bool,
+    pub push_cves: bool,
+    pub push_signatures: bool,
+}
+
+impl From<&DefectDojoSettings> for DefectDojoSettingsView {
+    fn from(settings: &DefectDojoSettings) -> Self {
+        Self {
+            enabled: settings.enabled,
+            base_url: settings.base_url.clone(),
+            has_token: !settings.api_token.is_empty(),
+            token_hint: settings.token_hint(),
+            product_type_name: settings.product_type_name.clone(),
+            default_product_name: settings.default_product_name.clone(),
+            auto_sync: settings.auto_sync,
+            close_old_findings: settings.close_old_findings,
+            minimum_severity: settings.minimum_severity.clone(),
+            verify_tls: settings.verify_tls,
+            push_cves: settings.push_cves,
+            push_signatures: settings.push_signatures,
+        }
+    }
+}
+
+/// Only the six severities DefectDojo understands, in its exact casing.
+pub fn normalize_severity(value: &str) -> &'static str {
+    match value.trim().to_lowercase().as_str() {
+        "critical" => "Critical",
+        "high" => "High",
+        "medium" => "Medium",
+        "low" => "Low",
+        _ => "Info",
+    }
+}
+
+/// A finding pulled from DefectDojo and cached locally for the dashboard.
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct DefectDojoFinding {
+    pub id: i64,
+    pub title: String,
+    pub severity: String,
+    pub status: String,
+    pub active: bool,
+    pub verified: bool,
+    pub false_positive: bool,
+    pub duplicate: bool,
+    pub risk_accepted: bool,
+    pub mitigated: bool,
+    pub date: String,
+    pub cve: String,
+    pub component_name: String,
+    pub component_version: String,
+    pub vuln_id_from_tool: String,
+    pub unique_id_from_tool: String,
+    pub product_id: i64,
+    pub product_name: String,
+    pub engagement_id: i64,
+    pub engagement_name: String,
+    pub test_id: i64,
+    pub test_name: String,
+    pub endpoint: String,
+    pub description: String,
+    pub mitigation: String,
+    pub references: String,
+    pub tags: Vec<String>,
+    pub sla_expiration_date: String,
+    pub link: String,
+}
+
+/// One row of the DefectDojo activity log (push, pull or connection test).
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct DefectDojoSyncRow {
+    pub id: i64,
+    pub kind: String,
+    pub trigger: String,
+    pub status: String,
+    pub scan_id: i64,
+    pub scan_label: String,
+    pub started: String,
+    pub finished: String,
+    pub duration: String,
+    pub findings_sent: i32,
+    pub findings_created: i32,
+    pub findings_closed: i32,
+    pub findings_reactivated: i32,
+    pub findings_pulled: i32,
+    pub error: String,
+    pub response: String,
+}
+
+/// A completed full scan offered in the manual push picker.
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct DefectDojoScanOption {
+    pub id: i64,
+    pub label: String,
+    pub started: String,
+    pub findings: i32,
+    pub status: String,
+}
+
+/// DefectDojo objects created for one scan/product pair, reused on re-push.
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct DefectDojoImport {
+    pub product_name: String,
+    pub product_id: i64,
+    pub engagement_id: i64,
+    pub test_id: i64,
+}
+
 // ---------------------------------------------------------------- request DTOs
 
 #[derive(Deserialize)]
@@ -1043,4 +1247,42 @@ pub struct RunScan {
 pub struct AckPayload {
     #[serde(default)]
     pub ids: Vec<i64>,
+}
+
+/// Body of `PUT /api/defectdojo/settings`. An omitted or blank token keeps the
+/// stored one; `clear_token` removes it deliberately.
+#[derive(Deserialize)]
+pub struct DefectDojoSettingsPayload {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub base_url: String,
+    #[serde(default)]
+    pub api_token: Option<String>,
+    #[serde(default)]
+    pub clear_token: bool,
+    #[serde(default)]
+    pub product_type_name: String,
+    #[serde(default)]
+    pub default_product_name: String,
+    #[serde(default = "default_true")]
+    pub auto_sync: bool,
+    #[serde(default = "default_true")]
+    pub close_old_findings: bool,
+    #[serde(default)]
+    pub minimum_severity: String,
+    #[serde(default = "default_true")]
+    pub verify_tls: bool,
+    #[serde(default = "default_true")]
+    pub push_cves: bool,
+    #[serde(default = "default_true")]
+    pub push_signatures: bool,
+}
+
+/// Body of `POST /api/defectdojo/sync`. Without an id the newest completed full
+/// scan is pushed.
+#[derive(Deserialize, Default)]
+pub struct DefectDojoSyncRequest {
+    #[serde(default)]
+    pub scan_id: Option<i64>,
 }

@@ -965,6 +965,7 @@ pub async fn run_scan(pool: PgPool, scan_id: i64, targets: Vec<String>, scan_typ
     // Custom signatures run after the sweep, against what this scan captured.
     alerts += record_signature_alerts(&pool, scan_id).await;
 
+    let completed = outcome.is_ok();
     match outcome {
         Ok(()) => db::finish_scan(&pool, scan_id, "Completed", None).await,
         Err(reason) if reason == "cancelled" => {
@@ -983,6 +984,15 @@ pub async fn run_scan(pool: PgPool, scan_id: i64, targets: Vec<String>, scan_typ
         .await;
 
     let _ = tokio::fs::remove_file(&list_path).await;
+
+    // Only a finished full scan has findings worth pushing. The sync runs in
+    // its own task so a slow or unreachable DefectDojo never holds up the scan.
+    if completed && scan_type == ScanType::Full {
+        let pool = pool.clone();
+        tokio::spawn(async move {
+            crate::defectdojo::auto_sync(&pool, scan_id).await;
+        });
+    }
 }
 
 /// Stages the target list for the scanners. A file keeps the argument list

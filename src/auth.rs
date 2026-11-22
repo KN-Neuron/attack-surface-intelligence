@@ -25,7 +25,7 @@ pub struct PermissionPage {
     pub label: &'static str,
 }
 
-pub const PERMISSION_PAGES: [PermissionPage; 11] = [
+pub const PERMISSION_PAGES: [PermissionPage; 12] = [
     PermissionPage { key: "dashboards", label: "Dashboards" },
     PermissionPage { key: "scan_management", label: "Scan Status" },
     PermissionPage { key: "policies", label: "Scan Scheduling" },
@@ -33,6 +33,7 @@ pub const PERMISSION_PAGES: [PermissionPage; 11] = [
     PermissionPage { key: "compare", label: "Compare Scans" },
     PermissionPage { key: "host_management", label: "Host management" },
     PermissionPage { key: "data_explorer", label: "Data Explorer" },
+    PermissionPage { key: "defectdojo", label: "DefectDojo" },
     PermissionPage { key: "scan_history", label: "Scan Results" },
     PermissionPage { key: "alerts", label: "Alerts" },
     PermissionPage { key: "admin_management", label: "Admin management" },
@@ -89,6 +90,8 @@ pub fn nav_permission(href: &str) -> Option<&'static str> {
         Some("signatures")
     } else if href.starts_with("/log-center/data-explorer") {
         Some("data_explorer")
+    } else if href.starts_with("/defectdojo") {
+        Some("defectdojo")
     } else if href.starts_with("/log-center/scan-history") {
         Some("scan_history")
     } else if href.starts_with("/log-center/alerts") {
@@ -118,6 +121,8 @@ pub fn page_for_path(path: &str) -> Option<&'static str> {
         Some("host_management")
     } else if path.starts_with("/log-center/data-explorer") || path.starts_with("/api/assets") {
         Some("data_explorer")
+    } else if path.starts_with("/defectdojo") || path.starts_with("/api/defectdojo") {
+        Some("defectdojo")
     } else if path.starts_with("/log-center/scan-history") || path.starts_with("/api/scans") {
         Some("scan_history")
     } else if path.starts_with("/log-center/alerts") || path.starts_with("/api/alerts") {
@@ -134,13 +139,14 @@ pub fn page_for_path(path: &str) -> Option<&'static str> {
     }
 }
 
-const PAGE_PATHS: [(&str, &str); 10] = [
+const PAGE_PATHS: [(&str, &str); 11] = [
     ("dashboards", nav::SCAN_SUMMARY),
     ("scan_management", nav::SCANNING_MANAGEMENT),
     ("policies", nav::SCANNING_POLICIES),
     ("compare", nav::SCAN_COMPARE),
     ("host_management", nav::HOST_MANAGEMENT),
     ("data_explorer", nav::DATA_EXPLORER),
+    ("defectdojo", nav::DEFECTDOJO),
     ("scan_history", nav::SCAN_HISTORY),
     ("alerts", nav::ALERTS),
     ("admin_management", nav::ADMIN_MANAGEMENT),

@@ -47,6 +47,7 @@ export const nav: NavSection[] = [
                     { title: 'Skanowanie', href: '/docs/skanowanie', hint: 'Scan Scheduling, typy skanu, cele, harmonogram w tle, uruchomienie' },
                     { title: 'Wyniki i analiza', href: '/docs/wyniki', hint: 'Scan Results, szczegóły skanu, Compare Scans, dashboardy, źródła danych' },
                     { title: 'Data Explorer', href: '/docs/data-explorer', hint: 'Tabela hostów, kolumny, filtry z operatorami, okres, edycja' },
+                    { title: 'DefectDojo', href: '/docs/defectdojo', hint: 'Push findingów, pull dashboardu, mapowanie produktów, historia synchronizacji' },
                     { title: 'Alerty', href: '/docs/alerty', hint: 'Reguły New host, Host down, New CVE, potwierdzanie' }
                 ]
             }

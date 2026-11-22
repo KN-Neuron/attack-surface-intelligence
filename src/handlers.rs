@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use askama::Template;
 use axum::{
     Extension, Json,
@@ -6,10 +8,12 @@ use axum::{
     response::{Html, IntoResponse, Redirect, Response},
 };
 use serde::Deserialize;
+use serde_json::{Value, json};
 use sqlx::PgPool;
 
 use crate::auth::{self, CurrentAdmin, PERMISSION_PAGES, PermissionPage};
 use crate::db;
+use crate::defectdojo;
 use crate::mock::{
     DetectedVuln, PopularService, PopularTech, ScanRow, ServiceSlice, TechRow, TimelinePoint,
     UpcomingScan,
@@ -17,11 +21,12 @@ use crate::mock::{
 use crate::nav::{self, NavGroup};
 use crate::scan;
 use crate::state::{
-    AckPayload, Admin, AlertRow, Criterion, EditAsset, EditHostEntry, HostFqdn, HostGroup,
-    HostIp, HostRange, ImportCaptures, ImportCapturesResult, ImportHosts, ImportPreview,
-    ImportSummary, NewAdmin, NewGroup, NewHostEntries, NewPolicy, NewSignature, Policy, Role,
-    RolePayload, RunScan, ScanDetail, ScanRowView, ScanSettings, ScanStatus, ScanType, Signature,
-    UpdateAdmin,
+    AckPayload, Admin, AlertRow, Criterion, DefectDojoFinding, DefectDojoScanOption,
+    DefectDojoSettings, DefectDojoSettingsPayload, DefectDojoSettingsView, DefectDojoSyncRequest,
+    DefectDojoSyncRow, EditAsset, EditHostEntry, HostFqdn, HostGroup, HostIp, HostRange,
+    ImportCaptures, ImportCapturesResult, ImportHosts, ImportPreview, ImportSummary, NewAdmin,
+    NewGroup, NewHostEntries, NewPolicy, NewSignature, Policy, Role, RolePayload, RunScan,
+    ScanDetail, ScanRowView, ScanSettings, ScanStatus, ScanType, Signature, UpdateAdmin,
 };
 
 const PRODUCT: &str = "Visibly";
@@ -1270,6 +1275,259 @@ pub async fn delete_signature(
         // permission problem.
         Err(reason) => Err((StatusCode::CONFLICT, reason.into())),
     }
+}
+
+// ---------------------------------------------------------------- defectdojo
+
+pub struct DefectDojoProductCount {
+    pub name: String,
+    pub count: usize,
+    pub pct: usize,
+}
+
+#[derive(Template)]
+#[template(path = "pages/defectdojo.html")]
+struct DefectDojoPage {
+    shell: Shell,
+    title: &'static str,
+    settings: DefectDojoSettingsView,
+    findings: Vec<DefectDojoFinding>,
+    recent: Vec<DefectDojoFinding>,
+    syncs: Vec<DefectDojoSyncRow>,
+    scans: Vec<DefectDojoScanOption>,
+    last_sync: DefectDojoSyncRow,
+    products: Vec<DefectDojoProductCount>,
+    total: usize,
+    active: usize,
+    critical: usize,
+    high: usize,
+    medium: usize,
+    low: usize,
+    info: usize,
+    critical_pct: usize,
+    high_pct: usize,
+    medium_pct: usize,
+    low_pct: usize,
+    info_pct: usize,
+    verified: usize,
+    risk_accepted: usize,
+    false_positive: usize,
+    mitigated: usize,
+    can_write: bool,
+    configured: bool,
+    key_page_url: String,
+}
+
+pub async fn defectdojo_page(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<CurrentAdmin>,
+) -> Html<String> {
+    let settings = db::defectdojo_settings(&pool).await;
+    let findings = db::list_defectdojo_findings(&pool).await;
+    let mut syncs = db::list_defectdojo_syncs(&pool).await;
+    let scans = db::defectdojo_syncable_scans(&pool).await;
+
+    let total = findings.len();
+    let (active, critical, high, medium, low, info, products) = {
+        let active_rows: Vec<&DefectDojoFinding> =
+            findings.iter().filter(|finding| finding.active).collect();
+        let count = |name: &str| {
+            active_rows
+                .iter()
+                .filter(|finding| finding.severity == name)
+                .count()
+        };
+
+        let mut by_product: BTreeMap<String, usize> = BTreeMap::new();
+        for finding in &active_rows {
+            if !finding.product_name.is_empty() {
+                *by_product.entry(finding.product_name.clone()).or_default() += 1;
+            }
+        }
+        let mut products: Vec<DefectDojoProductCount> = by_product
+            .into_iter()
+            .map(|(name, count)| DefectDojoProductCount {
+                name,
+                count,
+                pct: if active_rows.is_empty() {
+                    0
+                } else {
+                    count * 100 / active_rows.len()
+                },
+            })
+            .collect();
+        products.sort_by(|a, b| b.count.cmp(&a.count).then(a.name.cmp(&b.name)));
+        products.truncate(8);
+
+        (
+            active_rows.len(),
+            count("Critical"),
+            count("High"),
+            count("Medium"),
+            count("Low"),
+            count("Info"),
+            products,
+        )
+    };
+
+    let recent = findings.iter().take(8).cloned().collect();
+    let last_sync = syncs.first().cloned().unwrap_or_default();
+    let key_page_url = if settings.base_url.is_empty() {
+        String::new()
+    } else {
+        format!("{}/api/key-v2", settings.base_url)
+    };
+    let configured = settings.configured();
+    let settings_view = DefectDojoSettingsView::from(&settings);
+    let verified = findings_count(&findings, |finding| finding.verified);
+    let risk_accepted = findings_count(&findings, |finding| finding.risk_accepted);
+    let false_positive = findings_count(&findings, |finding| finding.false_positive);
+    let mitigated = findings_count(&findings, |finding| finding.mitigated);
+    let pct = |count: usize| {
+        if active == 0 {
+            0
+        } else {
+            count * 100 / active
+        }
+    };
+    let critical_pct = pct(critical);
+    let high_pct = pct(high);
+    let medium_pct = pct(medium);
+    let low_pct = pct(low);
+    let info_pct = pct(info);
+
+    // The sync list is also rendered on the page; keeping it newest-first makes
+    // the activity table and the "last sync" card agree.
+    syncs.sort_by(|a, b| b.id.cmp(&a.id));
+
+    let page = DefectDojoPage {
+        shell: build_shell(&pool, nav::DEFECTDOJO, &admin).await,
+        title: "DefectDojo",
+        settings: settings_view,
+        findings,
+        recent,
+        syncs,
+        scans,
+        last_sync,
+        products,
+        total,
+        active,
+        critical,
+        high,
+        medium,
+        low,
+        info,
+        critical_pct,
+        high_pct,
+        medium_pct,
+        low_pct,
+        info_pct,
+        verified,
+        risk_accepted,
+        false_positive,
+        mitigated,
+        can_write: admin.can_write("defectdojo"),
+        configured,
+        key_page_url,
+    };
+    render(&page)
+}
+
+fn findings_count(
+    findings: &[DefectDojoFinding],
+    predicate: impl Fn(&DefectDojoFinding) -> bool,
+) -> usize {
+    findings.iter().filter(|finding| predicate(finding)).count()
+}
+
+pub async fn save_defectdojo_settings(
+    State(pool): State<PgPool>,
+    Json(payload): Json<DefectDojoSettingsPayload>,
+) -> Result<Json<Value>, StatusCode> {
+    let current = db::defectdojo_settings(&pool).await;
+    let token = if payload.clear_token {
+        String::new()
+    } else {
+        payload
+            .api_token
+            .as_deref()
+            .map(str::trim)
+            .filter(|token| !token.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| current.api_token.clone())
+    };
+
+    let settings = DefectDojoSettings {
+        enabled: payload.enabled,
+        base_url: payload.base_url,
+        api_token: token,
+        product_type_name: payload.product_type_name,
+        default_product_name: payload.default_product_name,
+        auto_sync: payload.auto_sync,
+        close_old_findings: payload.close_old_findings,
+        minimum_severity: payload.minimum_severity,
+        verify_tls: payload.verify_tls,
+        push_cves: payload.push_cves,
+        push_signatures: payload.push_signatures,
+    }
+    .sanitized();
+
+    if !db::save_defectdojo_settings(&pool, &settings).await {
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    Ok(Json(json!({
+        "ok": true,
+        "message": "DefectDojo settings saved.",
+        "has_token": !settings.api_token.is_empty(),
+        "token_hint": settings.token_hint(),
+    })))
+}
+
+pub async fn test_defectdojo(State(pool): State<PgPool>) -> Json<Value> {
+    let settings = db::defectdojo_settings(&pool).await;
+    let sync_id =
+        db::create_defectdojo_sync(&pool, "test", "manual", None, "Connection test").await;
+
+    let (ok, message) = match defectdojo::test_connection(&settings).await {
+        Ok(message) => (true, message),
+        Err(error) => (false, error),
+    };
+
+    if let Some(sync_id) = sync_id {
+        let result = db::DefectDojoSyncResult {
+            status: if ok { "Completed".into() } else { "Failed".into() },
+            findings_sent: 0,
+            findings_created: 0,
+            findings_closed: 0,
+            findings_reactivated: 0,
+            findings_pulled: 0,
+            error: if ok { String::new() } else { message.clone() },
+            response: json!({ "message": message }),
+        };
+        db::finish_defectdojo_sync(&pool, sync_id, &result).await;
+    }
+
+    Json(json!({ "ok": ok, "message": message }))
+}
+
+pub async fn sync_defectdojo(
+    State(pool): State<PgPool>,
+    Json(payload): Json<DefectDojoSyncRequest>,
+) -> Result<Json<defectdojo::PushOutcome>, (StatusCode, String)> {
+    defectdojo::push_scan(&pool, payload.scan_id, "manual")
+        .await
+        .map(Json)
+        .map_err(|error| (StatusCode::BAD_GATEWAY, error))
+}
+
+pub async fn pull_defectdojo(
+    State(pool): State<PgPool>,
+) -> Result<Json<defectdojo::PullOutcome>, (StatusCode, String)> {
+    defectdojo::pull_findings(&pool)
+        .await
+        .map(Json)
+        .map_err(|error| (StatusCode::BAD_GATEWAY, error))
 }
 
 // ---------------------------------------------------------------- root + api

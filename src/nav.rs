@@ -41,6 +41,7 @@ pub const TECHNOLOGIES: &str = "/dashboards/technologies-used";
 pub const VULNERABLE: &str = "/dashboards/vulnerable-versions";
 pub const HOST_MANAGEMENT: &str = "/host-management";
 pub const DATA_EXPLORER: &str = "/log-center/data-explorer";
+pub const DEFECTDOJO: &str = "/defectdojo";
 pub const SCAN_HISTORY: &str = "/log-center/scan-history";
 pub const ALERTS: &str = "/log-center/alerts";
 pub const ADMIN_MANAGEMENT: &str = "/admin-management";
@@ -68,6 +69,7 @@ pub fn main_nav() -> SidebarDef {
             plain(vec![
                 item("Host management", HOST_MANAGEMENT, "server"),
                 item("Data Explorer", DATA_EXPLORER, "file-text"),
+                item("DefectDojo", DEFECTDOJO, "bug"),
                 item("Admin management", ADMIN_MANAGEMENT, "user-cog"),
                 item("Settings", SETTINGS, "settings"),
             ]),

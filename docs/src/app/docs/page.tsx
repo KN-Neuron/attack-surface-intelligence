@@ -125,6 +125,7 @@ export default function Page() {
                     ['Scanning › Compare Scans', <code key="7">/scanning/compare-scans</code>, 'Zestawienie dwóch uruchomień', <Link key="d7" href="/docs/wyniki#porownanie">Compare Scans</Link>],
                     ['Host management', <code key="8">/host-management</code>, 'Ewidencja: IP, zakresy, FQDN, grupy, import', <Link key="d8" href="/docs/hosty">Host management</Link>],
                     ['Data Explorer', <code key="9">/log-center/data-explorer</code>, 'Tabela hostów z filtrami', <Link key="d9" href="/docs/data-explorer">Data Explorer</Link>],
+                    ['DefectDojo', <code key="9a">/defectdojo</code>, 'Push findingów i pull dashboardu', <Link key="d9a" href="/docs/defectdojo">DefectDojo</Link>],
                     ['Admin management', <code key="10">/admin-management</code>, 'Konta administratorów i role', <Link key="d10" href="/docs/dostep#konta">Dostęp i uprawnienia</Link>],
                     ['Settings', <code key="11">/settings</code>, 'Motyw interfejsu', <Link key="d11" href="/docs/architektura#status">Architektura › Status funkcji</Link>]
                 ]}

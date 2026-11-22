@@ -2,12 +2,13 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use sqlx::postgres::{PgPoolOptions, PgRow};
-use sqlx::{PgPool, Row};
+use sqlx::{PgPool, QueryBuilder, Row};
 
 use crate::auth::PERMISSION_PAGES;
 use crate::mock;
 use crate::state::{
-    Admin, AlertRow, AssetRow, Criterion, EditAsset, HostCapture, HostFqdn, HostGroup, HostIp,
+    Admin, AlertRow, AssetRow, Criterion, DefectDojoFinding, DefectDojoImport, DefectDojoScanOption,
+    DefectDojoSettings, DefectDojoSyncRow, EditAsset, HostCapture, HostFqdn, HostGroup, HostIp,
     HostRange, ImportCapturesResult, ImportPreview, ImportSummary, NewSignature, Permission,
     Policy, Role, ScanDetail, ScanRowView, ScanServiceCount, ScanSettings, ScanStatus,
     ScanTechCount, ScanType, Signature, SignatureCriterion, now_label,
@@ -263,6 +264,86 @@ ALTER TABLE scan_state ADD COLUMN IF NOT EXISTS scan_id BIGINT;
 ALTER TABLE scan_state ADD COLUMN IF NOT EXISTS scan_type TEXT NOT NULL DEFAULT '';
 ALTER TABLE scan_state ADD COLUMN IF NOT EXISTS engine TEXT NOT NULL DEFAULT '';
 ALTER TABLE scan_state ADD COLUMN IF NOT EXISTS alerts_found INTEGER NOT NULL DEFAULT 0;
+
+-- ---------------------------------------------------------------- DefectDojo
+
+-- Every push, pull and connection test, so the integration page can show a
+-- complete activity trail without querying DefectDojo again.
+CREATE TABLE IF NOT EXISTS defectdojo_syncs (
+    id BIGSERIAL PRIMARY KEY,
+    kind TEXT NOT NULL DEFAULT 'push',
+    trigger TEXT NOT NULL DEFAULT 'manual',
+    status TEXT NOT NULL DEFAULT 'Running',
+    scan_id BIGINT REFERENCES scans(id) ON DELETE SET NULL,
+    scan_label TEXT NOT NULL DEFAULT '',
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    finished_at TIMESTAMPTZ,
+    duration_ms BIGINT,
+    findings_sent INTEGER NOT NULL DEFAULT 0,
+    findings_created INTEGER NOT NULL DEFAULT 0,
+    findings_closed INTEGER NOT NULL DEFAULT 0,
+    findings_reactivated INTEGER NOT NULL DEFAULT 0,
+    findings_pulled INTEGER NOT NULL DEFAULT 0,
+    error TEXT,
+    response JSONB
+);
+
+-- The DefectDojo engagement/test created for one Visibly scan and product.
+-- Re-pushing the same scan reimports into the same test instead of creating a
+-- second one.
+CREATE TABLE IF NOT EXISTS defectdojo_imports (
+    id BIGSERIAL PRIMARY KEY,
+    scan_id BIGINT NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+    product_name TEXT NOT NULL,
+    product_id BIGINT NOT NULL DEFAULT 0,
+    engagement_id BIGINT NOT NULL DEFAULT 0,
+    test_id BIGINT NOT NULL DEFAULT 0,
+    findings_sent INTEGER NOT NULL DEFAULT 0,
+    synced_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (scan_id, product_name)
+);
+
+-- Local cache of findings pulled from DefectDojo. The page reads this instead
+-- of calling the remote API on every request.
+CREATE TABLE IF NOT EXISTS defectdojo_findings (
+    dd_id BIGINT PRIMARY KEY,
+    title TEXT NOT NULL,
+    severity TEXT NOT NULL DEFAULT 'Info',
+    status TEXT NOT NULL DEFAULT '',
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    verified BOOLEAN NOT NULL DEFAULT FALSE,
+    false_positive BOOLEAN NOT NULL DEFAULT FALSE,
+    duplicate BOOLEAN NOT NULL DEFAULT FALSE,
+    risk_accepted BOOLEAN NOT NULL DEFAULT FALSE,
+    mitigated BOOLEAN NOT NULL DEFAULT FALSE,
+    finding_date TEXT NOT NULL DEFAULT '',
+    cve TEXT NOT NULL DEFAULT '',
+    component_name TEXT NOT NULL DEFAULT '',
+    component_version TEXT NOT NULL DEFAULT '',
+    vuln_id_from_tool TEXT NOT NULL DEFAULT '',
+    unique_id_from_tool TEXT NOT NULL DEFAULT '',
+    product_id BIGINT NOT NULL DEFAULT 0,
+    product_name TEXT NOT NULL DEFAULT '',
+    engagement_id BIGINT NOT NULL DEFAULT 0,
+    engagement_name TEXT NOT NULL DEFAULT '',
+    test_id BIGINT NOT NULL DEFAULT 0,
+    test_name TEXT NOT NULL DEFAULT '',
+    endpoint TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    mitigation TEXT NOT NULL DEFAULT '',
+    finding_references TEXT NOT NULL DEFAULT '',
+    tags JSONB NOT NULL DEFAULT '[]'::jsonb,
+    sla_expiration_date TEXT NOT NULL DEFAULT '',
+    link TEXT NOT NULL DEFAULT '',
+    synced_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS defectdojo_findings_status
+    ON defectdojo_findings (active, severity);
+CREATE INDEX IF NOT EXISTS defectdojo_findings_product
+    ON defectdojo_findings (product_name);
+CREATE INDEX IF NOT EXISTS defectdojo_syncs_started
+    ON defectdojo_syncs (started_at DESC);
 "#;
 
 pub async fn connect() -> anyhow::Result<PgPool> {
@@ -304,7 +385,21 @@ pub async fn init(pool: &PgPool) -> anyhow::Result<()> {
     // No scan survives a restart, and older databases may still carry the
     // seeded demo run in the running state.
     recover_interrupted_scans(pool).await;
+    recover_interrupted_defectdojo_syncs(pool).await;
     Ok(())
+}
+
+/// A push or pull interrupted by a restart can never finish on its own.
+async fn recover_interrupted_defectdojo_syncs(pool: &PgPool) {
+    let _ = sqlx::query(
+        "UPDATE defectdojo_syncs SET status = 'Failed',
+                error = COALESCE(error, 'interrupted by restart'),
+                finished_at = now(),
+                duration_ms = EXTRACT(EPOCH FROM (now() - started_at)) * 1000
+         WHERE status = 'Running'",
+    )
+    .execute(pool)
+    .await;
 }
 
 /// Seeds `scan_host_captures` from legacy `scan_hosts` rows. A host's newest
@@ -623,6 +718,7 @@ async fn seed_roles(pool: &PgPool) -> anyhow::Result<()> {
                     "policies",
                     "compare",
                     "host_management",
+                    "defectdojo",
                     "scan_history",
                     "alerts",
                 ],
@@ -631,7 +727,17 @@ async fn seed_roles(pool: &PgPool) -> anyhow::Result<()> {
         ),
         (
             "Analyst",
-            allow(&["dashboards", "data_explorer", "scan_history", "alerts", "host_management"], false),
+            allow(
+                &[
+                    "dashboards",
+                    "data_explorer",
+                    "defectdojo",
+                    "scan_history",
+                    "alerts",
+                    "host_management",
+                ],
+                false,
+            ),
         ),
     ];
 
@@ -3307,4 +3413,513 @@ pub async fn policy_by_id(pool: &PgPool, id: i64) -> Option<Policy> {
         .flatten()
         .as_ref()
         .map(row_to_policy)
+}
+
+// ---------------------------------------------------------------- DefectDojo
+
+pub struct DefectDojoScan {
+    pub id: i64,
+    pub label: String,
+    pub scan_type: String,
+    pub status: String,
+    pub target: String,
+    pub started_at: chrono::DateTime<chrono::Utc>,
+    pub finished_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+pub struct DetectedCve {
+    pub address: String,
+    pub url: String,
+    pub service: String,
+    pub version: String,
+    pub cve: String,
+    pub severity: String,
+    pub summary: String,
+}
+
+pub struct SignatureMatchAlert {
+    pub host: String,
+    pub url: String,
+    pub severity: String,
+    pub message: String,
+    pub detail: String,
+}
+
+/// The outcome written back to one `defectdojo_syncs` row.
+pub struct DefectDojoSyncResult {
+    pub status: String,
+    pub findings_sent: i32,
+    pub findings_created: i32,
+    pub findings_closed: i32,
+    pub findings_reactivated: i32,
+    pub findings_pulled: i32,
+    pub error: String,
+    pub response: Value,
+}
+
+pub async fn defectdojo_settings(pool: &PgPool) -> DefectDojoSettings {
+    get_data::<DefectDojoSettings>(pool, "defectdojo_settings")
+        .await
+        .sanitized()
+}
+
+pub async fn save_defectdojo_settings(pool: &PgPool, settings: &DefectDojoSettings) -> bool {
+    let data = serde_json::to_value(settings.clone().sanitized()).unwrap_or(Value::Null);
+    sqlx::query(
+        "INSERT INTO app_data (key, data) VALUES ('defectdojo_settings', $1)
+         ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data",
+    )
+    .bind(data)
+    .execute(pool)
+    .await
+    .is_ok()
+}
+
+fn row_to_defectdojo_scan(row: &PgRow) -> DefectDojoScan {
+    DefectDojoScan {
+        id: row.get("id"),
+        label: row.get("label"),
+        scan_type: row.get("scan_type"),
+        status: row.get("status"),
+        target: row.get("target"),
+        started_at: row.get("started_at"),
+        finished_at: row.get("finished_at"),
+    }
+}
+
+pub async fn defectdojo_scan(pool: &PgPool, scan_id: i64) -> Option<DefectDojoScan> {
+    sqlx::query(
+        "SELECT id, label, scan_type, status, target, started_at, finished_at
+         FROM scans WHERE id = $1",
+    )
+    .bind(scan_id)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()
+    .as_ref()
+    .map(row_to_defectdojo_scan)
+}
+
+/// The newest completed full scan, used by the one-click manual push and by
+/// auto-sync when no id is supplied.
+pub async fn defectdojo_latest_completed_scan(pool: &PgPool) -> Option<DefectDojoScan> {
+    sqlx::query(
+        "SELECT id, label, scan_type, status, target, started_at, finished_at
+         FROM scans
+         WHERE status = 'Completed' AND scan_type = 'full'
+         ORDER BY started_at DESC, id DESC
+         LIMIT 1",
+    )
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()
+    .as_ref()
+    .map(row_to_defectdojo_scan)
+}
+
+/// Completed full scans offered in the manual push picker, newest first.
+pub async fn defectdojo_syncable_scans(pool: &PgPool) -> Vec<DefectDojoScanOption> {
+    sqlx::query(
+        "SELECT s.id, s.label, s.status, s.started_at,
+                (SELECT count(*) FROM alerts a
+                 WHERE a.scan_id = s.id
+                   AND a.kind IN ('new_cve', 'custom_signature')) AS findings
+         FROM scans s
+         WHERE s.status = 'Completed' AND s.scan_type = 'full'
+         ORDER BY s.started_at DESC, s.id DESC
+         LIMIT 50",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(|row| {
+        let started: chrono::DateTime<chrono::Utc> = row.get("started_at");
+        DefectDojoScanOption {
+            id: row.get("id"),
+            label: row.get("label"),
+            started: started
+                .with_timezone(&chrono::Local)
+                .format("%b %-d, %Y %-I:%M %p")
+                .to_string(),
+            findings: row.get::<i64, _>("findings").min(i32::MAX as i64) as i32,
+            status: row.get("status"),
+        }
+    })
+    .collect()
+}
+
+/// CVE matches for one scan, read from that scan's immutable capture history
+/// and joined to the captured URL so they can become DefectDojo endpoints.
+/// Using captures (rather than the rolling `scan_hosts` row) means a later
+/// scan can never change what an earlier scan pushes.
+pub async fn defectdojo_cve_findings(pool: &PgPool, scan_id: i64) -> Vec<DetectedCve> {
+    sqlx::query(
+        "SELECT c.address,
+                COALESCE(c.url, '') AS url,
+                COALESCE(t->>'name', '') AS service,
+                COALESCE(t->>'version', '') AS version,
+                COALESCE(vb->>'cve', '') AS cve,
+                COALESCE(vb->>'severity', 'Info') AS severity,
+                COALESCE(vb->>'summary', '') AS summary
+         FROM scan_host_captures c
+         CROSS JOIN LATERAL jsonb_array_elements(COALESCE(c.tech, '[]'::jsonb)) AS t
+         JOIN app_data d ON d.key = 'vulnerabilities'
+         CROSS JOIN LATERAL jsonb_array_elements(d.data) AS vb
+         WHERE c.scan_id = $1
+           AND lower(COALESCE(t->>'name', '')) = lower(COALESCE(vb->>'service', ''))
+           AND COALESCE(t->>'version', '') <> ''
+           AND (vb->>'version') LIKE COALESCE(t->>'version', '') || '%'
+         ORDER BY cve, c.address",
+    )
+    .bind(scan_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(|row| DetectedCve {
+        address: row.get("address"),
+        url: row.get("url"),
+        service: row.get("service"),
+        version: row.get("version"),
+        cve: row.get("cve"),
+        severity: row.get("severity"),
+        summary: row.get("summary"),
+    })
+    .collect()
+}
+
+/// Custom-signature alerts raised by one scan.
+pub async fn defectdojo_signature_alerts(
+    pool: &PgPool,
+    scan_id: i64,
+) -> Vec<SignatureMatchAlert> {
+    sqlx::query(
+        "SELECT a.host, COALESCE(c.url, '') AS url, a.severity, a.message,
+                COALESCE(a.detail, '') AS detail
+         FROM alerts a
+         LEFT JOIN scan_host_captures c
+             ON c.scan_id = a.scan_id AND c.address = a.host
+         WHERE a.scan_id = $1 AND a.kind = 'custom_signature'
+         ORDER BY a.id",
+    )
+    .bind(scan_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(|row| SignatureMatchAlert {
+        host: row.get("host"),
+        url: row.get("url"),
+        severity: row.get("severity"),
+        message: row.get("message"),
+        detail: row.get("detail"),
+    })
+    .collect()
+}
+
+/// Every FQDN -> address pair recorded during scans, used to connect an FQDN
+/// inventory entry to the captured address it resolved to.
+pub async fn fqdn_resolutions(pool: &PgPool) -> Vec<(String, String)> {
+    sqlx::query("SELECT fqdn, address FROM fqdn_resolutions")
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default()
+        .iter()
+        .map(|row| (row.get("fqdn"), row.get("address")))
+        .collect()
+}
+
+pub async fn create_defectdojo_sync(
+    pool: &PgPool,
+    kind: &str,
+    trigger: &str,
+    scan_id: Option<i64>,
+    scan_label: &str,
+) -> Option<i64> {
+    sqlx::query_scalar(
+        "INSERT INTO defectdojo_syncs (kind, trigger, status, scan_id, scan_label)
+         VALUES ($1, $2, 'Running', $3, $4)
+         RETURNING id",
+    )
+    .bind(kind)
+    .bind(trigger)
+    .bind(scan_id)
+    .bind(scan_label)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()
+}
+
+pub async fn finish_defectdojo_sync(
+    pool: &PgPool,
+    id: i64,
+    result: &DefectDojoSyncResult,
+) {
+    let _ = sqlx::query(
+        "UPDATE defectdojo_syncs SET
+             status = $2,
+             finished_at = now(),
+             duration_ms = EXTRACT(EPOCH FROM (now() - started_at)) * 1000,
+             findings_sent = $3,
+             findings_created = $4,
+             findings_closed = $5,
+             findings_reactivated = $6,
+             findings_pulled = $7,
+             error = $8,
+             response = $9
+         WHERE id = $1",
+    )
+    .bind(id)
+    .bind(&result.status)
+    .bind(result.findings_sent)
+    .bind(result.findings_created)
+    .bind(result.findings_closed)
+    .bind(result.findings_reactivated)
+    .bind(result.findings_pulled)
+    .bind(if result.error.is_empty() {
+        None
+    } else {
+        Some(result.error.as_str())
+    })
+    .bind(&result.response)
+    .execute(pool)
+    .await;
+}
+
+fn row_to_defectdojo_sync(row: &PgRow) -> DefectDojoSyncRow {
+    let started: chrono::DateTime<chrono::Utc> = row.get("started_at");
+    let finished: Option<chrono::DateTime<chrono::Utc>> = row.get("finished_at");
+    let duration_ms: Option<i64> = row.get("duration_ms");
+    let response: Option<Value> = row.get("response");
+    DefectDojoSyncRow {
+        id: row.get("id"),
+        kind: row.get("kind"),
+        trigger: row.get("trigger"),
+        status: row.get("status"),
+        scan_id: row.get::<Option<i64>, _>("scan_id").unwrap_or_default(),
+        scan_label: row.get("scan_label"),
+        started: started
+            .with_timezone(&chrono::Local)
+            .format("%b %-d, %Y %-I:%M:%S %p")
+            .to_string(),
+        finished: finished
+            .map(|when| {
+                when.with_timezone(&chrono::Local)
+                    .format("%b %-d, %Y %-I:%M:%S %p")
+                    .to_string()
+            })
+            .unwrap_or_default(),
+        duration: duration_ms
+            .map(|ms| {
+                if ms >= 1000 {
+                    format!("{:.1}s", ms as f64 / 1000.0)
+                } else {
+                    format!("{ms}ms")
+                }
+            })
+            .unwrap_or_else(|| "—".into()),
+        findings_sent: row.get("findings_sent"),
+        findings_created: row.get("findings_created"),
+        findings_closed: row.get("findings_closed"),
+        findings_reactivated: row.get("findings_reactivated"),
+        findings_pulled: row.get("findings_pulled"),
+        error: row.get::<Option<String>, _>("error").unwrap_or_default(),
+        response: response
+            .map(|value| {
+                let rendered = serde_json::to_string_pretty(&value).unwrap_or_default();
+                if rendered.len() > 6000 {
+                    format!("{}…", rendered.chars().take(6000).collect::<String>())
+                } else {
+                    rendered
+                }
+            })
+            .unwrap_or_default(),
+    }
+}
+
+pub async fn list_defectdojo_syncs(pool: &PgPool) -> Vec<DefectDojoSyncRow> {
+    sqlx::query(
+        "SELECT id, kind, trigger, status, scan_id, scan_label, started_at, finished_at,
+                duration_ms, findings_sent, findings_created, findings_closed,
+                findings_reactivated, findings_pulled, error, response
+         FROM defectdojo_syncs
+         ORDER BY started_at DESC, id DESC
+         LIMIT 100",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(row_to_defectdojo_sync)
+    .collect()
+}
+
+pub async fn defectdojo_import(
+    pool: &PgPool,
+    scan_id: i64,
+    product_name: &str,
+) -> Option<DefectDojoImport> {
+    sqlx::query(
+        "SELECT product_name, product_id, engagement_id, test_id
+         FROM defectdojo_imports WHERE scan_id = $1 AND product_name = $2",
+    )
+    .bind(scan_id)
+    .bind(product_name)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()
+    .as_ref()
+    .map(|row| DefectDojoImport {
+        product_name: row.get("product_name"),
+        product_id: row.get("product_id"),
+        engagement_id: row.get("engagement_id"),
+        test_id: row.get("test_id"),
+    })
+}
+
+pub async fn save_defectdojo_import(
+    pool: &PgPool,
+    scan_id: i64,
+    import: &DefectDojoImport,
+    findings_sent: i32,
+) {
+    let _ = sqlx::query(
+        "INSERT INTO defectdojo_imports
+             (scan_id, product_name, product_id, engagement_id, test_id, findings_sent, synced_at)
+         VALUES ($1, $2, $3, $4, $5, $6, now())
+         ON CONFLICT (scan_id, product_name) DO UPDATE SET
+             product_id = EXCLUDED.product_id,
+             engagement_id = EXCLUDED.engagement_id,
+             test_id = EXCLUDED.test_id,
+             findings_sent = EXCLUDED.findings_sent,
+             synced_at = now()",
+    )
+    .bind(scan_id)
+    .bind(&import.product_name)
+    .bind(import.product_id)
+    .bind(import.engagement_id)
+    .bind(import.test_id)
+    .bind(findings_sent)
+    .execute(pool)
+    .await;
+}
+
+/// Replaces the cached DefectDojo findings in one transaction, so a failed pull
+/// leaves the previous snapshot intact.
+pub async fn replace_defectdojo_findings(
+    pool: &PgPool,
+    findings: &[DefectDojoFinding],
+) -> Result<usize, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("DELETE FROM defectdojo_findings")
+        .execute(&mut *tx)
+        .await?;
+
+    for chunk in findings.chunks(200) {
+        let mut builder = QueryBuilder::new(
+            "INSERT INTO defectdojo_findings
+                 (dd_id, title, severity, status, active, verified, false_positive, duplicate,
+                  risk_accepted, mitigated, finding_date, cve, component_name, component_version,
+                  vuln_id_from_tool, unique_id_from_tool, product_id, product_name, engagement_id,
+                  engagement_name, test_id, test_name, endpoint, description, mitigation,
+                  finding_references, tags, sla_expiration_date, link) ",
+        );
+        builder.push_values(chunk, |mut b, finding| {
+            b.push_bind(finding.id)
+                .push_bind(&finding.title)
+                .push_bind(&finding.severity)
+                .push_bind(&finding.status)
+                .push_bind(finding.active)
+                .push_bind(finding.verified)
+                .push_bind(finding.false_positive)
+                .push_bind(finding.duplicate)
+                .push_bind(finding.risk_accepted)
+                .push_bind(finding.mitigated)
+                .push_bind(&finding.date)
+                .push_bind(&finding.cve)
+                .push_bind(&finding.component_name)
+                .push_bind(&finding.component_version)
+                .push_bind(&finding.vuln_id_from_tool)
+                .push_bind(&finding.unique_id_from_tool)
+                .push_bind(finding.product_id)
+                .push_bind(&finding.product_name)
+                .push_bind(finding.engagement_id)
+                .push_bind(&finding.engagement_name)
+                .push_bind(finding.test_id)
+                .push_bind(&finding.test_name)
+                .push_bind(&finding.endpoint)
+                .push_bind(&finding.description)
+                .push_bind(&finding.mitigation)
+                .push_bind(&finding.references)
+                .push_bind(serde_json::to_value(&finding.tags).unwrap_or(Value::Array(vec![])))
+                .push_bind(&finding.sla_expiration_date)
+                .push_bind(&finding.link);
+        });
+        builder.build().execute(&mut *tx).await?;
+    }
+
+    tx.commit().await?;
+    Ok(findings.len())
+}
+
+fn row_to_defectdojo_finding(row: &PgRow) -> DefectDojoFinding {
+    DefectDojoFinding {
+        id: row.get("dd_id"),
+        title: row.get("title"),
+        severity: row.get("severity"),
+        status: row.get("status"),
+        active: row.get("active"),
+        verified: row.get("verified"),
+        false_positive: row.get("false_positive"),
+        duplicate: row.get("duplicate"),
+        risk_accepted: row.get("risk_accepted"),
+        mitigated: row.get("mitigated"),
+        date: row.get("finding_date"),
+        cve: row.get("cve"),
+        component_name: row.get("component_name"),
+        component_version: row.get("component_version"),
+        vuln_id_from_tool: row.get("vuln_id_from_tool"),
+        unique_id_from_tool: row.get("unique_id_from_tool"),
+        product_id: row.get("product_id"),
+        product_name: row.get("product_name"),
+        engagement_id: row.get("engagement_id"),
+        engagement_name: row.get("engagement_name"),
+        test_id: row.get("test_id"),
+        test_name: row.get("test_name"),
+        endpoint: row.get("endpoint"),
+        description: row.get("description"),
+        mitigation: row.get("mitigation"),
+        references: row.get("finding_references"),
+        tags: serde_json::from_value(row.get::<Value, _>("tags")).unwrap_or_default(),
+        sla_expiration_date: row.get("sla_expiration_date"),
+        link: row.get("link"),
+    }
+}
+
+pub async fn list_defectdojo_findings(pool: &PgPool) -> Vec<DefectDojoFinding> {
+    sqlx::query(
+        "SELECT dd_id, title, severity, status, active, verified, false_positive, duplicate,
+                risk_accepted, mitigated, finding_date, cve, component_name, component_version,
+                vuln_id_from_tool, unique_id_from_tool, product_id, product_name, engagement_id,
+                engagement_name, test_id, test_name, endpoint, description, mitigation,
+                finding_references, tags, sla_expiration_date, link
+         FROM defectdojo_findings
+         ORDER BY active DESC,
+                  CASE severity
+                      WHEN 'Critical' THEN 0 WHEN 'High' THEN 1 WHEN 'Medium' THEN 2
+                      WHEN 'Low' THEN 3 ELSE 4
+                  END,
+                  finding_date DESC, dd_id DESC",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .map(row_to_defectdojo_finding)
+    .collect()
 }

@@ -15,6 +15,7 @@ Built in Rust with Axum, Askama templates and PostgreSQL.
 - **Alerts** — new hosts, hosts going down and technology versions matching known CVEs, with acknowledge (single or bulk).
 - **Dashboards** — scan summary, technologies used, vulnerable versions.
 - **Data Explorer** — browse and edit captured host/HTTP/TLS evidence, and compare scans.
+- **DefectDojo integration** — push CVE and custom-signature findings to DefectDojo, pull findings into a local severity/status dashboard, deep-link to DefectDojo, and keep a full sync activity log.
 - **RBAC** — three seeded roles (Super Admin, Scan Operator, Analyst) plus custom roles, enforced per page and per read/write by middleware.
 
 ## Tech stack
@@ -80,25 +81,39 @@ Change these immediately for anything beyond a local demo.
 | Compare Scans | `/scanning/compare-scans` |
 | Host management | `/host-management` |
 | Data Explorer | `/log-center/data-explorer` |
+| DefectDojo | `/defectdojo` |
 | Alerts | `/log-center/alerts` |
 | Admin management | `/admin-management` |
 | Settings | `/settings` |
 
 Host imports accept a mixed list of IPv4 addresses, CIDR ranges and FQDNs; header words and duplicates are dropped. A sample is provided at `static/samples/static-ips-sample.csv`.
 
+## DefectDojo integration
+
+Open **DefectDojo** in the sidebar (under *Data Explorer*), then fill in the instance URL and an API v2 token under **Settings**. The token is stored server-side, is never rendered into the page, and can be cleared from the same form.
+
+- **Mapping** — the configured product type owns the products. Each Visibly host group becomes a product; hosts outside every group go to the default product. One scan creates one engagement and test per product, and a re-push reimports into the same test.
+- **Push** — completed full scans send CVE matches and custom-signature matches as Generic Findings JSON. `unique_id_from_tool` keeps repeated pushes idempotent, and `close_old_findings` can mitigate findings that disappear from a re-pushed report. Auto-sync can run after each completed full scan; manual push accepts any completed full scan.
+- **Pull** — findings are cached locally for the Overview and Findings tabs. The newest 1000 findings are pulled, with severity, status, product, CVE/rule, endpoint and deep links resolved from DefectDojo.
+- **Activity** — every push, pull and error is recorded with counts, duration and the raw API response.
+- **RBAC** — the page key is `defectdojo`. Super Admin has full access, Scan Operator can read and write, Analyst is read-only unless a custom role says otherwise.
+
+The integration uses the standard DefectDojo API v2 endpoints (`/api/v2/reimport-scan/`, `/api/v2/findings/`, `/api/v2/location_findings/` and `/api/v2/endpoints/`) and requires an API token with permission to create products, engagements, tests and findings.
+
 ## Project layout
 
 ```
 src/
-  main.rs      # router, middleware wiring, startup
-  auth.rs      # login/logout, session cookie, RBAC guard middleware
-  db.rs        # schema, seeding, all queries
-  handlers.rs  # page + JSON API handlers and template view models
-  scan.rs      # target resolution, httpx/masscan/TCP engines, scheduler
-  state.rs     # shared domain types (policies, scans, permissions, ...)
-  nav.rs       # navigation + search index
-  mock.rs      # seed/demo data
-  icons.rs     # inline SVG icons
+  main.rs       # router, middleware wiring, startup
+  auth.rs       # login/logout, session cookie, RBAC guard middleware
+  db.rs         # schema, seeding, all queries
+  defectdojo.rs # DefectDojo client, finding mapping, push/pull engine
+  handlers.rs   # page + JSON API handlers and template view models
+  scan.rs       # target resolution, httpx/masscan/TCP engines, scheduler
+  state.rs      # shared domain types (policies, scans, permissions, ...)
+  nav.rs        # navigation + search index
+  mock.rs       # seed/demo data
+  icons.rs      # inline SVG icons
 templates/
   base.html            # shared application shell
   pages/*.html         # one template per screen
