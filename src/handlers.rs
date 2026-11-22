@@ -46,10 +46,14 @@ pub struct Shell {
     pub admin_name: String,
     pub admin_role: String,
     pub docs_url: String,
+    /// Unacknowledged alerts, shown as the badge on the topbar bell.
+    pub open_alerts: i64,
+    /// The bell only appears for accounts allowed to read the alerts page.
+    pub can_read_alerts: bool,
 }
 
 /// Builds the shared shell, filtering navigation to pages this admin may read.
-fn build_shell(active_path: &str, admin: &CurrentAdmin) -> Shell {
+async fn build_shell(pool: &PgPool, active_path: &str, admin: &CurrentAdmin) -> Shell {
     let def = nav::main_nav();
 
     let groups = def
@@ -82,6 +86,13 @@ fn build_shell(active_path: &str, admin: &CurrentAdmin) -> Shell {
         })
         .collect();
 
+    let can_read_alerts = admin.can_read("alerts");
+    let open_alerts = if can_read_alerts {
+        db::count_open_alerts(pool).await
+    } else {
+        0
+    };
+
     Shell {
         product: PRODUCT,
         section: def.title,
@@ -90,6 +101,8 @@ fn build_shell(active_path: &str, admin: &CurrentAdmin) -> Shell {
         admin_name: admin.name.clone(),
         admin_role: admin.role.clone(),
         docs_url: docs_url(),
+        open_alerts,
+        can_read_alerts,
     }
 }
 
@@ -199,7 +212,7 @@ pub async fn scanning_management(
     }
 
     let page = ScanningManagementPage {
-        shell: build_shell(nav::SCANNING_MANAGEMENT, &admin),
+        shell: build_shell(&pool, nav::SCANNING_MANAGEMENT, &admin).await,
         title: "Scan management",
         upcoming,
         scan: ScanView::from(&scan),
@@ -330,7 +343,7 @@ pub async fn scanning_policies(
     let policies_json = serde_json::to_string(&policies).unwrap_or_else(|_| "[]".into());
 
     let page = PoliciesPage {
-        shell: build_shell(nav::SCANNING_POLICIES, &admin),
+        shell: build_shell(&pool, nav::SCANNING_POLICIES, &admin).await,
         title: "Scan scheduling",
         policies,
         groups,
@@ -417,7 +430,7 @@ pub async fn scan_summary(
         .unwrap_or_default();
 
     let page = ScanSummaryPage {
-        shell: build_shell(nav::SCAN_SUMMARY, &admin),
+        shell: build_shell(&pool, nav::SCAN_SUMMARY, &admin).await,
         title: "Scan Summary",
         timeline_json,
         ranges: points,
@@ -455,7 +468,7 @@ pub async fn technologies_used(
     let techs: Vec<TechRow> = db::get_data(&pool, "technologies").await;
     let tech_json = serde_json::to_string(&techs).unwrap_or_else(|_| "[]".into());
     let page = TechnologiesPage {
-        shell: build_shell(nav::TECHNOLOGIES, &admin),
+        shell: build_shell(&pool, nav::TECHNOLOGIES, &admin).await,
         title: "Technologies used",
         techs,
         tech_json,
@@ -492,7 +505,7 @@ pub async fn vulnerable_versions(
     let count = |severity: &str| detected.iter().filter(|d| d.severity == severity).count();
     let (critical, high, medium) = (count("Critical"), count("High"), count("Medium"));
     let page = VulnerablePage {
-        shell: build_shell(nav::VULNERABLE, &admin),
+        shell: build_shell(&pool, nav::VULNERABLE, &admin).await,
         title: "Vulnerable versions",
         detected,
         unique_hosts,
@@ -525,7 +538,7 @@ pub async fn host_management(
     let groups = db::list_groups(&pool).await;
     let groups_json = serde_json::to_string(&groups).unwrap_or_else(|_| "[]".into());
     let page = HostManagementPage {
-        shell: build_shell(nav::HOST_MANAGEMENT, &admin),
+        shell: build_shell(&pool, nav::HOST_MANAGEMENT, &admin).await,
         title: "Host management",
         ips: db::list_host_ips(&pool).await,
         ranges: db::list_host_ranges(&pool).await,
@@ -697,7 +710,7 @@ pub async fn data_explorer(
         .unwrap_or_else(|_| "[]".into())
         .replace('<', "\\u003c");
     let page = DataExplorerPage {
-        shell: build_shell(nav::DATA_EXPLORER, &admin),
+        shell: build_shell(&pool, nav::DATA_EXPLORER, &admin).await,
         title: "Data Explorer",
         total,
         can_edit: admin.can_write("data_explorer"),
@@ -768,7 +781,7 @@ pub async fn scan_history(
     let scans_json =
         serde_json::to_string(&scans).unwrap_or_else(|_| "[]".into()).replace('<', "\\u003c");
     let page = ScanHistoryPage {
-        shell: build_shell(nav::SCAN_HISTORY, &admin),
+        shell: build_shell(&pool, nav::SCAN_HISTORY, &admin).await,
         title: "Scan Results",
         scans,
         scans_json,
@@ -841,7 +854,7 @@ pub async fn alerts_page(
     let rows = db::list_alerts(&pool).await;
     let open = rows.iter().filter(|row| !row.acknowledged).count();
     let page = AlertsPage {
-        shell: build_shell(nav::ALERTS, &admin),
+        shell: build_shell(&pool, nav::ALERTS, &admin).await,
         title: "Alerts",
         acknowledged: rows.len() - open,
         open,
@@ -882,7 +895,7 @@ pub async fn scan_compare(
     let scans: Vec<ScanRow> = db::get_data(&pool, "scan_history").await;
     let scan_json = serde_json::to_string(&scans).unwrap_or_else(|_| "[]".into());
     let page = ScanComparePage {
-        shell: build_shell(nav::SCAN_COMPARE, &admin),
+        shell: build_shell(&pool, nav::SCAN_COMPARE, &admin).await,
         title: "Compare Scans",
         scan_json,
     };
@@ -947,7 +960,7 @@ pub async fn admin_management(
     let roles = db::list_roles(&pool).await;
     let roles_json = serde_json::to_string(&roles).unwrap_or_else(|_| "[]".into());
     let page = AdminPage {
-        shell: build_shell(nav::ADMIN_MANAGEMENT, &admin),
+        shell: build_shell(&pool, nav::ADMIN_MANAGEMENT, &admin).await,
         title: "Admin management",
         admins,
         admins_json,
@@ -1080,11 +1093,11 @@ struct SettingsPage {
 }
 
 pub async fn settings(
-    State(_pool): State<PgPool>,
+    State(pool): State<PgPool>,
     Extension(admin): Extension<CurrentAdmin>,
 ) -> Html<String> {
     let page = SettingsPage {
-        shell: build_shell(nav::SETTINGS, &admin),
+        shell: build_shell(&pool, nav::SETTINGS, &admin).await,
         title: "Settings",
     };
     render(&page)

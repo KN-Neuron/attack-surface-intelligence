@@ -26,6 +26,7 @@
     <div class="topbar-left">
       {% block topbar_left %}
       <a class="icon-btn" href="{{ shell.docs_url }}" target="_blank" rel="noopener" aria-label="Open documentation" title="Documentation">{{ crate::icons::icon("help")|safe }}</a>
+      {% include "partials/alert_bell.html" %}
       {% endblock %}
     </div>
     <div class="topbar-search" id="search">

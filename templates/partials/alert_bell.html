@@ -1,0 +1,6 @@
+{% if shell.can_read_alerts %}
+<a class="icon-btn alert-bell" href="/log-center/alerts"{% if shell.open_alerts > 0 %} aria-label="{{ shell.open_alerts }} alerts awaiting acknowledgement" title="{{ shell.open_alerts }} alerts awaiting acknowledgement"{% else %} aria-label="Alerts" title="Alerts"{% endif %}>
+  {{ crate::icons::icon("bell")|safe }}
+  {% if shell.open_alerts > 0 %}<span class="alert-bell-dot" aria-hidden="true">{{ shell.open_alerts }}</span>{% endif %}
+</a>
+{% endif %}

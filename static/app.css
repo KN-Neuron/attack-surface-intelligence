@@ -154,6 +154,28 @@ button {
 .icon-btn:hover { background: rgba(255, 255, 255, 0.14); }
 .icon-btn:active { transform: scale(0.94); }
 
+/* Alerts bell: a plain icon with a red count dot pinned to its corner. The dot
+   only renders when there are alerts awaiting acknowledgement. */
+.alert-bell { position: relative; }
+.alert-bell-dot {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  border: 1.5px solid var(--topbar);
+  background: var(--bad);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
 /* Centered against the viewport, not the leftover space between the
    left and right topbar groups, so it stays put as those grow. */
 
