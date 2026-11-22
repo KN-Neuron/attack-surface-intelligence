@@ -103,6 +103,18 @@
       </div>
     </div>
 
+    <div class="settings-row">
+      <div class="settings-copy">
+        <div class="settings-title">Retries per host</div>
+        <div class="settings-desc">How many times a request is retried when a host times out or drops the connection. Helps flaky hosts report their real state instead of a one-off failure. 0 disables retries.</div>
+      </div>
+      <div class="settings-field">
+        <input type="number" id="scan-retries" min="0" max="10" step="1"
+               value="{{ retries }}" aria-label="Retries per host"
+               {% if !can_edit %}disabled{% endif %}>
+      </div>
+    </div>
+
     {% if can_edit %}
     <div class="settings-foot">
       <button class="btn primary" type="button" id="scan-settings-save">Save scanner settings</button>

@@ -427,6 +427,7 @@ async fn run_httpx(
     let settings = db::scan_settings(pool).await;
     let threads = settings.effective_threads().to_string();
     let rate_limit = settings.max_requests_per_second.to_string();
+    let retries = settings.retries.to_string();
 
     let mut child = Command::new(&binary)
         .arg("-l")
@@ -463,7 +464,7 @@ async fn run_httpx(
             "-timeout",
             "10",
             "-retries",
-            "1",
+            &retries,
             "-threads",
             &threads,
             "-rate-limit",

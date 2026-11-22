@@ -1093,6 +1093,7 @@ struct SettingsPage {
     max_requests_per_second: u32,
     threads: u32,
     multithreaded: bool,
+    retries: u32,
     can_edit: bool,
 }
 
@@ -1107,6 +1108,7 @@ pub async fn settings(
         max_requests_per_second: scan.max_requests_per_second,
         threads: scan.threads,
         multithreaded: scan.multithreaded,
+        retries: scan.retries,
         can_edit: admin.can_write("settings"),
     };
     render(&page)

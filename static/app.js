@@ -650,6 +650,7 @@
   var scanRate = document.getElementById("scan-rate-limit");
   var scanThreads = document.getElementById("scan-threads");
   var scanMulti = document.getElementById("scan-multithreaded");
+  var scanRetries = document.getElementById("scan-retries");
   var scanSave = document.getElementById("scan-settings-save");
   if (scanRate && scanThreads && scanMulti) {
     var threadsRow = document.getElementById("scan-threads-row");
@@ -683,7 +684,8 @@
         var payload = {
           max_requests_per_second: Number(scanRate.value) || 1,
           threads: Number(scanThreads.value) || 1,
-          multithreaded: scanMulti.checked
+          multithreaded: scanMulti.checked,
+          retries: scanRetries ? Number(scanRetries.value) || 0 : 0
         };
         scanSave.disabled = true;
         fetch("/api/settings/scan", {

@@ -2409,6 +2409,8 @@ body.modal-open { overflow: hidden; }
   padding: 14px 16px;
   border-top: 1px solid var(--border-soft);
 }
+/* `.btn` grows by default; the settings action keeps its natural width. */
+.settings-foot .btn { flex: 0 0 auto; height: 32px; padding: 0 16px; }
 .settings-saved { font-size: 12px; color: var(--good); }
 
 .theme-choice { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; flex: 0 0 auto; }

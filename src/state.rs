@@ -455,6 +455,15 @@ pub struct ScanSettings {
     /// Whether to scanner runs concurrently at all: when off, threads are forced
     /// to 1 so requests go out one at a time.
     pub multithreaded: bool,
+    /// Extra attempts per request (`-retries`). A flaky host that times out or
+    /// drops a connection is probed again instead of being judged from a single
+    /// failed attempt.
+    #[serde(default = "default_retries")]
+    pub retries: u32,
+}
+
+fn default_retries() -> u32 {
+    2
 }
 
 impl Default for ScanSettings {
@@ -466,16 +475,18 @@ impl Default for ScanSettings {
             max_requests_per_second: 150,
             threads: 50,
             multithreaded: true,
+            retries: default_retries(),
         }
     }
 }
 
 impl ScanSettings {
     /// Clamped so a bad stored value or payload can never wedge a scan: threads
-    /// stay in 1..=500 and the rate limit in 1..=10000 req/s.
+    /// stay in 1..=500, the rate limit in 1..=10000 req/s, and retries in 0..=10.
     pub fn sanitized(mut self) -> Self {
         self.max_requests_per_second = self.max_requests_per_second.clamp(1, 10_000);
         self.threads = self.threads.clamp(1, 500);
+        self.retries = self.retries.min(10);
         if !self.multithreaded {
             self.threads = 1;
         }
