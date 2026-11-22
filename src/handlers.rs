@@ -218,8 +218,10 @@ pub async fn scanning_management(
             } else {
                 targets.join(" · ")
             };
-            upcoming.hosts = scan::resolve_targets(&pool, &policy.criteria).await.addresses.len()
-                as u32;
+            upcoming.hosts = scan::resolve_targets(&pool, &policy.criteria, policy.scan_type())
+                .await
+                .addresses
+                .len() as u32;
         }
         if let Some(next) = next {
             upcoming.next_run = next

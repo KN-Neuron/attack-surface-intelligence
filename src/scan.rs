@@ -34,6 +34,8 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// Everything a scan should probe, resolved from host management only.
 pub struct ResolvedTargets {
+    /// Targets in the form the chosen engine wants: hostnames for HTTP probes,
+    /// addresses for reachability, which works at the IP layer.
     pub addresses: Vec<String>,
     /// Targets beyond `MAX_TARGETS`, reported to the operator instead of dropped silently.
     pub truncated: usize,
@@ -42,7 +44,14 @@ pub struct ResolvedTargets {
 /// Expands a policy's targeting criteria into concrete scan targets. Group
 /// membership and inventory rows are the only sources, so a caller can never
 /// feed arbitrary strings to a scanner.
-pub async fn resolve_targets(pool: &PgPool, criteria: &[Criterion]) -> ResolvedTargets {
+///
+/// `scan_type` decides whether hostnames survive as targets: an HTTP probe needs
+/// the name to send the right `Host` header, while reachability sweeps IPs.
+pub async fn resolve_targets(
+    pool: &PgPool,
+    criteria: &[Criterion],
+    scan_type: ScanType,
+) -> ResolvedTargets {
     let groups = db::list_groups(pool).await;
     // Kept whole (not just the address strings) so a tag criterion can match on
     // each entry's own tags.
@@ -125,11 +134,9 @@ pub async fn resolve_targets(pool: &PgPool, criteria: &[Criterion]) -> ResolvedT
         }
     }
 
-    let resolutions = resolve_fqdns(&mut flat).await;
-
-    // Remember which address each name resolved to, so a later tag lookup can
-    // map the capture row back to the FQDN inventory entry.
-    db::save_fqdn_resolutions(pool, &resolutions).await;
+    // A hostname is kept for an HTTP probe so httpx can send the right Host
+    // header; a reachability sweep works at the IP layer and needs addresses.
+    resolve_fqdns(&mut flat, scan_type == ScanType::Full).await;
 
     if flat.len() > MAX_TARGETS {
         truncated += flat.len() - MAX_TARGETS;
@@ -184,11 +191,15 @@ fn expand_cidr(base: std::net::Ipv4Addr, prefix: u8) -> Expanded {
     Expanded::Range(hosts, (total - usable) as usize)
 }
 
-/// Swaps unresolved hostnames for their addresses, dropping the ones that do
-/// not resolve (a name with no address is not something we can probe). Returns
-/// the `(fqdn, address)` pairs so the caller can keep the link the rewrite
-/// would otherwise destroy.
-async fn resolve_fqdns(targets: &mut Vec<String>) -> Vec<(String, String)> {
+/// Drops hostnames that do not resolve, so a dead name cannot hold up a scan.
+///
+/// When `keep_names` is set the hostname stays as the probe target: httpx needs
+/// it to send the right `Host` header and SNI, which is how virtual hosts (CDNs,
+/// PaaS routers, reverse proxies) pick the site. Replacing the name with its
+/// address makes those hosts answer their default site — typically a 404 with no
+/// technologies. Otherwise the name is swapped for its first address, which is
+/// what an IP-level reachability sweep needs.
+async fn resolve_fqdns(targets: &mut Vec<String>, keep_names: bool) {
     let names: Vec<usize> = targets
         .iter()
         .enumerate()
@@ -196,20 +207,17 @@ async fn resolve_fqdns(targets: &mut Vec<String>) -> Vec<(String, String)> {
         .map(|(i, _)| i)
         .collect();
     if names.is_empty() {
-        return Vec::new();
+        return;
     }
 
-    let mut resolved: Vec<(String, String)> = Vec::new();
     let mut drop = Vec::new();
     for index in names {
         let name = targets[index].clone();
         match tokio::net::lookup_host((name.as_str(), 443)).await {
             Ok(mut addrs) => match addrs.next() {
-                Some(addr) => {
-                    let address = addr.ip().to_string();
-                    resolved.push((name.clone(), address.clone()));
-                    targets[index] = address;
-                }
+                Some(addr) if !keep_names => targets[index] = addr.ip().to_string(),
+                // Resolvable: leave the name in place for the HTTP probe.
+                Some(_) => {}
                 None => drop.push(index),
             },
             Err(_) => drop.push(index),
@@ -220,7 +228,6 @@ async fn resolve_fqdns(targets: &mut Vec<String>) -> Vec<(String, String)> {
     }
     targets.sort();
     targets.dedup();
-    resolved
 }
 
 // ===========================================================================
@@ -300,9 +307,11 @@ struct HttpxLine {
 }
 
 impl HttpxLine {
-    /// The key this capture belongs to in `scan_hosts`. `input` is what we fed
-    /// the scanner, so it always lines up with the target list; `host_ip` is the
-    /// resolved address of an FQDN target and would break that association.
+    /// The key this capture belongs to. `input` is what we fed the scanner, so
+    /// it is the hostname for a name target and the address for an IP target.
+    /// Keying by the input keeps two hostnames that share one address as
+    /// separate rows, which is what a virtual-hosted scan needs; `host_ip` is
+    /// only a fallback because it collapses them.
     fn address(&self) -> Option<String> {
         self.input
             .as_deref()
@@ -606,13 +615,27 @@ async fn run_httpx(
     let _ = child.wait().await;
 
     // Silence from httpx means the target did not answer over HTTP at all. Only
-    // the up/down flag moves; earlier capture columns are kept.
+    // the up/down flag moves; earlier capture columns are kept. A hostname target
+    // is marked down under the address it resolved to, so the rolling table stays
+    // keyed by IP.
     for target in targets {
         let answered = found.contains(target)
             || found.iter().any(|seen| strip_host(target).as_deref() == Some(seen.as_str()));
-        if !answered {
-            db::touch_host(pool, scan_id, target, false).await;
+        if answered {
+            continue;
         }
+        let key = if target.parse::<std::net::IpAddr>().is_ok() {
+            target.clone()
+        } else {
+            match tokio::net::lookup_host((target.as_str(), 443)).await {
+                Ok(mut addrs) => match addrs.next() {
+                    Some(addr) => addr.ip().to_string(),
+                    None => continue,
+                },
+                Err(_) => continue,
+            }
+        };
+        db::touch_host(pool, scan_id, &key, false).await;
     }
 
     report_progress(pool, targets.len(), targets.len(), found.len(), "—").await;
@@ -847,7 +870,7 @@ pub async fn start_scan(
     trigger: &str,
     criteria: &[Criterion],
 ) -> Option<ScanStatus> {
-    let resolved = resolve_targets(pool, criteria).await;
+    let resolved = resolve_targets(pool, criteria, scan_type).await;
     if resolved.addresses.is_empty() {
         return None;
     }

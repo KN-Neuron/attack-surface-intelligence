@@ -2125,6 +2125,15 @@ pub async fn upsert_host_capture(
     address: &str,
     capture: &HostCapture,
 ) {
+    // The rolling table stays keyed by address: dashboards and alerts count
+    // hosts by IP, and a hostname capture carries the address it resolved to.
+    // The history row above keeps the hostname key, so one IP serving several
+    // virtual hosts is still recorded per name.
+    let rolling_key = if capture.host_ip.is_empty() {
+        address
+    } else {
+        capture.host_ip.as_str()
+    };
     let _ = sqlx::query(
         "INSERT INTO scan_hosts (address, up, first_seen, last_seen, last_checked, last_scan_id,
                 scheme, port, url, status_code, title, webserver, content_length, cdn, cname,
@@ -2138,7 +2147,7 @@ pub async fn upsert_host_capture(
              final_url = $12, response_time = $13, tls = $14, tech = $15, ports = $16,
              raw = $17",
     )
-    .bind(address)
+    .bind(rolling_key)
     .bind(scan_id)
     .bind(&capture.scheme)
     .bind(capture.port)
@@ -2222,6 +2231,12 @@ pub async fn upsert_host_capture(
         // A failed history write loses the comparison trail, so it is surfaced
         // rather than ignored like the rolling latest-state write above.
         eprintln!("scan_host_captures insert failed for {address} in scan {scan_id}: {error}");
+    }
+
+    // When the capture is keyed by a hostname, its `host_ip` is what that name
+    // resolved to, which is the link an FQDN's tags need to reach the host rows.
+    if !capture.host_ip.is_empty() && capture.host_ip != address {
+        save_fqdn_resolutions(pool, &[(address.to_string(), capture.host_ip.clone())]).await;
     }
 }
 
@@ -2565,9 +2580,12 @@ async fn inventory_tags(pool: &PgPool) -> std::collections::HashMap<String, Vec<
     }
 
     for fqdn in list_host_fqdns(pool).await {
-        // The hostname itself, plus every address it has ever resolved to.
-        add(&mut tags, &fqdn.fqdn, &fqdn.tags);
-        for address in addresses_by_fqdn.get(&fqdn.fqdn).cloned().unwrap_or_default() {
+        // The hostname itself, plus every address it has ever resolved to. An
+        // inventory entry may be stored as a URL while resolutions are keyed by
+        // the bare hostname, so compare on the hostname.
+        let name = crate::state::hostname(&fqdn.fqdn);
+        add(&mut tags, &name, &fqdn.tags);
+        for address in addresses_by_fqdn.get(&name).cloned().unwrap_or_default() {
             add(&mut tags, &address, &fqdn.tags);
         }
     }
