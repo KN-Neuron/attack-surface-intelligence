@@ -9,7 +9,7 @@
         <div class="timeframe-head">
           <span class="field-label">Timeframe</span>
           {% if can_edit %}
-          <button class="icon-btn subtle edit-toggle" type="button" id="explorer-edit" aria-pressed="false" title="Edit mode">{{ crate::icons::icon("sliders")|safe }}</button>
+          <button class="icon-btn subtle edit-toggle" type="button" id="explorer-edit" aria-pressed="false" title="Edit mode">{{ crate::icons::icon("pen")|safe }}</button>
           {% endif %}
         </div>
         <div class="select-wrap">
@@ -44,6 +44,10 @@
         <div class="filter-add-row">
           <button class="run-btn" type="button" id="explorer-add-filter" aria-expanded="false" aria-controls="filter-menu">Add filter</button>
           <button class="run-btn filter-more" type="button" id="explorer-add-more" aria-expanded="false" aria-controls="filter-menu" title="Choose another column" aria-label="Choose another filter column" hidden>{{ crate::icons::icon("plus")|safe }}</button>
+        </div>
+
+        <div class="filter-export">
+          <button class="link-btn" type="button" id="explorer-export">{{ crate::icons::icon("export")|safe }} Download CSV</button>
         </div>
       </div>
     </div>

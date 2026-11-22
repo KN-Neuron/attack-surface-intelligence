@@ -1839,6 +1839,7 @@
       head: document.getElementById("assets-head"),
       body: document.getElementById("assets-body"),
       empty: document.getElementById("assets-empty"),
+      exportBtn: document.getElementById("explorer-export"),
       editBtn: document.getElementById("explorer-edit"),
       pager: explorer.parentElement.querySelector("[data-pager]")
     };
@@ -1884,9 +1885,9 @@
       });
       if (state.editing) {
         var actions = document.createElement("th");
-        actions.className = "right w-actions";
+        actions.className = "w-actions";
         actions.textContent = "Actions";
-        tr.appendChild(actions);
+        tr.insertBefore(actions, tr.firstChild);
       }
       els.head.appendChild(tr);
     }
@@ -1948,14 +1949,14 @@
         COLUMNS.forEach(function (col) { tr.appendChild(renderCell(col, row)); });
         if (state.editing) {
           var td = document.createElement("td");
-          td.className = "right";
+          td.className = "w-actions";
           var btn = document.createElement("button");
           btn.type = "button";
           btn.className = "link-btn";
           btn.innerHTML = 'Edit';
           btn.setAttribute("data-asset-edit", row.address);
           td.appendChild(btn);
-          tr.appendChild(td);
+          tr.insertBefore(td, tr.firstChild);
         }
         els.body.appendChild(tr);
       });
@@ -1989,6 +1990,46 @@
       var start = (state.page - 1) * state.size;
       renderBody(rows.slice(start, start + state.size));
       syncApplyButton();
+      syncExport(rows.length);
+    }
+
+    // ---- CSV export ----------------------------------------------------------
+    // Exports exactly what the filters and timeframe currently show, not just the
+    // page on screen: an operator scopes the table, then takes the whole result.
+
+    function csvCell(value) {
+      var text = value == null ? "" : String(value);
+      return /[",\n\r]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+    }
+
+    function csvValue(row, col) {
+      var raw = row[col.key];
+      if (Array.isArray(raw)) return raw.join("; ");
+      if (typeof raw === "boolean") return raw ? "Up" : "Down";
+      return valueOf(row, col.key);
+    }
+
+    function exportCsv() {
+      var rows = visibleRows();
+      var lines = [COLUMNS.map(function (col) { return csvCell(col.label); }).join(",")];
+      rows.forEach(function (row) {
+        lines.push(COLUMNS.map(function (col) { return csvCell(csvValue(row, col)); }).join(","));
+      });
+      // The BOM keeps Excel from mangling non-ASCII host titles.
+      var blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement("a");
+      var stamp = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = "data-explorer-" + stamp + ".csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    function syncExport(total) {
+      if (els.exportBtn) els.exportBtn.disabled = total === 0;
     }
 
     // ---- main action button --------------------------------------------------
@@ -2255,6 +2296,9 @@
       });
     }
     els.menuSearch.addEventListener("input", renderMenu);
+    if (els.exportBtn) {
+      els.exportBtn.addEventListener("click", exportCsv);
+    }
     document.addEventListener("click", function (event) {
       if (els.menu.hidden) return;
       if (els.menu.contains(event.target) ||
@@ -2492,6 +2536,18 @@
       if (banner) {
         banner.textContent = scan.error || "";
         banner.hidden = !scan.error;
+      }
+
+      // Real scans have their captured hosts tagged with `last_scan_id`, so the
+      // Explorer can open scoped to exactly this run. Demo rows are synthetic and
+      // have no matching hosts, so they open the Explorer unfiltered instead.
+      var explorerLink = document.getElementById("scan-detail-explorer");
+      if (explorerLink) {
+        explorerLink.href = scan.demo
+          ? "/log-center/data-explorer"
+          : "/log-center/data-explorer?" + new URLSearchParams({
+            filter: ["last_scan", "equals", "#" + scan.id].join("|")
+          }).toString();
       }
     };
 

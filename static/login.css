@@ -88,6 +88,33 @@ body.login {
 
 h1 { margin: 0 0 24px; font-size: 24px; font-weight: 700; letter-spacing: -0.2px; text-align: center; }
 
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-bottom: 18px;
+  animation: fade 0.4s ease both;
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: rgba(91, 63, 217, 0.18);
+  border: 1px solid rgba(91, 63, 217, 0.35);
+  color: var(--accent);
+}
+.brand-mark svg { width: 18px; height: 18px; }
+.brand-name {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--text);
+}
+[data-theme="light"] .brand-mark { background: rgba(91, 63, 217, 0.1); }
+
 .alert {
   margin: -8px 0 18px;
   padding: 10px 14px;

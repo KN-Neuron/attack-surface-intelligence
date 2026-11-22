@@ -3294,7 +3294,19 @@ body.modal-open { overflow: hidden; }
 .filter-tally { margin-left: auto; color: var(--text-mute); }
 .filter-count { font-variant-numeric: tabular-nums; }
 
+/* Sits directly under the Add filter / Apply buttons, centred, at all times. */
+.filter-export {
+  display: flex;
+  justify-content: center;
+  padding-top: 10px;
+}
+.filter-export .link-btn { color: var(--text-dim); }
+.filter-export .link-btn:hover { color: var(--accent); text-decoration: none; }
+.filter-export .link-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.filter-export .link-btn:disabled:hover { color: var(--text-dim); }
+
 .explorer .log-tbl th { background: var(--canvas); }
+.explorer .log-tbl td.w-actions { width: auto; white-space: nowrap; }
 .explorer .log-tbl td.mono { font-variant-numeric: tabular-nums; }
 .explorer .log-foot .pager button { border-radius: 7px; }
 .log-empty { padding: 40px 20px; text-align: center; font-size: 13px; color: var(--text-mute); }

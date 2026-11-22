@@ -167,6 +167,9 @@
     </div>
 
     <div class="modal-foot">
+      {% if can_read_explorer %}
+      <a class="btn primary" id="scan-detail-explorer" href="/log-center/data-explorer">Show in Data Explorer</a>
+      {% endif %}
       <button class="btn" type="button" data-close-modal>Close</button>
     </div>
   </div>

@@ -727,6 +727,7 @@ struct ScanHistoryPage {
     title: &'static str,
     scans: Vec<ScanRowView>,
     scans_json: String,
+    can_read_explorer: bool,
 }
 
 /// Real scans first, then the seeded demo history so a fresh install still has
@@ -771,6 +772,7 @@ pub async fn scan_history(
         title: "Scan Results",
         scans,
         scans_json,
+        can_read_explorer: admin.can_read("data_explorer"),
     };
     render(&page)
 }
