@@ -3118,6 +3118,15 @@ body.modal-open { overflow: hidden; }
 .detail-alert-row.total .detail-alert-count { color: var(--text); }
 .detail-empty { color: var(--text-mute); font-size: 12.5px; border-bottom: 0 !important; }
 .detail-section .criteria-chips { gap: 6px; }
+/* A target can be a long hostname. The shared chip is `nowrap`, which would let
+   it overflow its grid column and overlap the neighbouring section, so chips in
+   a detail section wrap and break inside the column instead. */
+.detail-section .criteria-chip {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 
 .demo-badge { margin-left: 8px; font-size: 10.5px; }
 .screen-redesign .badge.demo-badge { padding: 1px 8px; }

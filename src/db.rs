@@ -2492,15 +2492,21 @@ pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
                 .join(", "),
             first_seen: row
                 .get::<Option<chrono::DateTime<chrono::Utc>>, _>("first_seen")
+                .or_else(|| row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("captured_at"))
                 .map(|t| t.format("%b %-d, %Y %-I:%M %p").to_string())
                 .unwrap_or_else(|| "—".into()),
             last_seen: row
                 .get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_seen")
+                .or_else(|| row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("captured_at"))
                 .map(|t| t.format("%b %-d, %Y %-I:%M %p").to_string())
                 .unwrap_or_else(|| "—".into()),
-            last_checked_ts: timestamp("last_checked"),
-            first_seen_ts: timestamp("first_seen"),
-            last_seen_ts: timestamp("last_seen"),
+            last_checked_ts: timestamp("last_checked").max(timestamp("captured_at")),
+            // A hostname capture has no matching `scan_hosts` row (that table is
+            // keyed by address), so the rolling timestamps can be NULL. The
+            // capture's own time always exists and is the right fallback: the
+            // row must never be filtered out of the Explorer for lacking a date.
+            first_seen_ts: timestamp("first_seen").max(timestamp("captured_at")),
+            last_seen_ts: timestamp("last_seen").max(timestamp("captured_at")),
             headers: {
                 let map: std::collections::HashMap<String, String> =
                     serde_json::from_value(row.get::<Value, _>("headers")).unwrap_or_default();
