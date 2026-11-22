@@ -418,7 +418,7 @@ pub async fn scan_summary(
 
     let page = ScanSummaryPage {
         shell: build_shell(nav::SCAN_SUMMARY, &admin),
-        title: "Latest Scan summary",
+        title: "Scan Summary",
         timeline_json,
         ranges: points,
         selected_range,

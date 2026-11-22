@@ -52,7 +52,7 @@ pub fn main_nav() -> SidebarDef {
         icon: "shield",
         groups: vec![
             group("Dashboards", "bar-chart", vec![
-                item("Latest Scan summary", SCAN_SUMMARY, "bar-chart"),
+                item("Scan Summary", SCAN_SUMMARY, "bar-chart"),
                 item("Technologies used", TECHNOLOGIES, "grid"),
                 item("Vulnerable versions", VULNERABLE, "shield"),
                 item("Alerts", ALERTS, "alert-triangle"),
