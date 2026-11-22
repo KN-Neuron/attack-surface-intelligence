@@ -321,8 +321,14 @@ impl HttpxLine {
             .filter(|a| !a.is_empty())
     }
 
-    /// Technologies flattened into `[{name, version}]` for storage.
-    fn tech_value(&self) -> Value {
+    /// Technologies flattened into `[{name, version}]` for storage. Some
+    /// frameworks are not in httpx's fingerprint database but leave reliable
+    /// evidence in the response; those are added here.
+    fn tech_value(
+        &self,
+        headers: &std::collections::HashMap<String, String>,
+        cookies: &[String],
+    ) -> Value {
         let mut out: Vec<Value> = self
             .tech
             .as_deref()
@@ -340,6 +346,12 @@ impl HttpxLine {
                 Some(json!({ "name": name, "version": version }))
             })
             .collect();
+        enrich_technologies(
+            &mut out,
+            self.webserver.as_deref().unwrap_or(""),
+            headers,
+            cookies,
+        );
         out.sort_by(|a, b| {
             a["name"]
                 .as_str()
@@ -372,6 +384,9 @@ impl HttpxLine {
 
     /// Flattens one httpx line into the storage shape.
     fn to_capture(&self, line: &str) -> HostCapture {
+        let headers = self.headers();
+        let cookies = self.cookies();
+        let tech = self.tech_value(&headers, &cookies);
         HostCapture {
             host_ip: self.host_ip.clone().unwrap_or_default(),
             scheme: self.scheme.clone().unwrap_or_default(),
@@ -405,13 +420,13 @@ impl HttpxLine {
             asn: self.asn.clone(),
             hashes: self.hash.clone(),
             tls: self.tls.clone(),
-            tech: self.tech_value(),
+            tech,
             ports: self.ports_value(),
             raw: serde_json::from_str::<Value>(line).ok(),
             // Tags come from the inventory at read time, not from the scanner.
             tags: Vec::new(),
-            headers: self.headers(),
-            cookies: self.cookies(),
+            headers,
+            cookies,
         }
     }
 
@@ -449,6 +464,53 @@ impl HttpxLine {
                 (!name.is_empty()).then(|| format!("{name}={}", value.trim()))
             })
             .collect()
+    }
+}
+
+/// Adds framework fingerprints that httpx's technology database does not infer.
+/// Flask's development server reports Werkzeug, and a Flask app behind a WSGI
+/// server usually sets a `session=eyJ...` cookie; both are strong evidence.
+fn enrich_technologies(
+    tech: &mut Vec<Value>,
+    server: &str,
+    headers: &std::collections::HashMap<String, String>,
+    cookies: &[String],
+) {
+    let server = server.to_lowercase();
+    let header_text = headers
+        .iter()
+        .map(|(name, value)| format!("{name}: {value}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+        .to_lowercase();
+    let tech_text = tech
+        .iter()
+        .filter_map(|entry| entry.get("name").and_then(Value::as_str))
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase();
+    let flask_cookie = cookies
+        .iter()
+        .any(|cookie| cookie.trim().to_lowercase().starts_with("session=eyj"));
+
+    let flask = server.contains("werkzeug")
+        || server.contains("flask")
+        || header_text.contains("werkzeug")
+        || header_text.contains("flask")
+        || tech_text.contains("werkzeug")
+        || flask_cookie;
+    if !flask {
+        return;
+    }
+
+    let present = tech.iter().any(|entry| {
+        entry
+            .get("name")
+            .and_then(Value::as_str)
+            .is_some_and(|name| name.eq_ignore_ascii_case("Flask"))
+    });
+    if !present {
+        tech.push(json!({ "name": "Flask", "version": "" }));
     }
 }
 
@@ -1241,4 +1303,66 @@ pub fn next_run(frequency: &str, when: &str) -> Option<chrono::DateTime<chrono::
     };
 
     Some(candidate)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn flask_is_inferred_from_werkzeug_server() {
+        let mut tech = Vec::new();
+        let mut headers = std::collections::HashMap::new();
+        headers.insert(
+            "server".into(),
+            "Werkzeug/3.0.1 Python/3.11.6".into(),
+        );
+        enrich_technologies(&mut tech, "", &headers, &[]);
+        assert!(tech.iter().any(|entry| entry["name"] == "Flask"));
+    }
+
+    #[test]
+    fn flask_is_inferred_from_flask_session_cookie() {
+        let mut tech = Vec::new();
+        let headers = std::collections::HashMap::new();
+        let cookies = vec!["session=eyJ1c2VyIjoiYWRtaW4ifQ.signature".to_string()];
+        enrich_technologies(&mut tech, "gunicorn", &headers, &cookies);
+        assert!(tech.iter().any(|entry| entry["name"] == "Flask"));
+    }
+
+    #[test]
+    fn flask_is_not_duplicated() {
+        let mut tech = vec![json!({ "name": "Flask", "version": "3.0.1" })];
+        let mut headers = std::collections::HashMap::new();
+        headers.insert("server".into(), "Werkzeug/3.0.1".into());
+        enrich_technologies(&mut tech, "", &headers, &[]);
+        assert_eq!(
+            tech.iter().filter(|entry| entry["name"] == "Flask").count(),
+            1
+        );
+    }
+
+    #[test]
+    fn capture_includes_inferred_flask() {
+        let line = HttpxLine {
+            webserver: Some("Werkzeug/3.0.1 Python/3.11.6".into()),
+            scheme: Some("http".into()),
+            port: Some("5000".into()),
+            header: Some(std::collections::HashMap::from([
+                (
+                    "server".to_string(),
+                    "Werkzeug/3.0.1 Python/3.11.6".to_string(),
+                ),
+                (
+                    "set_cookie".to_string(),
+                    "session=eyJ1c2VyIjoiYWRtaW4ifQ.signature; Path=/".to_string(),
+                ),
+            ])),
+            ..HttpxLine::default()
+        };
+
+        let capture = line.to_capture("{}");
+        let tech: Vec<Value> = serde_json::from_value(capture.tech).unwrap_or_default();
+        assert!(tech.iter().any(|entry| entry["name"] == "Flask"));
+    }
 }

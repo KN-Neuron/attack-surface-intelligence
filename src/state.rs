@@ -405,6 +405,35 @@ pub struct ScanRowView {
     pub demo: bool,
 }
 
+/// One host-level difference shown in the scan-details comparison section.
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct ScanChangeItem {
+    pub host: String,
+    pub detail: String,
+}
+
+/// What changed between a scan and the run it is compared with.
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct ScanChanges {
+    pub previous_scan_id: i64,
+    pub previous_scan_label: String,
+    pub previous_scan_started: String,
+    pub new_hosts: Vec<ScanChangeItem>,
+    pub removed_hosts: Vec<ScanChangeItem>,
+    pub down_hosts: Vec<ScanChangeItem>,
+    pub recovered_hosts: Vec<ScanChangeItem>,
+    pub technology_added: Vec<ScanChangeItem>,
+    pub technology_removed: Vec<ScanChangeItem>,
+    pub technology_changed: Vec<ScanChangeItem>,
+    pub service_added: Vec<ScanChangeItem>,
+    pub service_removed: Vec<ScanChangeItem>,
+    pub vulnerability_added: Vec<ScanChangeItem>,
+    pub vulnerability_removed: Vec<ScanChangeItem>,
+    pub title_changed: Vec<ScanChangeItem>,
+    pub status_changed: Vec<ScanChangeItem>,
+    pub total: usize,
+}
+
 /// The body of the maximized scan-details view. Deliberately a summary: it
 /// carries counts and top-N lists, never the full per-host capture table.
 #[derive(Clone, Serialize, Deserialize, Default)]
@@ -434,6 +463,7 @@ pub struct ScanDetail {
     pub alerts_open: u32,
     pub top_technologies: Vec<ScanTechCount>,
     pub top_services: Vec<ScanServiceCount>,
+    pub changes: ScanChanges,
     pub error: String,
 }
 

@@ -3000,6 +3000,97 @@
       });
     };
 
+    var renderChanges = function (scan) {
+      var section = document.getElementById("scan-detail-changes-section");
+      var container = document.getElementById("scan-detail-changes");
+      var sub = document.getElementById("scan-detail-changes-sub");
+      if (!section || !container || !sub) return;
+
+      // Demo rows are synthetic history and have no real baseline.
+      if (scan.demo) {
+        section.hidden = true;
+        return;
+      }
+      section.hidden = false;
+      container.innerHTML = "";
+      var changes = scan.changes || {};
+
+      if (!changes.previous_scan_id) {
+        sub.textContent = "";
+        var none = document.createElement("div");
+        none.className = "detail-empty";
+        none.textContent = "No previous scan to compare with.";
+        container.appendChild(none);
+        return;
+      }
+
+      var baseline = "Compared with scan #" + changes.previous_scan_id +
+        (changes.previous_scan_label ? " · " + changes.previous_scan_label : "") +
+        (changes.previous_scan_started ? " · " + changes.previous_scan_started : "");
+      var total = changes.total || 0;
+      sub.textContent = total ? (total + (total === 1 ? " change · " : " changes · ") + baseline)
+        : baseline;
+
+      if (!total) {
+        var stable = document.createElement("div");
+        stable.className = "detail-empty";
+        stable.textContent = "No changes detected compared with scan #" + changes.previous_scan_id + ".";
+        container.appendChild(stable);
+        return;
+      }
+
+      var groups = [
+        ["New hosts", changes.new_hosts],
+        ["Hosts no longer in scope", changes.removed_hosts],
+        ["Hosts now down", changes.down_hosts],
+        ["Hosts recovered", changes.recovered_hosts],
+        ["Technologies added", changes.technology_added],
+        ["Technologies removed", changes.technology_removed],
+        ["Technology versions changed", changes.technology_changed],
+        ["Services added", changes.service_added],
+        ["Services removed", changes.service_removed],
+        ["New vulnerabilities", changes.vulnerability_added],
+        ["Resolved vulnerabilities", changes.vulnerability_removed],
+        ["Page title changed", changes.title_changed],
+        ["HTTP status changed", changes.status_changed]
+      ];
+
+      groups.forEach(function (group) {
+        var items = group[1] || [];
+        if (!items.length) return;
+
+        var block = document.createElement("div");
+        block.className = "change-group";
+        var heading = document.createElement("div");
+        heading.className = "change-group-title";
+        var label = document.createElement("span");
+        label.textContent = group[0];
+        var count = document.createElement("span");
+        count.className = "change-count";
+        count.textContent = items.length;
+        heading.appendChild(label);
+        heading.appendChild(count);
+        block.appendChild(heading);
+
+        var list = document.createElement("ul");
+        list.className = "change-list";
+        items.forEach(function (item) {
+          var row = document.createElement("li");
+          var host = document.createElement("span");
+          host.className = "change-host mono";
+          host.textContent = item.host || "";
+          var detail = document.createElement("span");
+          detail.className = "change-detail";
+          detail.textContent = item.detail || "";
+          row.appendChild(host);
+          row.appendChild(detail);
+          list.appendChild(row);
+        });
+        block.appendChild(list);
+        container.appendChild(block);
+      });
+    };
+
     var renderDetail = function (scan) {
       var title = document.getElementById("scan-detail-title");
       if (title) title.textContent = scan.label;
@@ -3057,6 +3148,7 @@
 
       renderList("scan-detail-top-tech", scan.top_technologies, "No technologies captured.");
       renderList("scan-detail-top-services", scan.top_services, "No services captured.");
+      renderChanges(scan);
 
       var banner = document.getElementById("scan-detail-error");
       if (banner) {

@@ -12,8 +12,9 @@ use crate::state::{
     Admin, AlertRow, AssetRow, Criterion, DefectDojoFinding, DefectDojoImport, DefectDojoScanOption,
     DefectDojoSettings, DefectDojoSyncRow, EditAsset, HostCapture, HostFqdn, HostGroup, HostIp,
     HostRange, ImportCapturesResult, ImportPreview, ImportSummary, NewSignature, Permission,
-    Policy, Role, ScanDetail, ScanRowView, ScanServiceCount, ScanSettings, ScanStatus,
-    ScanTechCount, ScanType, Signature, SignatureCriterion, TechHost, TechRow, now_label,
+    Policy, Role, ScanChangeItem, ScanChanges, ScanDetail, ScanRowView, ScanServiceCount,
+    ScanSettings, ScanStatus, ScanTechCount, ScanType, Signature, SignatureCriterion, TechHost,
+    TechRow, now_label,
 };
 
 /// Hardcoded Railway Postgres connection (per project requirement).
@@ -384,11 +385,41 @@ pub async fn init(pool: &PgPool) -> anyhow::Result<()> {
     // upgraded install. Idempotent: existing history rows are left untouched.
     backfill_captures(pool).await?;
 
+    // Captures written before framework inference existed still carry the
+    // response evidence; enrich them in place so old scans show Flask too.
+    backfill_inferred_technologies(pool).await;
+
     // No scan survives a restart, and older databases may still carry the
     // seeded demo run in the running state.
     recover_interrupted_scans(pool).await;
     recover_interrupted_defectdojo_syncs(pool).await;
     Ok(())
+}
+
+/// Adds Flask to captures that carry its fingerprints but predate the scanner
+/// inference. Idempotent: the name check prevents duplicate entries.
+async fn backfill_inferred_technologies(pool: &PgPool) {
+    for table in ["scan_hosts", "scan_host_captures"] {
+        let sql = format!(
+            "UPDATE {table}
+             SET tech = COALESCE(tech, '[]'::jsonb)
+                        || '[{{\"name\":\"Flask\",\"version\":\"\"}}]'::jsonb
+             WHERE (
+                     lower(COALESCE(webserver, '')) LIKE '%werkzeug%'
+                     OR lower(COALESCE(webserver, '')) LIKE '%flask%'
+                     OR lower(headers::text) LIKE '%werkzeug%'
+                     OR lower(headers::text) LIKE '%flask%'
+                     OR lower(cookies::text) LIKE '%session=eyj%'
+                     OR lower(COALESCE(tech, '[]'::jsonb)::text) LIKE '%werkzeug%'
+                   )
+               AND NOT EXISTS (
+                     SELECT 1
+                     FROM jsonb_array_elements(COALESCE(tech, '[]'::jsonb)) AS t
+                     WHERE lower(COALESCE(t->>'name', '')) = 'flask'
+                   )"
+        );
+        let _ = sqlx::query(&sql).execute(pool).await;
+    }
 }
 
 /// A push or pull interrupted by a restart can never finish on its own.
@@ -2062,6 +2093,47 @@ pub async fn scan_compare_metrics(pool: &PgPool) -> HashMap<i64, (u32, u32)> {
     metrics
 }
 
+/// Distinct technology and vulnerability counts for one scan, computed from its
+/// immutable captures. Used by the scan-details popup so its headline counts
+/// match the comparison and the Technologies used page.
+pub async fn scan_capture_metrics(pool: &PgPool, scan_id: i64) -> (u32, u32) {
+    let technologies: i64 = sqlx::query_scalar(
+        "SELECT count(DISTINCT COALESCE(t->>'name', ''))
+         FROM scan_host_captures c
+         CROSS JOIN LATERAL jsonb_array_elements(COALESCE(c.tech, '[]'::jsonb)) AS t
+         WHERE c.scan_id = $1 AND COALESCE(t->>'name', '') <> ''",
+    )
+    .bind(scan_id)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+
+    let vulns: i64 = sqlx::query_scalar(
+        "SELECT count(DISTINCT (
+                    c.address,
+                    COALESCE(vb->>'service', ''),
+                    COALESCE(vb->>'cve', '')
+                ))
+         FROM scan_host_captures c
+         CROSS JOIN LATERAL jsonb_array_elements(COALESCE(c.tech, '[]'::jsonb)) AS t
+         JOIN app_data d ON d.key = 'vulnerabilities'
+         CROSS JOIN LATERAL jsonb_array_elements(d.data) AS vb
+         WHERE c.scan_id = $1
+           AND lower(COALESCE(t->>'name', '')) = lower(COALESCE(vb->>'service', ''))
+           AND COALESCE(t->>'version', '') <> ''
+           AND (vb->>'version') LIKE COALESCE(t->>'version', '') || '%'",
+    )
+    .bind(scan_id)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+
+    (
+        technologies.max(0).min(u32::MAX as i64) as u32,
+        vulns.max(0).min(u32::MAX as i64) as u32,
+    )
+}
+
 /// Distinct technologies seen in the immutable capture history. One row per
 /// technology name, with every captured version and one entry per host carrying
 /// the first and last capture dates.
@@ -2341,6 +2413,423 @@ pub async fn recover_interrupted_scans(pool: &PgPool) {
     .await;
 }
 
+struct PreviousScanMeta {
+    id: i64,
+    label: String,
+    started: String,
+}
+
+struct SnapshotTech {
+    name: String,
+    versions: BTreeSet<String>,
+}
+
+struct ScanHostSnapshot {
+    up: bool,
+    status_code: i32,
+    title: String,
+    tech: BTreeMap<String, SnapshotTech>,
+    services: BTreeSet<String>,
+}
+
+fn previous_scan_from_row(row: &PgRow) -> PreviousScanMeta {
+    let started: chrono::DateTime<chrono::Utc> = row.get("started_at");
+    PreviousScanMeta {
+        id: row.get("id"),
+        label: row.get("label"),
+        started: started
+            .with_timezone(&chrono::Local)
+            .format("%b %-d, %Y %-I:%M %p")
+            .to_string(),
+    }
+}
+
+/// Picks the baseline for the comparison: the previous run of the same policy,
+/// then the previous scan of the same target, then simply the previous scan.
+async fn previous_scan_meta(
+    pool: &PgPool,
+    scan_id: i64,
+    policy_id: Option<i64>,
+    target: &str,
+) -> Option<PreviousScanMeta> {
+    if let Some(policy_id) = policy_id {
+        let row = sqlx::query(
+            "SELECT id, label, started_at FROM scans
+             WHERE policy_id = $1 AND id < $2
+             ORDER BY id DESC LIMIT 1",
+        )
+        .bind(policy_id)
+        .bind(scan_id)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten();
+        if let Some(row) = row {
+            return Some(previous_scan_from_row(&row));
+        }
+    }
+
+    if !target.trim().is_empty() {
+        let row = sqlx::query(
+            "SELECT id, label, started_at FROM scans
+             WHERE target = $1 AND id < $2
+             ORDER BY id DESC LIMIT 1",
+        )
+        .bind(target)
+        .bind(scan_id)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten();
+        if let Some(row) = row {
+            return Some(previous_scan_from_row(&row));
+        }
+    }
+
+    let row = sqlx::query(
+        "SELECT id, label, started_at FROM scans
+         WHERE id < $1
+         ORDER BY id DESC LIMIT 1",
+    )
+    .bind(scan_id)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()?;
+    Some(previous_scan_from_row(&row))
+}
+
+async fn load_scan_snapshot(
+    pool: &PgPool,
+    scan_id: i64,
+) -> BTreeMap<String, ScanHostSnapshot> {
+    let rows = sqlx::query(
+        "SELECT address,
+                COALESCE(up, FALSE) AS up,
+                COALESCE(scheme, '') AS scheme,
+                COALESCE(port, 0) AS port,
+                COALESCE(status_code, 0) AS status_code,
+                COALESCE(title, '') AS title,
+                COALESCE(tech, '[]'::jsonb) AS tech,
+                COALESCE(ports, '[]'::jsonb) AS ports
+         FROM scan_host_captures WHERE scan_id = $1",
+    )
+    .bind(scan_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    let mut hosts = BTreeMap::new();
+    for row in &rows {
+        let address: String = row.get("address");
+        let scheme: String = row.get("scheme");
+        let port: i32 = row.get("port");
+        let tech: Vec<Value> =
+            serde_json::from_value(row.get::<Value, _>("tech")).unwrap_or_default();
+        let ports: Vec<Value> =
+            serde_json::from_value(row.get::<Value, _>("ports")).unwrap_or_default();
+
+        let mut tech_map: BTreeMap<String, SnapshotTech> = BTreeMap::new();
+        for item in tech {
+            let name = item
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .trim();
+            if name.is_empty() {
+                continue;
+            }
+            let version = item
+                .get("version")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .trim();
+            let entry = tech_map
+                .entry(name.to_lowercase())
+                .or_insert_with(|| SnapshotTech {
+                    name: name.to_string(),
+                    versions: BTreeSet::new(),
+                });
+            if !version.is_empty() {
+                entry.versions.insert(version.to_string());
+            }
+        }
+
+        let mut services = BTreeSet::new();
+        for item in ports {
+            let service = item
+                .get("service")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .trim();
+            let number = item.get("port").and_then(Value::as_i64).unwrap_or(0);
+            if !service.is_empty() && number > 0 {
+                services.insert(format!("{service} {number}"));
+            }
+        }
+        if services.is_empty() && port > 0 {
+            services.insert(format!("{} {port}", service_label(&scheme)));
+        }
+
+        hosts.insert(
+            address,
+            ScanHostSnapshot {
+                up: row.get("up"),
+                status_code: row.get("status_code"),
+                title: row.get("title"),
+                tech: tech_map,
+                services,
+            },
+        );
+    }
+    hosts
+}
+
+fn snapshot_tech_display(tech: &SnapshotTech) -> String {
+    if tech.versions.is_empty() {
+        tech.name.clone()
+    } else {
+        format!(
+            "{} {}",
+            tech.name,
+            tech.versions.iter().cloned().collect::<Vec<_>>().join(", ")
+        )
+    }
+}
+
+fn snapshot_tech_summary(host: &ScanHostSnapshot) -> String {
+    if host.tech.is_empty() {
+        "no technologies".into()
+    } else {
+        host.tech
+            .values()
+            .map(snapshot_tech_display)
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+}
+
+fn snapshot_vulns(host: &ScanHostSnapshot, vuln_db: &[mock::VulnDbRow]) -> BTreeSet<String> {
+    let mut found = BTreeSet::new();
+    for tech in host.tech.values() {
+        if tech.versions.is_empty() {
+            continue;
+        }
+        for vuln in vuln_db {
+            if !tech.name.eq_ignore_ascii_case(&vuln.service) {
+                continue;
+            }
+            for version in &tech.versions {
+                if vuln.version.starts_with(version) {
+                    found.insert(format!("{} in {} {}", vuln.cve, vuln.service, version));
+                }
+            }
+        }
+    }
+    found
+}
+
+fn display_title(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        "—".into()
+    } else {
+        let short: String = trimmed.chars().take(120).collect();
+        format!("\"{short}\"")
+    }
+}
+
+fn scan_change_item(host: &str, detail: impl Into<String>) -> ScanChangeItem {
+    ScanChangeItem {
+        host: host.to_string(),
+        detail: detail.into(),
+    }
+}
+
+/// Compares a scan with its baseline and describes the host-level differences a
+/// human operator cares about. Detail comparisons are limited to hosts that
+/// responded in both scans; new, removed, down and recovered hosts are reported
+/// separately.
+pub async fn scan_changes(pool: &PgPool, scan_id: i64) -> ScanChanges {
+    let meta = sqlx::query("SELECT policy_id, target FROM scans WHERE id = $1")
+        .bind(scan_id)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten();
+    let Some(meta) = meta else {
+        return ScanChanges::default();
+    };
+    let policy_id: Option<i64> = meta.get("policy_id");
+    let target: String = meta.get("target");
+    let Some(previous) = previous_scan_meta(pool, scan_id, policy_id, &target).await else {
+        return ScanChanges::default();
+    };
+
+    let current_hosts = load_scan_snapshot(pool, scan_id).await;
+    let previous_hosts = load_scan_snapshot(pool, previous.id).await;
+    let vuln_db: Vec<mock::VulnDbRow> = get_data(pool, "vulnerabilities").await;
+
+    let mut changes = ScanChanges {
+        previous_scan_id: previous.id,
+        previous_scan_label: previous.label,
+        previous_scan_started: previous.started,
+        ..ScanChanges::default()
+    };
+
+    for (address, current) in &current_hosts {
+        let Some(previous_host) = previous_hosts.get(address) else {
+            let detail = if current.up {
+                format!("Now: {}", snapshot_tech_summary(current))
+            } else {
+                "Did not respond".into()
+            };
+            changes
+                .new_hosts
+                .push(scan_change_item(address, detail));
+            continue;
+        };
+
+        if previous_host.up && !current.up {
+            changes.down_hosts.push(scan_change_item(
+                address,
+                format!("Last seen with: {}", snapshot_tech_summary(previous_host)),
+            ));
+        }
+        if !previous_host.up && current.up {
+            changes.recovered_hosts.push(scan_change_item(
+                address,
+                format!("Now: {}", snapshot_tech_summary(current)),
+            ));
+        }
+
+        // Comparing payload details only makes sense when both observations
+        // answered; a down host would otherwise look like every technology and
+        // vulnerability was removed.
+        if !(previous_host.up && current.up) {
+            continue;
+        }
+
+        for (key, tech) in &current.tech {
+            match previous_host.tech.get(key) {
+                None => changes
+                    .technology_added
+                    .push(scan_change_item(address, snapshot_tech_display(tech))),
+                Some(previous_tech) if previous_tech.versions != tech.versions => {
+                    let before = if previous_tech.versions.is_empty() {
+                        "(no version)".to_string()
+                    } else {
+                        previous_tech
+                            .versions
+                            .iter()
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    };
+                    let after = if tech.versions.is_empty() {
+                        "(no version)".to_string()
+                    } else {
+                        tech.versions
+                            .iter()
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    };
+                    changes.technology_changed.push(scan_change_item(
+                        address,
+                        format!("{} {} → {}", tech.name, before, after),
+                    ));
+                }
+                _ => {}
+            }
+        }
+        for (key, tech) in &previous_host.tech {
+            if !current.tech.contains_key(key) {
+                changes
+                    .technology_removed
+                    .push(scan_change_item(address, snapshot_tech_display(tech)));
+            }
+        }
+
+        for service in current.services.difference(&previous_host.services) {
+            changes
+                .service_added
+                .push(scan_change_item(address, service.clone()));
+        }
+        for service in previous_host.services.difference(&current.services) {
+            changes
+                .service_removed
+                .push(scan_change_item(address, service.clone()));
+        }
+
+        if previous_host.title != current.title {
+            changes.title_changed.push(scan_change_item(
+                address,
+                format!(
+                    "{} → {}",
+                    display_title(&previous_host.title),
+                    display_title(&current.title)
+                ),
+            ));
+        }
+
+        if previous_host.status_code > 0
+            && current.status_code > 0
+            && previous_host.status_code != current.status_code
+        {
+            changes.status_changed.push(scan_change_item(
+                address,
+                format!(
+                    "HTTP {} → {}",
+                    previous_host.status_code, current.status_code
+                ),
+            ));
+        }
+
+        let previous_vulns = snapshot_vulns(previous_host, &vuln_db);
+        let current_vulns = snapshot_vulns(current, &vuln_db);
+        for vuln in current_vulns.difference(&previous_vulns) {
+            changes
+                .vulnerability_added
+                .push(scan_change_item(address, vuln.clone()));
+        }
+        for vuln in previous_vulns.difference(&current_vulns) {
+            changes
+                .vulnerability_removed
+                .push(scan_change_item(address, vuln.clone()));
+        }
+    }
+
+    for (address, previous_host) in &previous_hosts {
+        if !current_hosts.contains_key(address) {
+            let detail = if previous_host.up {
+                format!("Previously: {}", snapshot_tech_summary(previous_host))
+            } else {
+                "Was already down".into()
+            };
+            changes
+                .removed_hosts
+                .push(scan_change_item(address, detail));
+        }
+    }
+
+    changes.total = changes.new_hosts.len()
+        + changes.removed_hosts.len()
+        + changes.down_hosts.len()
+        + changes.recovered_hosts.len()
+        + changes.technology_added.len()
+        + changes.technology_removed.len()
+        + changes.technology_changed.len()
+        + changes.service_added.len()
+        + changes.service_removed.len()
+        + changes.vulnerability_added.len()
+        + changes.vulnerability_removed.len()
+        + changes.title_changed.len()
+        + changes.status_changed.len();
+
+    changes
+}
+
 /// The summary behind the maximized scan-details view.
 pub async fn scan_detail(pool: &PgPool, scan_id: i64) -> Option<ScanDetail> {
     let row = sqlx::query(
@@ -2358,6 +2847,8 @@ pub async fn scan_detail(pool: &PgPool, scan_id: i64) -> Option<ScanDetail> {
     let view = row_to_scan_view(&row);
     let target: String = row.get("target");
     let error: Option<String> = row.get("error");
+    let (technologies, vulns) = scan_capture_metrics(pool, scan_id).await;
+    let changes = scan_changes(pool, scan_id).await;
 
     let counts = sqlx::query(
         "SELECT
@@ -2380,9 +2871,10 @@ pub async fn scan_detail(pool: &PgPool, scan_id: i64) -> Option<ScanDetail> {
     };
 
     let techs = sqlx::query(
-        "SELECT t->>'name' AS name, count(DISTINCT address) AS hosts
-         FROM scan_hosts, jsonb_array_elements(COALESCE(tech, '[]'::jsonb)) AS t
-         WHERE last_scan_id = $1 AND COALESCE(t->>'name', '') <> ''
+        "SELECT t->>'name' AS name, count(DISTINCT c.address) AS hosts
+         FROM scan_host_captures c,
+              jsonb_array_elements(COALESCE(c.tech, '[]'::jsonb)) AS t
+         WHERE c.scan_id = $1 AND COALESCE(t->>'name', '') <> ''
          GROUP BY 1 ORDER BY hosts DESC, name LIMIT 8",
     )
     .bind(scan_id)
@@ -2397,9 +2889,10 @@ pub async fn scan_detail(pool: &PgPool, scan_id: i64) -> Option<ScanDetail> {
     .collect();
 
     let services = sqlx::query(
-        "SELECT p->>'service' AS label, count(DISTINCT address) AS hosts
-         FROM scan_hosts, jsonb_array_elements(COALESCE(ports, '[]'::jsonb)) AS p
-         WHERE last_scan_id = $1 AND COALESCE(p->>'service', '') <> ''
+        "SELECT p->>'service' AS label, count(DISTINCT c.address) AS hosts
+         FROM scan_host_captures c,
+              jsonb_array_elements(COALESCE(c.ports, '[]'::jsonb)) AS p
+         WHERE c.scan_id = $1 AND COALESCE(p->>'service', '') <> ''
          GROUP BY 1 ORDER BY hosts DESC, label LIMIT 8",
     )
     .bind(scan_id)
@@ -2435,8 +2928,8 @@ pub async fn scan_detail(pool: &PgPool, scan_id: i64) -> Option<ScanDetail> {
         alive: view.alive,
         down: view.down,
         services: view.services,
-        technologies: view.technologies,
-        vulns: view.vulns,
+        technologies,
+        vulns,
         alerts: view.alerts,
         alerts_new_host: count_of("new_host"),
         alerts_host_down: count_of("host_down"),
@@ -2444,6 +2937,7 @@ pub async fn scan_detail(pool: &PgPool, scan_id: i64) -> Option<ScanDetail> {
         alerts_open: count_of("open"),
         top_technologies: techs,
         top_services: services,
+        changes,
         error: error.unwrap_or_default(),
     })
 }
