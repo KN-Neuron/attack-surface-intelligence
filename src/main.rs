@@ -85,6 +85,7 @@ async fn main() -> anyhow::Result<()> {
             "/api/scans/{scan_id}/assets/{address}",
             put(handlers::update_asset),
         )
+        .route("/api/assets/import", post(handlers::import_captures))
         .route("/api/settings/scan", put(handlers::save_scan_settings))
         .route("/api/policies", post(handlers::create_policy))
         .route(

@@ -561,6 +561,26 @@ pub struct HostCapture {
     pub tech: serde_json::Value,
     pub ports: serde_json::Value,
     pub raw: Option<serde_json::Value>,
+    /// Tags carried by this capture. Scans leave this empty (tags are resolved
+    /// from the inventory); a CSV import fills it so the exported Tags column
+    /// survives a round trip.
+    pub tags: Vec<String>,
+}
+
+/// A CSV import of Data Explorer rows. Each row maps an exported column label
+/// to its cell text, so the import accepts whatever column order the file has.
+#[derive(Deserialize)]
+pub struct ImportCaptures {
+    #[serde(default)]
+    pub rows: Vec<std::collections::HashMap<String, String>>,
+}
+
+/// Summary of a CSV import, shown to the operator afterwards.
+#[derive(Serialize, Default)]
+pub struct ImportCapturesResult {
+    pub imported: usize,
+    pub skipped: usize,
+    pub scan_id: Option<i64>,
 }
 
 /// The mutable half of a captured host, used by the Explorer edit mode.

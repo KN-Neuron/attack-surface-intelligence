@@ -1932,6 +1932,9 @@
       body: document.getElementById("assets-body"),
       empty: document.getElementById("assets-empty"),
       exportBtn: document.getElementById("explorer-export"),
+      importWrap: document.getElementById("filter-import"),
+      importBtn: document.getElementById("explorer-import"),
+      importFile: document.getElementById("explorer-import-file"),
       editBtn: document.getElementById("explorer-edit"),
       pager: explorer.parentElement.querySelector("[data-pager]")
     };
@@ -2129,6 +2132,104 @@
 
     function syncExport(total) {
       if (els.exportBtn) els.exportBtn.disabled = total === 0;
+    }
+
+    // ---- CSV import ----------------------------------------------------------
+    // Reads a file produced by the export above and sends the rows back. The
+    // header marks which column is which, so column order does not matter.
+
+    // RFC 4180 parsing: quoted cells may contain commas, newlines and doubled
+    // quotes. Returns an array of records (each an array of cell strings).
+    function parseCsv(text) {
+      var records = [];
+      var record = [];
+      var cell = "";
+      var quoted = false;
+      var i = 0;
+
+      // A UTF-8 BOM survives the file read; drop it or the first header is
+      // "\ufeffHost" and the Host column is never found.
+      if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+
+      while (i < text.length) {
+        var ch = text[i];
+        if (quoted) {
+          if (ch === '"') {
+            if (text[i + 1] === '"') { cell += '"'; i += 2; continue; }
+            quoted = false; i += 1; continue;
+          }
+          cell += ch; i += 1; continue;
+        }
+        if (ch === '"') { quoted = true; i += 1; continue; }
+        if (ch === ",") { record.push(cell); cell = ""; i += 1; continue; }
+        if (ch === "\r") { i += 1; continue; }
+        if (ch === "\n") { record.push(cell); records.push(record); record = []; cell = ""; i += 1; continue; }
+        cell += ch; i += 1;
+      }
+      if (cell !== "" || record.length) { record.push(cell); records.push(record); }
+      // Drop a trailing blank line so it is not counted as a skipped row.
+      return records.filter(function (row) {
+        return row.some(function (value) { return value.trim() !== ""; });
+      });
+    }
+
+    function importCsv(text) {
+      var records = parseCsv(text);
+      if (records.length < 2) {
+        window.alert("That CSV has no data rows.");
+        return;
+      }
+      var headers = records[0].map(function (h) { return h.trim(); });
+      if (headers.indexOf("Host") === -1) {
+        window.alert('That CSV has no "Host" column. Export the table from this page and edit the file.');
+        return;
+      }
+      var rows = records.slice(1).map(function (values) {
+        var row = {};
+        headers.forEach(function (header, index) {
+          if (header) row[header] = values[index] == null ? "" : values[index];
+        });
+        return row;
+      });
+
+      if (!window.confirm("Import " + rows.length + (rows.length === 1 ? " row" : " rows") + " into the Data Explorer?")) {
+        return;
+      }
+      if (els.importBtn) els.importBtn.disabled = true;
+      fetch("/api/assets/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: rows })
+      })
+        .then(function (response) {
+          if (!response.ok) throw new Error();
+          return response.json();
+        })
+        .then(function (result) {
+          var message = "Imported " + result.imported +
+            (result.imported === 1 ? " row" : " rows") + ".";
+          if (result.skipped) message += " Skipped " + result.skipped + " without a Host.";
+          window.alert(message);
+          if (result.imported) window.location.reload();
+        })
+        .catch(function () { window.alert("Could not import that CSV."); })
+        .then(function () { if (els.importBtn) els.importBtn.disabled = false; });
+    }
+
+    if (els.importBtn && els.importFile) {
+      els.importBtn.addEventListener("click", function () { els.importFile.click(); });
+      els.importFile.addEventListener("change", function () {
+        var file = els.importFile.files && els.importFile.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+          // Reset first so picking the same file again still fires `change`.
+          els.importFile.value = "";
+          importCsv(String(reader.result || ""));
+        };
+        reader.onerror = function () { window.alert("Could not read that file."); };
+        reader.readAsText(file);
+      });
     }
 
     // ---- main action button --------------------------------------------------
@@ -2455,6 +2556,8 @@
         state.editing = !state.editing;
         els.editBtn.setAttribute("aria-pressed", String(state.editing));
         els.editBtn.classList.toggle("is-active", state.editing);
+        // The CSV import is an edit-mode action, so it only shows while editing.
+        if (els.importWrap) els.importWrap.hidden = !state.editing;
         renderHead();
         render();
       });

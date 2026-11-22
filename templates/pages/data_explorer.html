@@ -46,6 +46,14 @@
           <button class="run-btn filter-more" type="button" id="explorer-add-more" aria-expanded="false" aria-controls="filter-menu" title="Choose another column" aria-label="Choose another filter column" hidden>{{ crate::icons::icon("plus")|safe }}</button>
         </div>
 
+        <!-- Edit mode only: load rows back from a Data Explorer CSV export. -->
+        {% if can_edit %}
+        <div class="filter-import" id="filter-import" hidden>
+          <button class="link-btn" type="button" id="explorer-import">{{ crate::icons::icon("upload")|safe }} Import from CSV</button>
+          <input type="file" id="explorer-import-file" accept=".csv,text/csv" hidden>
+        </div>
+        {% endif %}
+
         <div class="filter-export">
           <button class="link-btn" type="button" id="explorer-export">{{ crate::icons::icon("export")|safe }} Download CSV</button>
         </div>

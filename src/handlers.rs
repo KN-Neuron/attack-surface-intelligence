@@ -18,9 +18,9 @@ use crate::nav::{self, NavGroup};
 use crate::scan;
 use crate::state::{
     AckPayload, Admin, AlertRow, Criterion, EditAsset, EditHostEntry, HostFqdn, HostGroup,
-    HostIp, HostRange, ImportHosts, ImportPreview, ImportSummary, NewAdmin, NewGroup,
-    NewHostEntries, NewPolicy, Policy, Role, RolePayload, RunScan, ScanDetail, ScanRowView,
-    ScanSettings, ScanStatus, ScanType, UpdateAdmin,
+    HostIp, HostRange, ImportCaptures, ImportCapturesResult, ImportHosts, ImportPreview,
+    ImportSummary, NewAdmin, NewGroup, NewHostEntries, NewPolicy, Policy, Role, RolePayload,
+    RunScan, ScanDetail, ScanRowView, ScanSettings, ScanStatus, ScanType, UpdateAdmin,
 };
 
 const PRODUCT: &str = "Visibly";
@@ -728,6 +728,16 @@ pub async fn data_explorer(
         assets_json,
     };
     render(&page)
+}
+
+/// Imports Data Explorer rows from an exported CSV. Gated on the `data_explorer`
+/// write permission by the router's RBAC guard.
+pub async fn import_captures(
+    State(pool): State<PgPool>,
+    Json(payload): Json<ImportCaptures>,
+) -> Json<ImportCapturesResult> {
+    let label = format!("CSV import · {}", chrono::Local::now().format("%b %-d, %Y %-I:%M %p"));
+    Json(db::import_captures(&pool, &payload.rows, &label).await)
 }
 
 /// Saves an Explorer edit against the exact scan row it was made on. Gated on

@@ -1,6 +1,6 @@
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use serde_json::Value;
+use serde_json::{Value, json};
 use sqlx::postgres::{PgPoolOptions, PgRow};
 use sqlx::{PgPool, Row};
 
@@ -8,8 +8,9 @@ use crate::auth::PERMISSION_PAGES;
 use crate::mock;
 use crate::state::{
     Admin, AlertRow, AssetRow, Criterion, EditAsset, HostCapture, HostFqdn, HostGroup, HostIp,
-    HostRange, ImportPreview, ImportSummary, Permission, Policy, Role, ScanDetail, ScanRowView,
-    ScanServiceCount, ScanSettings, ScanStatus, ScanTechCount, ScanType, now_label,
+    HostRange, ImportCapturesResult, ImportPreview, ImportSummary, Permission, Policy, Role,
+    ScanDetail, ScanRowView, ScanServiceCount, ScanSettings, ScanStatus, ScanTechCount, ScanType,
+    now_label,
 };
 
 /// Hardcoded Railway Postgres connection (per project requirement).
@@ -2025,10 +2026,10 @@ pub async fn upsert_host_capture(
                 port, url, final_url, path, method, status_code, content_type, title, webserver,
                 content_length, words, lines, cdn, cdn_type, cname, response_time, jarm_hash,
                 favicon_mmh3, http2, pipeline, vhost, a_records, aaaa_records, hashes, asn, tls,
-                tech, ports, raw)
+                tech, ports, raw, tags)
          VALUES ($1, $2, TRUE, now(), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
                 $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29,
-                $30, $31, $32, $33)
+                $30, $31, $32, $33, $34)
          ON CONFLICT (scan_id, address) DO UPDATE SET
              up = TRUE, captured_at = now(), host_ip = $3, scheme = $4, port = $5, url = $6,
              final_url = $7, path = $8, method = $9, status_code = $10, content_type = $11,
@@ -2036,7 +2037,7 @@ pub async fn upsert_host_capture(
              cdn = $17, cdn_type = $18, cname = $19, response_time = $20, jarm_hash = $21,
              favicon_mmh3 = $22, http2 = $23, pipeline = $24, vhost = $25, a_records = $26,
              aaaa_records = $27, hashes = $28, asn = $29, tls = $30, tech = $31, ports = $32,
-             raw = $33",
+             raw = $33, tags = $34",
     )
     .bind(scan_id)
     .bind(address)
@@ -2073,6 +2074,7 @@ pub async fn upsert_host_capture(
     .bind(&capture.tech)
     .bind(&capture.ports)
     .bind(&capture.raw)
+    .bind(serde_json::to_value(&capture.tags).unwrap_or(Value::Array(vec![])))
     .execute(pool)
     .await;
     if let Err(error) = history {
@@ -2112,7 +2114,7 @@ pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
                 c.url, c.final_url, c.path, c.method, c.status_code, c.content_type, c.title,
                 c.webserver, c.content_length, c.words, c.lines, c.cdn, c.cdn_type, c.cname,
                 c.response_time, c.jarm_hash, c.favicon_mmh3, c.http2, c.pipeline, c.vhost,
-                c.a_records, c.aaaa_records, c.hashes, c.asn, c.tls, c.tech, c.ports,
+                c.a_records, c.aaaa_records, c.hashes, c.asn, c.tls, c.tech, c.ports, c.tags,
                 COALESCE(s.label, '') AS scan_label,
                 s.started_at AS scan_started,
                 h.first_seen, h.last_seen, h.last_checked
@@ -2162,7 +2164,22 @@ pub async fn list_assets(pool: &PgPool) -> Vec<AssetRow> {
 
         AssetRow {
             address: address.clone(),
-            tags: tags.clone(),
+            // Inventory tags resolve from host management; a CSV import also
+            // stores tags on the row itself, so both are merged here.
+            tags: {
+                let mut merged = tags.clone();
+                for tag in row
+                    .try_get::<Value, _>("tags")
+                    .ok()
+                    .and_then(|value| serde_json::from_value::<Vec<String>>(value).ok())
+                    .unwrap_or_default()
+                {
+                    if !merged.contains(&tag) {
+                        merged.push(tag);
+                    }
+                }
+                merged
+            },
             up: row.get::<Option<bool>, _>("up").unwrap_or(false),
             scan_id,
             scan: row
@@ -2507,6 +2524,179 @@ pub async fn update_asset(
     .unwrap_or(false);
 
     history || current
+}
+
+// ---------------------------------------------------------------- CSV import
+
+/// Imports Data Explorer rows read from an exported CSV. Every row lands as a
+/// capture in one new scan, so an import behaves like any other scan in the
+/// history and never overwrites existing evidence.
+pub async fn import_captures(
+    pool: &PgPool,
+    rows: &[std::collections::HashMap<String, String>],
+    label: &str,
+) -> ImportCapturesResult {
+    let mut result = ImportCapturesResult::default();
+
+    // A row without a Host cell cannot be attributed, so it is counted and left
+    // out rather than silently inventing an address.
+    let usable: Vec<&std::collections::HashMap<String, String>> = rows
+        .iter()
+        .filter(|row| cell(row, "Host").is_some())
+        .collect();
+    result.skipped = rows.len() - usable.len();
+    if usable.is_empty() {
+        return result;
+    }
+
+    let targets: Vec<String> = usable
+        .iter()
+        .filter_map(|row| cell(row, "Host"))
+        .take(4)
+        .collect();
+    let summary = if usable.len() > targets.len() {
+        format!("{}, +{} more", targets.join(", "), usable.len() - targets.len())
+    } else {
+        targets.join(", ")
+    };
+
+    let Some(scan_id) = create_scan(
+        pool,
+        None,
+        label,
+        "import",
+        "csv",
+        "import",
+        &summary,
+    )
+    .await
+    else {
+        return result;
+    };
+    result.scan_id = Some(scan_id);
+
+    for row in usable {
+        let Some(address) = cell(row, "Host") else {
+            continue;
+        };
+        let capture = capture_from_row(row);
+        upsert_host_capture(pool, scan_id, &address, &capture).await;
+        result.imported += 1;
+    }
+
+    finish_scan(pool, scan_id, "Completed", None).await;
+    result
+}
+
+/// One CSV cell, trimmed. The export writes blank cells for empty values, so an
+/// empty string is normalised to `None` here.
+fn cell(row: &std::collections::HashMap<String, String>, key: &str) -> Option<String> {
+    row.get(key)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn cell_i64(row: &std::collections::HashMap<String, String>, key: &str) -> i64 {
+    cell(row, key)
+        .and_then(|value| value.replace(',', "").parse::<i64>().ok())
+        .unwrap_or(0)
+}
+
+fn cell_bool(row: &std::collections::HashMap<String, String>, key: &str) -> bool {
+    matches!(
+        cell(row, key).map(|value| value.to_lowercase()).as_deref(),
+        Some("yes") | Some("true") | Some("up") | Some("1")
+    )
+}
+
+/// Multi-value cells use the export's `; ` separator.
+fn cell_list(row: &std::collections::HashMap<String, String>, key: &str) -> Vec<String> {
+    cell(row, key)
+        .map(|value| {
+            value
+                .split(';')
+                .map(str::trim)
+                .filter(|part| !part.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn capture_from_row(row: &std::collections::HashMap<String, String>) -> HostCapture {
+    let address = cell(row, "Host").unwrap_or_default();
+    let technologies: Vec<Value> = cell_list(row, "Technologies")
+        .into_iter()
+        .map(|tech| match tech.split_once(' ') {
+            Some((name, version)) => json!({ "name": name, "version": version }),
+            None => json!({ "name": tech, "version": "" }),
+        })
+        .collect();
+    let ports: Vec<Value> = cell_list(row, "Open ports")
+        .into_iter()
+        .filter_map(|entry| {
+            let (port, service) = entry.split_once('/').unwrap_or((entry.as_str(), ""));
+            Some(json!({ "port": port.trim().parse::<i64>().ok()?, "service": service.trim() }))
+        })
+        .collect();
+    let a_records = cell_list(row, "Resolves to");
+    let tls = {
+        let summary = cell(row, "TLS");
+        let expires = cell(row, "Cert expires");
+        let serial = cell(row, "Cert serial");
+        let fingerprint = cell(row, "Cert fingerprint");
+        (summary.is_some() || expires.is_some() || serial.is_some() || fingerprint.is_some())
+            .then(|| {
+                json!({
+                    "tls_version": summary,
+                    "not_after": expires,
+                    "serial": serial,
+                    "fingerprint_hash": fingerprint.map(|value| json!({ "sha256": value })),
+                })
+            })
+    };
+    let hashes = {
+        let body = cell(row, "Body hash");
+        let header = cell(row, "Header hash");
+        (body.is_some() || header.is_some()).then(|| {
+            json!({ "body_sha256": body, "header_sha256": header })
+        })
+    };
+
+    HostCapture {
+        host_ip: cell(row, "Host IP").unwrap_or_else(|| address.clone()),
+        scheme: cell(row, "Scheme").unwrap_or_default(),
+        port: cell_i64(row, "Port") as i32,
+        url: cell(row, "URL").unwrap_or_default(),
+        final_url: cell(row, "Final URL").unwrap_or_default(),
+        path: cell(row, "Path").unwrap_or_default(),
+        method: cell(row, "Method").unwrap_or_default(),
+        status_code: cell_i64(row, "HTTP") as i32,
+        content_type: cell(row, "Content type").unwrap_or_default(),
+        title: cell(row, "Title").unwrap_or_default(),
+        webserver: cell(row, "Server").unwrap_or_default(),
+        content_length: cell_i64(row, "Size"),
+        words: cell_i64(row, "Words"),
+        lines: cell_i64(row, "Lines"),
+        cdn: cell(row, "CDN").unwrap_or_default(),
+        cdn_type: cell(row, "CDN type").unwrap_or_default(),
+        cname: cell(row, "CNAME").unwrap_or_default(),
+        response_time: cell(row, "Response").unwrap_or_default(),
+        jarm: cell(row, "JARM").unwrap_or_default(),
+        favicon: cell(row, "Favicon hash").and_then(|value| value.parse::<i64>().ok()),
+        http2: cell_bool(row, "HTTP/2"),
+        pipeline: cell_bool(row, "Pipeline"),
+        vhost: cell_bool(row, "VHOST"),
+        a_records,
+        aaaa_records: Vec::new(),
+        asn: cell(row, "ASN").map(|value| json!({ "as_name": value })),
+        hashes,
+        tls,
+        tech: Value::Array(technologies),
+        ports: Value::Array(ports),
+        raw: None,
+        tags: crate::state::normalize_tags(cell_list(row, "Tags")),
+    }
 }
 
 // ---------------------------------------------------------------- alerts

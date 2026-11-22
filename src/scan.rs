@@ -388,6 +388,8 @@ impl HttpxLine {
             tech: self.tech_value(),
             ports: self.ports_value(),
             raw: serde_json::from_str::<Value>(line).ok(),
+            // Tags come from the inventory at read time, not from the scanner.
+            tags: Vec::new(),
         }
     }
 }

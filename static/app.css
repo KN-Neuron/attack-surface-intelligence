@@ -3354,6 +3354,18 @@ body.modal-open { overflow: hidden; }
 .filter-export .link-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .filter-export .link-btn:disabled:hover { color: var(--text-dim); }
 
+/* Edit-mode CSV import, stacked above the export link and centred the same way. */
+.filter-import {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft);
+  margin-top: 8px;
+}
+.filter-import .link-btn { color: var(--text-dim); }
+.filter-import .link-btn:hover { color: var(--accent); text-decoration: none; }
+.filter-import .link-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .explorer .log-tbl th { background: var(--canvas); }
 .explorer .log-tbl td.w-actions { width: auto; white-space: nowrap; }
 .explorer .log-tbl td.mono { font-variant-numeric: tabular-nums; }
